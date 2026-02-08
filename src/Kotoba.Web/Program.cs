@@ -3,6 +3,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Kotoba.Infrastructure.Data;
 using Kotoba.Web.Components;
+using Kotoba.Application.Interfaces;
+using Kotoba.Infrastructure.Implementations.Services;
+using Kotoba.Web.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,6 +31,9 @@ builder.Services.AddIdentity<User, IdentityRole>(options =>
 .AddEntityFrameworkStores<ApplicationDbContext>()
 .AddDefaultTokenProviders();
 
+// Services
+builder.Services.AddScoped<IConversationService, ConversationService>();
+
 // SignalR
 builder.Services.AddSignalR();
 
@@ -52,6 +58,8 @@ builder.Services.ConfigureApplicationCookie(options =>
 });
 
 var app = builder.Build();
+
+app.MapHub<ChatHub>("/chathub");
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())

@@ -1,0 +1,233 @@
+@page "/chat"
+@rendermode InteractiveServer
+
+@using Application.DTOs
+@using Application.Interfaces
+@using Domain.Enums
+@using Microsoft.AspNetCore.SignalR.Client
+@inject IConversationService ConversationService
+@inject NavigationManager NavigationManager
+@implements IAsyncDisposable
+
+<PageTitle>Chat</PageTitle>
+
+<h1>Chat</h1>
+
+<div style="display:flex; height:80vh; border:1px solid #ccc;">
+
+    <!-- Left: Conversation list -->
+    <div style="width:250px; border-right:1px solid #ccc; padding:0.5rem;">
+        <h4>Conversations</h4>
+
+        @if (conversations is null)
+        {
+            <p>Loading...</p>
+        }
+        else
+        {
+            @foreach (var conversation in conversations)
+            {
+                <div style="
+                                padding:0.5rem;
+                                cursor:pointer;
+                                background:@(conversation.ConversationId == selectedConversationId ? "#eee" : "transparent");
+                            "
+                     @onclick="() => SelectConversation(conversation.ConversationId)">
+
+                    @(conversation.Type == ConversationType.Group
+                                ? conversation.GroupName
+                                : "Direct Chat")
+                </div>
+            }
+        }
+    </div>
+
+    <!-- Right: Messages -->
+    <div style="flex:1; padding:0.5rem;">
+        @if (selectedConversationId is null)
+        {
+            <p>Select a conversation</p>
+        }
+        else
+        {
+            <ul>
+                @foreach (var message in SelectedMessages)
+                {
+                    <li>
+                        <b>@message.SenderId:</b> @message.Content
+                    </li>
+                }
+            </ul>
+
+            <input @bind="newMessage" placeholder="Type a message" />
+            <button @onclick="SendMessage">Send</button>
+            <button @onclick="LeaveConservation">Leave</button>
+        }
+
+    </div>
+
+</div>
+
+@code {
+    private HubConnection? _hubConnection;
+    private List<ConversationDto>? conversations;
+    private bool _signalREventsRegistered;
+    private Dictionary<Guid, List<MessageDto>> messagesByConversation = new();
+
+    private Guid? selectedConversationId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await InitializeSignalR();
+        var userId = "user-1";
+
+        var result = await ConversationService.GetUserConversationsAsync(userId);
+
+        conversations = result.Conversations;
+
+        messagesByConversation = result.Messages
+            .GroupBy(m => m.ConversationId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+    }
+
+    private async Task InitializeSignalR()
+    {
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl(NavigationManager.ToAbsoluteUri("/chathub"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        RegisterSignalREvents();
+
+        try
+        {
+            await _hubConnection.StartAsync();
+            Console.WriteLine("SignalR connected");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"SignalR connection failed: {ex.Message}");
+        }
+    }
+
+    private void RegisterSignalREvents()
+    {
+        if (_hubConnection is null)
+            return;
+
+        _hubConnection.On<object>("MessageSent", payload =>
+        {
+            Console.WriteLine($"MessageSent event received: {payload}");
+        });
+
+        _hubConnection.On<object>("UserJoined", payload =>
+        {
+            Console.WriteLine($"UserJoined event received: {payload}");
+        });
+
+        _hubConnection.On<object>("UserLeft", payload =>
+        {
+            Console.WriteLine($"UserLeft event received: {payload}");
+        });
+        _signalREventsRegistered = true;
+    }
+
+
+    private async Task SelectConversation(Guid conversationId)
+    {
+        selectedConversationId = conversationId;
+
+        if (_hubConnection is null)
+            return;
+
+        try
+        {
+            await _hubConnection.InvokeAsync(
+                "JoinConversation",
+                conversationId.ToString()
+            );
+
+            Console.WriteLine($"Joined conversation group: {conversationId}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to join conversation {conversationId}: {ex.Message}");
+        }
+    }
+
+    private List<MessageDto> SelectedMessages =>
+        selectedConversationId.HasValue
+            ? messagesByConversation[selectedConversationId.Value]
+            : new();
+
+    private string newMessage = string.Empty;
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(newMessage) || selectedConversationId is null)
+            return;
+
+        await ConversationService.AddMessage(
+            selectedConversationId.Value.ToString(),
+            newMessage);
+
+        if (_hubConnection is null)
+            return;
+
+        try
+        {
+            await _hubConnection.InvokeAsync(
+                "SendTestMessage",
+                newMessage
+            );
+
+            Console.WriteLine($"Send message {newMessage} to conversation {selectedConversationId}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to send message {newMessage} to conversation {selectedConversationId}");
+        }
+
+        newMessage = string.Empty;
+
+        var result = await ConversationService.GetUserConversationsAsync("user-1");
+
+        messagesByConversation = result.Messages
+            .GroupBy(m => m.ConversationId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+    }
+
+    private async Task LeaveConservation()
+    {
+        if (selectedConversationId is null)
+            return;
+
+        if (_hubConnection is null)
+            return;
+
+        try
+        {
+            await _hubConnection.InvokeAsync(
+                "SendTestLeave"
+            );
+
+            Console.WriteLine($"Leave conversation {selectedConversationId}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to leave conversation {selectedConversationId}");
+            return;
+        }
+
+        selectedConversationId = null;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection is not null)
+        {
+            await _hubConnection.DisposeAsync();
+        }
+    }
+
+}
