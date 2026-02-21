@@ -5,6 +5,8 @@ using Kotoba.Infrastructure.Data;
 using Kotoba.Application.Interfaces;
 using Kotoba.Infrastructure.Implementations.Services;
 using Kotoba.Server.Hubs;
+using Kotoba.Application.Interfaces.Repositories;
+using Kotoba.Infrastructure.Implementations.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -52,6 +54,9 @@ builder.Services.AddEndpointsApiExplorer();
 
 // Note: Swagger UI is typically used in API projects; including here for completeness
 builder.Services.AddSwaggerGen();
+builder.Services.AddScoped<IMessageRepository, MessageRepository>();
+builder.Services.AddScoped<IMessageService, MessageService>();
+
 
 // Configure cookie authentication
 builder.Services.ConfigureApplicationCookie(options =>
