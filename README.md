@@ -221,23 +221,29 @@ koto.ba/
 ├── src/
 │   ├── Kotoba.Client/                  (Blazor WebAssembly UI)
 │   ├── Kotoba.Server/                  (ASP.NET Core Web API + SignalR hub)
-│   ├── Kotoba.Shared/                  (Shared DTO request/response models)
-│   ├── Kotoba.Core/                    (Service interfaces — no implementation)
-│   │   └── Interfaces/
-│   ├── Kotoba.Domain/                  (Entities, Enums, DTOs)
-│   │   ├── Entities/
-│   │   ├── Enums/
+│   │   ├── Controllers/                (API endpoints)
+│   │   ├── Hubs/                       (SignalR ChatHub)
+│   │   └── Program.cs                  (Service registration)
+│   ├── Kotoba.Shared/                  (Shared DTOs)
 │   │   └── DTOs/
-│   └── Kotoba.Infrastructure/          (EF Core, Identity, service implementations)
-│       ├── Data/                       (DbContext, Migrations)
+│   ├── Kotoba.Core/                    (Service interfaces only)
+│   │   └── Interfaces/ (11 interfaces)
+│   ├── Kotoba.Domain/                  (Entities, Enums, DTOs)
+│   │   ├── Entities/ (8 files)
+│   │   ├── Enums/ (4 files)
+│   │   └── DTOs/ (16 files)
+│   └── Kotoba.Infrastructure/          (EF Core, Identity, implementations)
+│       ├── Data/ (DbContext, Migrations)
+│       ├── Repositories/ (.gitkeep ready)
 │       └── Services/
-│           ├── Identity/               (UserService, PresenceService)
-│           ├── Conversations/          (ConversationService)
-│           ├── Messages/               (MessageService)
-│           ├── Reactions/
-│           ├── Attachments/
-│           ├── Realtime/
-│           └── Social/
+│           ├── Identity/ ✓ (UserService, PresenceService)
+│           ├── Conversations/ ✓ (ConversationService)
+│           ├── Messages/ ✓ (MessageService)
+│           ├── Reactions/ (.gitkeep ready for Vinh)
+│           ├── Attachments/ (.gitkeep ready for Vinh)
+│           ├── Realtime/ (.gitkeep ready for Nga)
+│           └── Social/ (.gitkeep ready for Hoàn)
+├── docs/
 ├── tests/
 └── Kotoba.sln
 ```
@@ -256,13 +262,31 @@ Kotoba.Domain  ←  Kotoba.Core  ←  Kotoba.Infrastructure  ←  Kotoba.Server
 
 ### Where to Work Based on Your Subsystem
 
-| Subsystem | Your Primary Folders |
-|-----------|---------------------|
-| **Identity & User** | `Infrastructure/Services/Identity/`<br>`Core/Interfaces/IUserService.cs`<br>`Domain/Entities/User.cs` |
-| **Chat & Messaging** | `Infrastructure/Services/Conversations/`<br>`Infrastructure/Services/Messages/`<br>`Core/Interfaces/IConversationService.cs`<br>`Domain/Entities/Conversation.cs`, `Message.cs` |
-| **Reactions & Attachments** | `Infrastructure/Services/Reactions/`<br>`Infrastructure/Services/Attachments/`<br>`Core/Interfaces/IReactionService.cs`<br>`Domain/Entities/Reaction.cs` |
-| **AI & Social** | `Infrastructure/Services/Social/`<br>`Core/Interfaces/IAIReplyService.cs`<br>`Core/Interfaces/IStoryService.cs` |
-| **Realtime (SignalR)** | `Server/Hubs/ChatHub.cs`<br>`Infrastructure/Services/Realtime/`<br>`Core/Interfaces/IRealtimeChatService.cs` |
+**Dũng (Identity & User Management)**
+- `Services/Identity/` — Implement IUserService, IPresenceService
+- `Domain/Entities/User.cs` — Already defined
+- `Core/Interfaces/` — Already defined
+- Status: ✓ Complete
+
+**Nga (Conversation Management & Realtime)**
+- `Services/Conversations/` — ConversationService already started
+- `Services/Realtime/` — Add RealtimeChatService implementation
+- `Server/Hubs/ChatHub.cs` — Already exists
+- `Core/Interfaces/` — IConversationService, IRealtimeChatService defined
+- Status: ✓ In Progress
+
+**Vinh (Message Persistence, Reactions & Attachments)**
+- `Services/Messages/` — MessageService already complete
+- `Services/Reactions/` — (.gitkeep ready) Implement IReactionService
+- `Services/Attachments/` — (.gitkeep ready) Implement IAttachmentService
+- `Domain/Entities/` — Message, Reaction, Attachment already defined
+- Status: Messages ✓ Complete, Others Ready
+
+**Hoàn (Blazor UI & AI/Social Features)**
+- `Client/Components/` — Build Blazor UI components
+- `Services/Social/` — (.gitkeep ready) Implement IAIReplyService, IStoryService, ICurrentThoughtService
+- `Server/Hubs/` — Use existing ChatHub for realtime updates
+- Status: UI ✓ In Progress, Services Ready
 
 ---
 

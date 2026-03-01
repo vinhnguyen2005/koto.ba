@@ -636,3 +636,5 @@ Each member:
 - Fully owns assigned subsystems
 - Must not change interfaces without agreement
 - Must update documentation when extending features
+
+**See Also:** [docs/implementing-features.md](implementing-features.md) for folder structure and implementation guidelines.
