@@ -109,9 +109,8 @@
         var hubUrl = new Uri(Http.BaseAddress, "chathub");
 
         _hubConnection = new HubConnectionBuilder()
-            .WithUrl(hubUrl)
-            .WithAutomaticReconnect()
-            .Build();
+                        .WithUrl(hubUrl)
+                        .Build();
 
         RegisterSignalREvents();
 

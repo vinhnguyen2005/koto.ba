@@ -1,4 +1,4 @@
-﻿using Kotoba.Domain.Entities;
+using Kotoba.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Kotoba.Infrastructure.Data;
@@ -12,16 +12,17 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllers();
+builder.Services.AddControllersWithViews();
+builder.Services.AddRazorPages();
 
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("ClientCors", policy =>
-        policy.WithOrigins("http://localhost:5000", "https://localhost:5001")
+        policy.WithOrigins("https://localhost:7281", "http://localhost:5025")
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials());
 });
-
 // Database Context
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(
@@ -78,17 +79,19 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
+app.UseBlazorFrameworkFiles();  // ← THÊM: serve file WASM từ Client
+app.UseStaticFiles();           // ← THÊM: serve wwwroot
+app.UseRouting();
 app.UseCors("ClientCors");
 
 // Authentication & Authorization
 app.UseAuthentication();
 app.UseAuthorization();
-
+app.MapRazorPages();
 app.MapControllers();
 
 app.MapHub<ChatHub>("/chathub");
-
+app.MapFallbackToFile("index.html");
 // Health check endpoint
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 
