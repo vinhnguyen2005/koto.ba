@@ -23,6 +23,15 @@ public class ApplicationDbContext : IdentityDbContext<User>
     {
         base.OnModelCreating(builder);
 
+        // Configure table names to match the migration (singular)
+        builder.Entity<Conversation>().ToTable("Conversation");
+        builder.Entity<Message>().ToTable("Message");
+        builder.Entity<Reaction>().ToTable("Reaction");
+        builder.Entity<ConversationParticipant>().ToTable("ConversationParticipant");
+        builder.Entity<Attachment>().ToTable("Attachment");
+        builder.Entity<Story>().ToTable("Story");
+        builder.Entity<CurrentThought>().ToTable("CurrentThought");
+
         builder.Entity<Reaction>()
             .HasOne(r => r.Message)
             .WithMany(m => m.Reactions)
