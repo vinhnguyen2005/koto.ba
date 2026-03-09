@@ -1,0 +1,106 @@
+@page "/login"
+@using Kotoba.Client.Services
+@using Kotoba.Shared.DTOs
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>Login</PageTitle>
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h3 class="card-title text-center mb-4">Login</h3>
+
+                    <EditForm Model="@loginRequest" OnValidSubmit="HandleLogin">
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <InputText id="email"
+                                       class="form-control"
+                                       @bind-Value="loginRequest.Email"
+                                       placeholder="Enter email" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Password</label>
+                            <InputText id="password"
+                                       type="password"
+                                       class="form-control"
+                                       @bind-Value="loginRequest.Password"
+                                       placeholder="Enter password" />
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(errorMessage))
+                        {
+                            <div class="alert alert-danger" role="alert">
+                                @errorMessage
+                            </div>
+                        }
+
+                        <button type="submit" class="btn btn-primary w-100" disabled="@isLoading">
+                            @if (isLoading)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                <span>Logging in...</span>
+                            }
+                            else
+                            {
+                                <span>Login</span>
+                            }
+                        </button>
+                    </EditForm>
+
+                    <div class="text-center mt-3">
+                        <p>Don't have an account? <a href="/register">Register here</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private LoginRequest loginRequest = new();
+    private string? errorMessage;
+    private bool isLoading = false;
+    private string? returnUrl;
+
+    protected override void OnInitialized()
+    {
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        if (uri.Query.Length > 0)
+        {
+            var query = uri.Query.TrimStart('?');
+            var pairs = query.Split('&');
+            foreach (var pair in pairs)
+            {
+                var parts = pair.Split('=');
+                if (parts.Length == 2 && parts[0] == "returnUrl")
+                {
+                    returnUrl = Uri.UnescapeDataString(parts[1]);
+                }
+            }
+        }
+    }
+
+    private async Task HandleLogin()
+    {
+        errorMessage = null;
+        isLoading = true;
+
+        var (success, error) = await AuthService.LoginAsync(loginRequest);
+
+        isLoading = false;
+
+        if (success)
+        {
+            var redirectUrl = !string.IsNullOrEmpty(returnUrl) ? returnUrl : "/chat";
+            Navigation.NavigateTo(redirectUrl);
+        }
+        else
+        {
+            errorMessage = error ?? "Login failed. Please try again.";
+        }
+    }
+}

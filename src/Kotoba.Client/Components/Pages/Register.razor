@@ -1,0 +1,94 @@
+@page "/register"
+@using Kotoba.Client.Services
+@using Kotoba.Shared.DTOs
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>Register</PageTitle>
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h3 class="card-title text-center mb-4">Register</h3>
+
+                    <EditForm Model="@registerRequest" OnValidSubmit="HandleRegister">
+                        <div class="mb-3">
+                            <label for="displayName" class="form-label">Display Name</label>
+                            <InputText id="displayName"
+                                       class="form-control"
+                                       @bind-Value="registerRequest.DisplayName"
+                                       placeholder="Enter display name" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <InputText id="email"
+                                       class="form-control"
+                                       @bind-Value="registerRequest.Email"
+                                       placeholder="Enter email" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Password</label>
+                            <InputText id="password"
+                                       type="password"
+                                       class="form-control"
+                                       @bind-Value="registerRequest.Password"
+                                       placeholder="Enter password" />
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(errorMessage))
+                        {
+                            <div class="alert alert-danger" role="alert">
+                                @errorMessage
+                            </div>
+                        }
+
+                        <button type="submit" class="btn btn-primary w-100" disabled="@isLoading">
+                            @if (isLoading)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                <span>Creating account...</span>
+                            }
+                            else
+                            {
+                                <span>Register</span>
+                            }
+                        </button>
+                    </EditForm>
+
+                    <div class="text-center mt-3">
+                        <p>Already have an account? <a href="/login">Login here</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private RegisterRequest registerRequest = new();
+    private string? errorMessage;
+    private bool isLoading = false;
+
+    private async Task HandleRegister()
+    {
+        errorMessage = null;
+        isLoading = true;
+
+        var (success, error) = await AuthService.RegisterAsync(registerRequest);
+
+        isLoading = false;
+
+        if (success)
+        {
+            Navigation.NavigateTo("/chat");
+        }
+        else
+        {
+            errorMessage = error ?? "Registration failed. Please try again.";
+        }
+    }
+}

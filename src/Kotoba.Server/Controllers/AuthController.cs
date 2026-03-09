@@ -67,4 +67,11 @@ public class AuthController : Controller
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         return Ok(new { userId });
     }
+
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout()
+    {
+        await _signInManager.SignOutAsync();
+        return Ok();
+    }
 }

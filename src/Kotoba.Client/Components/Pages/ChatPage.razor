@@ -3,6 +3,8 @@
 @using Kotoba.Client.Services
 @using Kotoba.Domain.Enums
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
 @inject ChatService Chat
 @inject AuthenticationStateProvider AuthState
 @implements IDisposable
