@@ -9,8 +9,8 @@ using Kotoba.Infrastructure.Services.Identity;
 using Kotoba.Infrastructure.Services.Social;
 using Kotoba.Infrastructure.Configuration;
 using Kotoba.Server.Hubs;
-using Kotoba.Infrastructure.Services.Attachments;
-using Kotoba.Infrastructure.Services.Reactions;
+using Kotoba.Domain.Interfaces;
+using Kotoba.Infrastructure.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,7 +22,7 @@ builder.Services.AddRazorPages();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("ClientCors", policy =>
-        policy.WithOrigins("https://localhost:7281", "http://localhost:5025")
+        policy.WithOrigins("https://localhost:5001", "http://localhost:5001")
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials());
@@ -45,9 +45,12 @@ builder.Services.AddIdentity<User, IdentityRole>(options =>
 .AddEntityFrameworkStores<ApplicationDbContext>()
 .AddDefaultTokenProviders();
 
+// Repositories
+builder.Services.AddScoped<IConversationRepository, ConversationRepository>();
+builder.Services.AddScoped<IConversationParticipantRepository, ConversationParticipantRepository>();
+builder.Services.AddScoped<IMessageRepository, MessageRepository>();
+
 // Services
-builder.Services.AddScoped<IReactionService, ReactionService>();
-builder.Services.AddScoped<IAttachmentService, AttachmentService>();
 builder.Services.AddScoped<IConversationService, ConversationService>();
 builder.Services.AddScoped<IMessageService, MessageService>();
 builder.Services.AddScoped<IPresenceService, PresenceService>();
@@ -93,16 +96,6 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseBlazorFrameworkFiles();  // ← THÊM: serve file WASM từ Client
 app.UseStaticFiles();           // ← THÊM: serve wwwroot
-var uploadsPath = builder.Configuration["Attachments:UploadPath"]
-    ?? Path.Combine(app.Environment.ContentRootPath, "uploads");
-
-Directory.CreateDirectory(uploadsPath); 
-
-app.UseStaticFiles(new StaticFileOptions
-{
-    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(uploadsPath),
-    RequestPath = "/uploads"
-});
 app.UseRouting();
 app.UseCors("ClientCors");
 
