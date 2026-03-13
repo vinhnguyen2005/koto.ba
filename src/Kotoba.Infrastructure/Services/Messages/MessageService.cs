@@ -4,25 +4,33 @@ using Kotoba.Infrastructure.Data;
 using Kotoba.Domain.Entities;
 using Kotoba.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using Kotoba.Domain.Interfaces;
 
 namespace Kotoba.Infrastructure.Services.Messages;
 
 public class MessageService : IMessageService
 {
-    private readonly ApplicationDbContext _context;
-
-    public MessageService(ApplicationDbContext context)
+    private readonly IConversationRepository _conversationRepository;
+    private readonly IConversationParticipantRepository _conversationParticipantRepository;
+    private readonly IMessageRepository _messageRepository;
+    private readonly IUnitOfWork _unitOfWork;
+    public MessageService(
+        IConversationRepository conversationRepository,
+        IConversationParticipantRepository conversationParticipantRepository,
+        IMessageRepository messageRepository,
+        IUnitOfWork unitOfWork
+        )
     {
-        _context = context;
+        _conversationRepository = conversationRepository;
+        _conversationParticipantRepository = conversationParticipantRepository;
+        _messageRepository = messageRepository;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<MessageDto?> SendMessageAsync(SendMessageRequest request)
     {
         // TODO: Implement send message
-        var isParticipant = await _context.ConversationParticipants
-            .AnyAsync(p => p.ConversationId == request.ConversationId
-                        && p.UserId == request.SenderId
-                        && p.IsActive);
+        var isParticipant = await _conversationParticipantRepository.IsParticipant(request.ConversationId, request.SenderId);
 
         if (!isParticipant) return null;
         var message = new Message
@@ -33,13 +41,15 @@ public class MessageService : IMessageService
             Content = request.Content,
             CreatedAt = DateTime.UtcNow
         };
-        _context.Messages.Add(message);
-        var conversation = await _context.Conversations.FindAsync(request.ConversationId);
+        await _messageRepository.AddAsync(message);
+
+        var conversation = await _conversationRepository.GetAsync(request.ConversationId);
         if (conversation != null)
         {
             conversation.UpdatedAt = DateTime.UtcNow;
         }
-        await _context.SaveChangesAsync();
+
+        await _unitOfWork.SaveChangesAsync();
         return new MessageDto
         {
             MessageId = message.Id,
@@ -55,43 +65,31 @@ public class MessageService : IMessageService
 
     public async Task<List<MessageDto>> GetMessagesAsync(Guid conversationId, PagingRequest paging)
     {
-        paging.PageSize = Math.Clamp(paging.PageSize, 1, 100);
-        paging.Page = Math.Max(paging.Page, 1);
+        var messages = await _messageRepository.GetMessagesPageAsync(conversationId, paging.Page, paging.PageSize);
 
-        var messages = await _context.Messages
-            .Where(m => m.ConversationId == conversationId && !m.IsDeleted)
-            .OrderByDescending(m => m.CreatedAt) 
-            .Skip((paging.Page - 1) * paging.PageSize)
-            .Take(paging.PageSize)
-            .Include(m => m.Reactions)
-            .Include(m => m.Attachments)
-            .ToListAsync();
-        return messages
-            .OrderBy(m => m.CreatedAt)
-            .Select(m => new MessageDto
+        return messages.Select(m => new MessageDto
+        {
+            MessageId = m.Id,
+            ConversationId = m.ConversationId,
+            SenderId = m.SenderId,
+            Content = m.Content,
+            CreatedAt = m.CreatedAt,
+            Status = MessageStatus.Sent,
+            Reactions = m.Reactions.Select(r => new ReactionDto
             {
-                MessageId = m.Id,
-                ConversationId = m.ConversationId,
-                SenderId = m.SenderId,
-                Content = m.Content,
-                CreatedAt = m.CreatedAt,
-                Status = MessageStatus.Sent,
-                Reactions = m.Reactions.Select(r => new ReactionDto
-                {
-                    MessageId = r.MessageId,
-                    UserId = r.UserId,
-                    Type = r.Type,
-                    CreatedAt = r.CreatedAt
-                }).ToList(),
-                Attachments = m.Attachments.Select(a => new AttachmentDto
-                {
-                    AttachmentId = a.Id,
-                    MessageId = a.MessageId,
-                    FileName = a.FileName,
-                    FileType = a.FileType,
-                    FileUrl = a.FileUrl
-                }).ToList()
-            })
-            .ToList();
+                MessageId = r.MessageId,
+                UserId = r.UserId,
+                Type = r.Type,
+                CreatedAt = r.CreatedAt
+            }).ToList(),
+            Attachments = m.Attachments.Select(a => new AttachmentDto
+            {
+                AttachmentId = a.Id,
+                MessageId = a.MessageId,
+                FileName = a.FileName,
+                FileType = a.FileType,
+                FileUrl = a.FileUrl
+            }).ToList()
+        }).ToList();
     }
 }
