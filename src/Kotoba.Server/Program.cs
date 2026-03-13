@@ -5,6 +5,7 @@ using Kotoba.Infrastructure.Data;
 using Kotoba.Core.Interfaces;
 using Kotoba.Infrastructure.Services.Conversations;
 using Kotoba.Infrastructure.Services.Messages;
+using Kotoba.Infrastructure.Services.Reactions;
 using Kotoba.Infrastructure.Services.Identity;
 using Kotoba.Infrastructure.Services.Social;
 using Kotoba.Infrastructure.Configuration;
@@ -49,10 +50,12 @@ builder.Services.AddIdentity<User, IdentityRole>(options =>
 builder.Services.AddScoped<IConversationRepository, ConversationRepository>();
 builder.Services.AddScoped<IConversationParticipantRepository, ConversationParticipantRepository>();
 builder.Services.AddScoped<IMessageRepository, MessageRepository>();
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
 // Services
 builder.Services.AddScoped<IConversationService, ConversationService>();
 builder.Services.AddScoped<IMessageService, MessageService>();
+builder.Services.AddScoped<IReactionService, ReactionService>();
 builder.Services.AddScoped<IPresenceService, PresenceService>();
 builder.Services.AddScoped<IPresenceBroadcastService, PresenceBroadcastService>();
 builder.Services.AddScoped<IUserService, UserService>();
