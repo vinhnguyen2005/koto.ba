@@ -1,0 +1,64 @@
+@page "/register"
+
+<PageTitle>Register</PageTitle>
+
+<h1>Register</h1>
+
+@if (ErrorMessages.Count > 0)
+{
+    <div class="alert alert-danger" role="alert">
+        <p class="mb-2">Registration failed:</p>
+        <ul class="mb-0">
+            @foreach (var message in ErrorMessages)
+            {
+                <li>@message</li>
+            }
+        </ul>
+    </div>
+}
+
+<form method="post" action="/auth/register">
+    <AntiforgeryToken />
+
+    <div class="mb-3">
+        <label class="form-label" for="displayName">Display Name</label>
+        <input class="form-control" id="displayName" name="DisplayName" required />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" for="email">Email</label>
+        <input class="form-control" id="email" name="Email" type="email" required />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" for="password">Password</label>
+        <input class="form-control" id="password" name="Password" type="password" required />
+    </div>
+
+    <button type="submit" class="btn btn-primary">Register</button>
+</form>
+
+<p class="mt-3">
+    Already have an account? <a href="/login">Login</a>
+</p>
+
+@code {
+    [SupplyParameterFromQuery(Name = "errors")]
+    public string? ErrorsQuery { get; set; }
+
+    private List<string> ErrorMessages => ParseErrors(ErrorsQuery);
+
+    private static List<string> ParseErrors(string? errorsQuery)
+    {
+        if (string.IsNullOrWhiteSpace(errorsQuery))
+        {
+            return new List<string>();
+        }
+
+        var decodedErrors = Uri.UnescapeDataString(errorsQuery);
+        return decodedErrors
+            .Split("||", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+    }
+}

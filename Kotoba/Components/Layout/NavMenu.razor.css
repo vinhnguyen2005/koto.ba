@@ -81,6 +81,19 @@
     color: white;
 }
 
+.logout-item form {
+    margin: 0;
+}
+
+.logout-button {
+    width: 100%;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+    padding: 0 0.75rem;
+}
+
 .nav-scrollable {
     display: none;
 }

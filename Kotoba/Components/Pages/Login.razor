@@ -1,0 +1,39 @@
+@page "/login"
+
+<PageTitle>Login</PageTitle>
+
+<h1>Login</h1>
+
+@if (ShowError)
+{
+    <div class="alert alert-danger" role="alert">
+        Invalid email or password.
+    </div>
+}
+
+<form method="post" action="/auth/login">
+    <AntiforgeryToken />
+
+    <div class="mb-3">
+        <label class="form-label" for="email">Email</label>
+        <input class="form-control" id="email" name="Email" type="email" required />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" for="password">Password</label>
+        <input class="form-control" id="password" name="Password" type="password" required />
+    </div>
+
+    <button type="submit" class="btn btn-primary">Login</button>
+</form>
+
+<p class="mt-3">
+    Don't have an account? <a href="/register">Register</a>
+</p>
+
+@code {
+    [SupplyParameterFromQuery(Name = "error")]
+    public string? ErrorCode { get; set; }
+
+    private bool ShowError => string.Equals(ErrorCode, "1", StringComparison.Ordinal);
+}

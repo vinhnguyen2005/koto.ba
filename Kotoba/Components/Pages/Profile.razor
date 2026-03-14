@@ -1,0 +1,101 @@
+@page "/profile"
+@attribute [Authorize]
+
+@inject IUserService UserService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Profile</PageTitle>
+
+<h1>Profile</h1>
+
+@if (isLoading)
+{
+    <p>Loading...</p>
+}
+else if (!string.IsNullOrWhiteSpace(loadErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">@loadErrorMessage</div>
+}
+else
+{
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="alert alert-success" role="alert">@successMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(saveErrorMessage))
+    {
+        <div class="alert alert-danger" role="alert">@saveErrorMessage</div>
+    }
+
+    <EditForm Model="updateRequest" OnValidSubmit="SaveProfileAsync">
+        <DataAnnotationsValidator />
+
+        <div class="mb-3">
+            <label class="form-label" for="displayName">Display Name</label>
+            <InputText id="displayName" class="form-control" @bind-Value="updateRequest.DisplayName" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label" for="avatarUrl">Avatar URL</label>
+            <InputText id="avatarUrl" class="form-control" @bind-Value="updateRequest.AvatarUrl" />
+        </div>
+
+        <button class="btn btn-primary" type="submit">Save</button>
+    </EditForm>
+}
+
+@code {
+    private readonly UpdateProfileRequest updateRequest = new();
+    private string? userId;
+    private bool isLoading = true;
+    private string? loadErrorMessage;
+    private string? saveErrorMessage;
+    private string? successMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        userId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            loadErrorMessage = "Unable to resolve current user.";
+            isLoading = false;
+            return;
+        }
+
+        var profile = await UserService.GetUserProfileAsync(userId);
+        if (profile is null)
+        {
+            loadErrorMessage = "User profile not found.";
+            isLoading = false;
+            return;
+        }
+
+        updateRequest.DisplayName = profile.DisplayName;
+        updateRequest.AvatarUrl = profile.AvatarUrl;
+        isLoading = false;
+    }
+
+    private async Task SaveProfileAsync()
+    {
+        saveErrorMessage = null;
+        successMessage = null;
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            saveErrorMessage = "Unable to resolve current user.";
+            return;
+        }
+
+        var isUpdated = await UserService.UpdateUserProfileAsync(userId, updateRequest);
+        if (!isUpdated)
+        {
+            saveErrorMessage = "Unable to update profile.";
+            return;
+        }
+
+        successMessage = "Profile updated successfully.";
+    }
+}

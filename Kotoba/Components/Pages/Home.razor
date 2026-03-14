@@ -2,6 +2,15 @@
 
 <PageTitle>Home</PageTitle>
 
-<h1>Hello, world!</h1>
+<h1>Kotoba</h1>
 
-Welcome to your new app.
+<AuthorizeView>
+	<Authorized Context="authContext">
+		<p>You are logged in as <strong>@authContext.User.Identity?.Name</strong>.</p>
+		<p><a href="/profile">Go to profile</a></p>
+	</Authorized>
+	<NotAuthorized>
+		<p>You are not logged in.</p>
+		<p><a href="/login">Login</a> or <a href="/register">Register</a></p>
+	</NotAuthorized>
+</AuthorizeView>

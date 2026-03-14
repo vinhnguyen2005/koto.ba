@@ -7,7 +7,7 @@ namespace Kotoba.Modules.Domain.Interfaces;
 /// </summary>
 public interface IUserService
 {
-    Task<bool> RegisterAsync(RegisterRequest request);
+    Task<RegistrationResult> RegisterAsync(RegisterRequest request);
     Task<bool> LoginAsync(LoginRequest request);
     Task<UserProfile?> GetUserProfileAsync(string userId);
     Task<bool> UpdateUserProfileAsync(string userId, UpdateProfileRequest request);

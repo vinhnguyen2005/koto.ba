@@ -1,16 +1,16 @@
 using Kotoba.Modules.Domain.Entities;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace Kotoba.Modules.Infrastructure.Data
 {
-    public class KotobaDbContext : DbContext
+    public class KotobaDbContext : IdentityDbContext<User>
     {
         public KotobaDbContext(DbContextOptions<KotobaDbContext> options)
             : base(options)
         {
         }
 
-        public DbSet<User> Users => Set<User>();
         public DbSet<Conversation> Conversations => Set<Conversation>();
         public DbSet<ConversationParticipant> ConversationParticipants => Set<ConversationParticipant>();
         public DbSet<Message> Messages => Set<Message>();
