@@ -14,5 +14,10 @@ namespace Kotoba.Modules.Infrastructure.Services.Messages
         {
             throw new NotImplementedException();
         }
+
+        public Task<bool> UpdateMessageStatusAsync(UpdateMessageStatusRequest request)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using Kotoba.Modules.Domain.Entities;
+using Kotoba.Modules.Domain.Enums;
 using Kotoba.Modules.Domain.Interfaces;
 using Kotoba.Modules.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -16,12 +17,15 @@ namespace Kotoba.Modules.Infrastructure.Repositories
 
         public async Task<IEnumerable<Message>> GetAllAsync()
         {
-            return await _context.Messages.ToListAsync();
+            return await _context.Messages
+                .Include(m => m.Receipts)
+                .ToListAsync();
         }
 
         public async Task<Message?> GetAsync(Guid messageId)
         {
             return await _context.Messages
+                .Include(m => m.Receipts)
                 .FirstOrDefaultAsync(m => m.Id == messageId);
         }
 
@@ -29,6 +33,7 @@ namespace Kotoba.Modules.Infrastructure.Repositories
         {
             return await _context.Messages
                 .Where(m => m.ConversationId == conversationId)
+                .Include(m => m.Receipts)
                 .OrderBy(m => m.CreatedAt)
                 .ToListAsync();
         }
@@ -50,12 +55,55 @@ namespace Kotoba.Modules.Infrastructure.Repositories
                 .Take(pageSize)
                 .Include(m => m.Reactions)
                 .Include(m => m.Attachments)
+                .Include(m => m.Receipts)
                 .AsNoTracking()
                 .ToListAsync();
 
             return messages
                 .OrderBy(m => m.CreatedAt)
                 .ToList();
+        }
+
+        public async Task AddReceiptsAsync(IEnumerable<MessageReceipt> receipts)
+        {
+            await _context.MessageReceipts.AddRangeAsync(receipts);
+        }
+
+        public async Task<List<MessageReceipt>> GetReceiptsByMessageIdAsync(Guid messageId)
+        {
+            return await _context.MessageReceipts
+                .Where(r => r.MessageId == messageId)
+                .AsNoTracking()
+                .ToListAsync();
+        }
+
+        public async Task<MessageReceipt?> GetReceiptAsync(Guid messageId, string userId)
+        {
+            return await _context.MessageReceipts
+                .FirstOrDefaultAsync(r => r.MessageId == messageId && r.UserId == userId);
+        }
+
+        public async Task UpdateReceiptStatusAsync(Guid messageId, string userId, MessageStatus status, DateTime updatedAtUtc)
+        {
+            var receipt = await GetReceiptAsync(messageId, userId);
+            if (receipt is null)
+            {
+                return;
+            }
+
+            receipt.Status = status;
+            receipt.UpdatedAt = updatedAtUtc;
+
+            if (status == MessageStatus.Received && receipt.ReceivedAt is null)
+            {
+                receipt.ReceivedAt = updatedAtUtc;
+            }
+
+            if (status == MessageStatus.Read)
+            {
+                receipt.ReceivedAt ??= updatedAtUtc;
+                receipt.ReadAt ??= updatedAtUtc;
+            }
         }
     }
 }

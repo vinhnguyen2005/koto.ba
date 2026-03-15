@@ -14,5 +14,6 @@
         public virtual User Sender { get; set; } = null!;
         public virtual ICollection<Reaction> Reactions { get; set; } = new List<Reaction>();
         public virtual ICollection<Attachment> Attachments { get; set; } = new List<Attachment>();
+        public virtual ICollection<MessageReceipt> Receipts { get; set; } = new List<MessageReceipt>();
     }
 }

@@ -13,6 +13,7 @@ namespace Kotoba.Modules.Domain.Entities
         // Navigation properties
         public virtual ICollection<ConversationParticipant> ConversationParticipants { get; set; } = new List<ConversationParticipant>();
         public virtual ICollection<Message> Messages { get; set; } = new List<Message>();
+        public virtual ICollection<MessageReceipt> MessageReceipts { get; set; } = new List<MessageReceipt>();
         public virtual ICollection<Reaction> Reactions { get; set; } = new List<Reaction>();
         public virtual ICollection<Story> Stories { get; set; } = new List<Story>();
         public virtual CurrentThought? CurrentThought { get; set; }

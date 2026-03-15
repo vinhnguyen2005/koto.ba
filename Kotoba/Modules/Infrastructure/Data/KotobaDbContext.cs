@@ -14,6 +14,7 @@ namespace Kotoba.Modules.Infrastructure.Data
         public DbSet<Conversation> Conversations => Set<Conversation>();
         public DbSet<ConversationParticipant> ConversationParticipants => Set<ConversationParticipant>();
         public DbSet<Message> Messages => Set<Message>();
+        public DbSet<MessageReceipt> MessageReceipts => Set<MessageReceipt>();
         public DbSet<Reaction> Reactions => Set<Reaction>();
         public DbSet<Attachment> Attachments => Set<Attachment>();
         public DbSet<Story> Stories => Set<Story>();
@@ -71,6 +72,25 @@ namespace Kotoba.Modules.Infrastructure.Data
                     .WithMany(u => u.Messages)
                     .HasForeignKey(m => m.SenderId)
                     .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<MessageReceipt>(entity =>
+            {
+                entity.ToTable("MessageReceipts");
+                entity.HasKey(mr => mr.Id);
+                entity.Property(mr => mr.Status).HasConversion<string>().HasMaxLength(40);
+
+                entity.HasOne(mr => mr.Message)
+                    .WithMany(m => m.Receipts)
+                    .HasForeignKey(mr => mr.MessageId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(mr => mr.User)
+                    .WithMany(u => u.MessageReceipts)
+                    .HasForeignKey(mr => mr.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(mr => new { mr.MessageId, mr.UserId }).IsUnique();
             });
 
             modelBuilder.Entity<Reaction>(entity =>
