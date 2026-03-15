@@ -21,7 +21,7 @@ namespace Kotoba
             builder.Services.AddRazorComponents()
                 .AddInteractiveServerComponents();
 
-            builder.Services.AddDbContext<KotobaDbContext>(options =>
+            builder.Services.AddDbContextFactory<KotobaDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
             builder.Services.AddHttpContextAccessor();
