@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>koto.ba — Settings</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{--lime:#7AB800;--lime-bright:#8FD400;--lime-light:#C8E63A;--lime-pale:#EEF7C2;--lime-dim:rgba(122,184,0,0.10);--green-dark:#2D5016;--charcoal:#1A1F0E;--bg:#F0F4E4;--surface:#FFFFFF;--surface2:#F7FAF0;--surface3:#EDF2E0;--text:#1A1F0E;--text2:#4A5428;--muted:#8A9468;--border:rgba(122,184,0,0.18);}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);height:100vh;display:flex;overflow:hidden;color:var(--text);}
+.sidebar-nav{width:64px;min-width:64px;flex-shrink:0;background:var(--green-dark);display:flex;flex-direction:column;align-items:center;padding:18px 0;gap:6px;height:100vh;overflow:hidden;}
+.nav-logo{width:40px;height:40px;background:var(--lime-light);border-radius:12px;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:#1A1F0E;margin-bottom:14px;cursor:pointer;box-shadow:0 4px 12px rgba(200,230,58,0.4);}
+.nav-divider{width:28px;height:1px;background:rgba(255,255,255,0.12);margin:6px 0;}
+.nav-btn{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.2s;position:relative;color:rgba(255,255,255,0.45);text-decoration:none;}
+.nav-btn:hover{background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.9);}
+.nav-btn.active{background:rgba(200,230,58,0.2);color:var(--lime-light);}
+.nav-btn.active::before{content:'';position:absolute;left:-1px;width:3px;height:24px;background:var(--lime-light);border-radius:0 3px 3px 0;}
+.nav-badge{position:absolute;top:6px;right:6px;min-width:16px;height:16px;background:var(--lime-light);border-radius:8px;font-size:9px;font-weight:700;color:#1A1F0E;display:flex;align-items:center;justify-content:center;padding:0 3px;}
+.nav-bottom{margin-top:auto;}
+.avatar-nav{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--lime-light),var(--lime));display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;border:2px solid transparent;transition:border-color 0.2s;}
+.avatar-nav:hover{border-color:var(--lime-light);}
+
+.settings-layout{flex:1;min-width:0;display:flex;overflow:hidden;height:100vh;}
+.settings-nav{width:250px;min-width:220px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);padding:24px 14px;overflow-y:auto;box-shadow:2px 0 8px rgba(45,80,22,0.04);}
+.settings-title{font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:var(--text);padding:0 8px;margin-bottom:22px;}
+.settings-section{margin-bottom:18px;}
+.settings-section-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);padding:0 8px;margin-bottom:7px;}
+.settings-link{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;cursor:pointer;transition:all 0.2s;color:var(--text2);font-size:14px;}
+.settings-link:hover{background:var(--surface2);color:var(--text);}
+.settings-link.active{background:var(--lime-pale);color:var(--lime);font-weight:500;}
+.settings-link.danger{color:#EF4444;}
+.settings-link.danger:hover{background:rgba(239,68,68,0.06);}
+
+.settings-content{flex:1;min-width:0;padding:28px 32px;overflow-y:auto;}
+.settings-content::-webkit-scrollbar{width:4px;}
+.settings-content::-webkit-scrollbar-thumb{background:rgba(122,184,0,0.2);border-radius:2px;}
+.settings-nav::-webkit-scrollbar{width:3px;}
+.settings-nav::-webkit-scrollbar-thumb{background:rgba(122,184,0,0.15);border-radius:2px;}
+.settings-page-title{font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--text);margin-bottom:4px;}
+.settings-page-subtitle{font-size:14px;color:var(--muted);margin-bottom:28px;}
+
+.setting-group{margin-bottom:24px;}
+.setting-group-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:10px;}
+.setting-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:0 1px 4px rgba(45,80,22,0.05);}
+.setting-row{display:flex;align-items:center;gap:14px;padding:15px 18px;border-bottom:1px solid var(--border);transition:background 0.2s;}
+.setting-row:last-child{border-bottom:none;}
+.setting-row:hover{background:var(--surface2);}
+.setting-icon{width:34px;height:34px;border-radius:9px;background:var(--lime-pale);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--lime);}
+.setting-info{flex:1;}
+.setting-label{font-size:14px;font-weight:500;color:var(--text);margin-bottom:2px;}
+.setting-desc{font-size:12px;color:var(--muted);}
+.setting-control{flex-shrink:0;}
+
+/* ── Toggle switch ── */
+.toggle{
+  position:relative;
+  display:inline-block;   /* shrink-wrap to content, not stretch */
+  width:44px;
+  height:24px;
+  flex-shrink:0;
+  cursor:pointer;
+}
+.toggle input{
+  position:absolute;
+  opacity:0;width:0;height:0;
+  top:0;left:0;
+}
+.toggle-track{
+  position:absolute;
+  inset:0;
+  background:rgba(0,0,0,0.08);
+  border:1.5px solid rgba(0,0,0,0.12);
+  border-radius:12px;
+  transition:background 0.25s,border-color 0.25s;
+}
+.toggle input:checked~.toggle-track{
+  background:var(--lime);
+  border-color:var(--lime);
+}
+.toggle-thumb{
+  position:absolute;
+  top:3px;left:3px;
+  width:16px;height:16px;
+  background:#fff;
+  border-radius:50%;
+  box-shadow:0 1px 3px rgba(0,0,0,0.2);
+  transition:left 0.25s;
+}
+.toggle input:checked~.toggle-thumb{
+  left:23px;
+}
+
+.setting-select{background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:7px 12px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;outline:none;cursor:pointer;}
+.setting-select:focus{border-color:var(--lime);}
+
+.copy-messenger-card{background:linear-gradient(135deg,var(--lime-pale),rgba(122,184,0,0.05));border:1px solid rgba(122,184,0,0.25);border-radius:16px;padding:20px;margin-bottom:24px;}
+.copy-title{font-family:'Syne',sans-serif;font-weight:700;font-size:15px;color:var(--lime);margin-bottom:7px;display:flex;align-items:center;gap:8px;}
+.copy-desc{font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px;}
+.copy-platforms{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
+.platform-chip{padding:6px 14px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;transition:all 0.2s;border:1.5px solid var(--border);color:var(--text2);}
+.platform-chip.active{background:var(--lime);color:#fff;border-color:var(--lime);}
+.platform-chip:hover:not(.active){border-color:var(--lime);color:var(--lime);}
+.btn-configure{padding:10px 20px;background:var(--lime);color:#fff;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 12px rgba(122,184,0,0.25);}
+.btn-configure:hover{background:var(--lime-bright);transform:translateY(-1px);}
+
+.theme-swatches{display:flex;gap:7px;}
+.swatch{width:26px;height:26px;border-radius:50%;cursor:pointer;border:2.5px solid transparent;transition:all 0.2s;}
+.swatch.active{border-color:var(--text);transform:scale(1.15);}
+</style>
+</head>
+<body>
+<nav class="sidebar-nav">
+  <div class="nav-logo" onclick="window.location.href='chat.html'">K</div>
+  <a class="nav-btn" href="chat.html"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg><span class="nav-badge">3</span></a>
+  <a class="nav-btn" href="story.html"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg></a>
+  <div class="nav-divider"></div>
+  <a class="nav-btn active" href="setting.html"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg></a>
+  <div class="nav-bottom"><div class="avatar-nav" onclick="window.location.href='account.html'">🍋</div></div>
+</nav>
+
+<div class="settings-layout">
+  <div class="settings-nav">
+    <div class="settings-title">Settings</div>
+    <div class="settings-section">
+      <div class="settings-section-label">Account</div>
+      <div class="settings-link active" onclick="show('notifications',this)"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>Notifications</div>
+      <div class="settings-link" onclick="show('privacy',this)"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Privacy & Security</div>
+      <div class="settings-link" onclick="show('copy',this)"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>Copy Messenger</div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-section-label">App</div>
+      <div class="settings-link" onclick="show('appearance',this)"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>Appearance</div>
+      <div class="settings-link" onclick="show('language',this)"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>Language</div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-section-label">Support</div>
+      <div class="settings-link"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Help & Support</div>
+      <div class="settings-link danger" onclick="window.location.href='index.html'"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#EF4444" stroke-width="2"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>Sign Out</div>
+    </div>
+  </div>
+
+  <div class="settings-content">
+    <div id="sec-notifications">
+      <div class="settings-page-title">Notifications</div>
+      <div class="settings-page-subtitle">Manage how and when you receive alerts</div>
+      <div class="setting-group">
+        <div class="setting-group-title">Messages</div>
+        <div class="setting-card">
+          <div class="setting-row"><div class="setting-icon"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg></div><div class="setting-info"><div class="setting-label">Message Notifications</div><div class="setting-desc">Get notified when you receive a new message</div></div><div class="setting-control"><label class="toggle"><input type="checkbox" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label></div></div>
+          <div class="setting-row"><div class="setting-icon"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg></div><div class="setting-info"><div class="setting-label">Group Mentions</div><div class="setting-desc">Notify when someone @mentions you in a group</div></div><div class="setting-control"><label class="toggle"><input type="checkbox" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label></div></div>
+          <div class="setting-row"><div class="setting-icon"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/></svg></div><div class="setting-info"><div class="setting-label">Call Notifications</div><div class="setting-desc">Incoming voice and video call alerts</div></div><div class="setting-control"><label class="toggle"><input type="checkbox" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label></div></div>
+        </div>
+      </div>
+      <div class="setting-group">
+        <div class="setting-group-title">Stories</div>
+        <div class="setting-card">
+          <div class="setting-row"><div class="setting-icon"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg></div><div class="setting-info"><div class="setting-label">Story Views</div><div class="setting-desc">When someone views your story</div></div><div class="setting-control"><label class="toggle"><input type="checkbox"><div class="toggle-track"></div><div class="toggle-thumb"></div></label></div></div>
+          <div class="setting-row"><div class="setting-icon"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg></div><div class="setting-info"><div class="setting-label">Story Reactions</div><div class="setting-desc">When someone reacts to your story</div></div><div class="setting-control"><label class="toggle"><input type="checkbox" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label></div></div>
+        </div>
+      </div>
+      <div class="setting-group">
+        <div class="setting-group-title">Sounds</div>
+        <div class="setting-card">
+          <div class="setting-row"><div class="setting-icon"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13M9 18c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-2c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z"/></svg></div><div class="setting-info"><div class="setting-label">Notification Sound</div><div class="setting-desc">Sound played for new messages</div></div><div class="setting-control"><select class="setting-select"><option>Default</option><option>Citrus</option><option>Bubble</option><option>Silent</option></select></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="sec-privacy" style="display:none">
+      <div class="settings-page-title">Privacy & Security</div>
+      <div class="settings-page-subtitle">Control who can see your info</div>
+      <div class="setting-group">
+        <div class="setting-group-title">Profile Visibility</div>
+        <div class="setting-card">
+          <div class="setting-row"><div class="setting-icon"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div><div class="setting-info"><div class="setting-label">Last Seen</div><div class="setting-desc">Who can see when you were last online</div></div><div class="setting-control"><select class="setting-select"><option>Everyone</option><option>Contacts</option><option>Nobody</option></select></div></div>
+          <div class="setting-row"><div class="setting-icon"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg></div><div class="setting-info"><div class="setting-label">Two-Factor Auth</div><div class="setting-desc">Add extra security to your account</div></div><div class="setting-control"><label class="toggle"><input type="checkbox"><div class="toggle-track"></div><div class="toggle-thumb"></div></label></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="sec-copy" style="display:none">
+      <div class="settings-page-title">Copy Messenger</div>
+      <div class="settings-page-subtitle">Mirror your koto.ba chats to other platforms</div>
+      <div class="copy-messenger-card">
+        <div class="copy-title"><svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>What is Copy Messenger?</div>
+        <div class="copy-desc">Copy Messenger lets you replicate the look, feel, and message style of your koto.ba chats to popular messaging platforms. Your conversations stay in sync.</div>
+        <div class="copy-platforms">
+          <div class="platform-chip active">WhatsApp</div>
+          <div class="platform-chip active">Telegram</div>
+          <div class="platform-chip">iMessage</div>
+          <div class="platform-chip">Messenger</div>
+          <div class="platform-chip">Signal</div>
+          <div class="platform-chip">Zalo</div>
+        </div>
+        <button class="btn-configure">Configure Copy Messenger</button>
+      </div>
+      <div class="setting-group">
+        <div class="setting-group-title">Sync Settings</div>
+        <div class="setting-card">
+          <div class="setting-row"><div class="setting-icon"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></div><div class="setting-info"><div class="setting-label">Auto Sync</div><div class="setting-desc">Automatically sync new messages to connected platforms</div></div><div class="setting-control"><label class="toggle"><input type="checkbox" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label></div></div>
+          <div class="setting-row"><div class="setting-icon"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg></div><div class="setting-info"><div class="setting-label">End-to-End Encryption</div><div class="setting-desc">Keep synced messages encrypted</div></div><div class="setting-control"><label class="toggle"><input type="checkbox" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="sec-appearance" style="display:none">
+      <div class="settings-page-title">Appearance</div>
+      <div class="settings-page-subtitle">Customize how koto.ba looks for you</div>
+      <div class="setting-group">
+        <div class="setting-group-title">Theme & Colors</div>
+        <div class="setting-card">
+          <div class="setting-row"><div class="setting-icon"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg></div><div class="setting-info"><div class="setting-label">Dark Mode</div><div class="setting-desc">Switch to dark interface</div></div><div class="setting-control"><label class="toggle"><input type="checkbox"><div class="toggle-track"></div><div class="toggle-thumb"></div></label></div></div>
+          <div class="setting-row"><div class="setting-icon" style="background:var(--lime-pale)">🎨</div><div class="setting-info"><div class="setting-label">Accent Color</div><div class="setting-desc">Choose your interface accent</div></div><div class="setting-control"><div class="theme-swatches"><div class="swatch active" style="background:#7AB800" onclick="setSwatch(this)"></div><div class="swatch" style="background:#0EA5E9" onclick="setSwatch(this)"></div><div class="swatch" style="background:#EC4899" onclick="setSwatch(this)"></div><div class="swatch" style="background:#F97316" onclick="setSwatch(this)"></div><div class="swatch" style="background:#8B5CF6" onclick="setSwatch(this)"></div></div></div></div>
+          <div class="setting-row"><div class="setting-icon"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h7"/></svg></div><div class="setting-info"><div class="setting-label">Font Size</div><div class="setting-desc">Adjust message text size</div></div><div class="setting-control"><input type="range" style="width:100px;accent-color:var(--lime)" min="12" max="20" value="14"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="sec-language" style="display:none">
+      <div class="settings-page-title">Language</div>
+      <div class="settings-page-subtitle">Choose your preferred language</div>
+      <div class="setting-group">
+        <div class="setting-card">
+          <div class="setting-row"><div class="setting-icon">🌐</div><div class="setting-info"><div class="setting-label">App Language</div></div><div class="setting-control"><select class="setting-select"><option>English</option><option>Tiếng Việt</option><option>中文</option><option>日本語</option></select></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function show(id,el){
+  ['notifications','privacy','copy','appearance','language'].forEach(s=>{const e=document.getElementById('sec-'+s);if(e)e.style.display=(s===id)?'block':'none';});
+  document.querySelectorAll('.settings-link').forEach(l=>l.classList.remove('active'));
+  el.classList.add('active');
+}
+function setSwatch(el){document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));el.classList.add('active');}
+document.querySelectorAll('.platform-chip').forEach(c=>c.addEventListener('click',()=>c.classList.toggle('active')));
+</script>
+</body>
+</html>
