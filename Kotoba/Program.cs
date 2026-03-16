@@ -3,6 +3,7 @@ using Kotoba.Modules.Domain.DTOs;
 using Kotoba.Modules.Domain.Entities;
 using Kotoba.Modules.Domain.Interfaces;
 using Kotoba.Modules.Infrastructure.Data;
+using Kotoba.Modules.Infrastructure.Services.Conversations;
 using Kotoba.Modules.Infrastructure.Services.Identity;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
@@ -54,6 +55,7 @@ namespace Kotoba
             builder.Services.AddScoped<IUserService, UserService>();
             builder.Services.AddSingleton<IPresenceService, PresenceService>();
             builder.Services.AddScoped<IPresenceBroadcastService, PresenceBroadcastService>();
+            builder.Services.AddScoped<IConversationService, ConversationService>();
 
             var app = builder.Build();
 
