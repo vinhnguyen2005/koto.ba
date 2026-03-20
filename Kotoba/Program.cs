@@ -4,7 +4,10 @@ using Kotoba.Modules.Domain.Entities;
 using Kotoba.Modules.Domain.Interfaces;
 using Kotoba.Modules.Infrastructure.Data;
 using Kotoba.Modules.Infrastructure.Services.Conversations;
+using Kotoba.Modules.Infrastructure.Services.Attachments;
 using Kotoba.Modules.Infrastructure.Services.Identity;
+using Kotoba.Modules.Infrastructure.Services.Reactions;
+using Kotoba.Modules.Infrastructure.Services.Social;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -52,10 +55,14 @@ namespace Kotoba
                 options.AccessDeniedPath = "/login";
             });
 
+            builder.Services.AddScoped<IReactionService, ReactionService>();
+            builder.Services.AddScoped<IAttachmentService, AttachmentService>();
             builder.Services.AddScoped<IUserService, UserService>();
             builder.Services.AddSingleton<IPresenceService, PresenceService>();
             builder.Services.AddScoped<IPresenceBroadcastService, PresenceBroadcastService>();
             builder.Services.AddScoped<IConversationService, ConversationService>();
+            builder.Services.AddScoped<IStoryService, StoryService>();
+            builder.Services.AddScoped<ICurrentThoughtService, CurrentThoughtService>();
 
             var app = builder.Build();
 
@@ -76,6 +83,16 @@ namespace Kotoba
             app.UseHttpsRedirection();
 
             app.UseStaticFiles();
+            var uploadsPath = builder.Configuration["Attachments:UploadPath"]
+    ?? Path.Combine(app.Environment.ContentRootPath, "uploads");
+
+            Directory.CreateDirectory(uploadsPath);
+
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(uploadsPath),
+                RequestPath = "/uploads"
+            });
             app.UseAntiforgery();
             app.UseAuthentication();
             app.UseAuthorization();

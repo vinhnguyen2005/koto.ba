@@ -1,4 +1,4 @@
-﻿namespace Kotoba.Modules.Domain.Enums
+    namespace Kotoba.Modules.Domain.Enums
 {
     public enum FileType
     {
