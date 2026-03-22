@@ -6,6 +6,7 @@ using Kotoba.Modules.Domain.Interfaces;
 using Kotoba.Modules.Infrastructure.Data;
 using Kotoba.Modules.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Internal;
 
 
 namespace Kotoba.Modules.Infrastructure.Services.Conversations
@@ -14,10 +15,14 @@ namespace Kotoba.Modules.Infrastructure.Services.Conversations
     {        
         ConversationParticipantRepository _conversationParticipantRepository;
         ConversationRepository _conversationRepository;
-        public ConversationService(ConversationParticipantRepository conversationParticipantRepository, ConversationRepository conversationRepository)
+        MessageRepository _messageRepository;
+        public ConversationService(ConversationParticipantRepository conversationParticipantRepository,
+            ConversationRepository conversationRepository,
+            MessageRepository messageRepository)
         {            
             _conversationParticipantRepository = conversationParticipantRepository;
             _conversationRepository = conversationRepository;
+            _messageRepository = messageRepository;
         }
 
         public async Task<ConversationDto?> CreateSelfDirectConversationAsync(string userAId)
@@ -187,6 +192,13 @@ namespace Kotoba.Modules.Infrastructure.Services.Conversations
         public Task<List<UserProfile>> GetOtherUsersInConversationsAsync(string conversationId, string userId)
         {
             return _conversationParticipantRepository.GetOtherUsersInConversationAsync(conversationId, userId);
+        }
+
+        public async Task<List<MessageDto>> GetMessagesAsync(string conversationId)
+        {
+            var convId = Guid.Parse(conversationId);            
+
+            return await _messageRepository.GetMessagesAsync(convId);
         }
     }
 }
