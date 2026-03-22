@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Kotoba.Modules.Hubs;
 
 namespace Kotoba
 {
@@ -25,6 +26,11 @@ namespace Kotoba
             // Add services to the container.
             builder.Services.AddRazorComponents()
                 .AddInteractiveServerComponents();
+
+            builder.Services.AddSignalR(options =>
+            {
+                options.EnableDetailedErrors = true; 
+            });
 
             builder.Services.AddDbContextFactory<KotobaDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -137,6 +143,8 @@ namespace Kotoba
 
             app.MapRazorComponents<App>()
                 .AddInteractiveServerRenderMode();
+
+            app.MapHub<ChatHub>("/chathub");
 
             app.Run();
         }
