@@ -71,6 +71,7 @@ namespace Kotoba
             builder.Services.AddScoped<ConversationParticipantRepository>();
             builder.Services.AddScoped<ConversationRepository>();
             builder.Services.AddScoped<UserProfileRepository>();
+            builder.Services.AddScoped<MessageRepository>();
             builder.Services.AddScoped<IStoryService, StoryService>();
             builder.Services.AddScoped<ICurrentThoughtService, CurrentThoughtService>();
 

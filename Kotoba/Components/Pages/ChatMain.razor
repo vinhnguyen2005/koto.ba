@@ -4,6 +4,7 @@
 @implements IAsyncDisposable
 @using Microsoft.AspNetCore.SignalR.Client
 @using Kotoba.Modules.Domain.Enums
+@inject IJSRuntime JS
 
 <style>
 
@@ -834,17 +835,36 @@
         </div>
 
         <div class="messages-area" id="msgArea">
+        <div class="messages-area" id="msgArea" @ref="msgAreaRef">
             <div class="msg-date-divider">Today, March 14</div>
 
             @foreach (var msg in messages)
             {
-                <div class="msg-group">
-                    <div class="msg-row">
                         <div class="msg-avatar-sm">🌿</div>
-                        <div class="msg-bubble">@msg</div>
+                var isOwn = msg.SenderId == currentUserId;
+                <div class="msg-group @(isOwn ? "own" : "")">
+                    <div class="msg-row @(isOwn ? "own" : "")">
+                        @if (!isOwn)
+                        {
+                            <div class="msg-avatar-sm">🌿</div>
+                        }
+                        <div class="msg-bubble @(msg.Status == MessageStatus.Pending ? "sending" : "")">
+                            @msg.Content
+                        </div>
                     </div>
-                    <div class="msg-reactions"><span class="reaction-chip">❤️ 2</span></div>
-                    <div class="msg-meta" style="margin-left:36px"><span class="msg-time">10:23 AM</span></div>
+                    <div class="msg-meta" style="@(isOwn ? "" : "margin-left:36px")">
+                        <span class="msg-time">
+                            @(msg.Status == MessageStatus.Pending
+                                                ? "Sending..."
+                                                : msg.CreatedAt.ToLocalTime().ToString("hh:mm tt"))
+                        </span>
+                        @if (isOwn)
+                        {
+                            <span class="msg-check">
+                                @(msg.Status == MessageStatus.Pending ? "🕐" : "✓")
+                            </span>
+                        }
+                    </div>
                 </div>
             }
         </div>
@@ -869,10 +889,12 @@
     private ConversationDto? selectedConv;
     private List<UserProfile>? selectedUsers;
     private string? groupName;
-    private List<string> messages = new();
+    private List<MessageDto> messages = new();
     private string newMessageText = string.Empty;    
     private HubConnection? hubConnection;
-    private string _loadedConvId = string.Empty;    
+    private string _loadedConvId = string.Empty;
+
+    private ElementReference msgAreaRef;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -882,6 +904,9 @@
 
     private async Task LoadConversationAsync()
     {
+        if (hubConnection?.State == HubConnectionState.Connected && !string.IsNullOrEmpty(_loadedConvId))
+            await hubConnection.InvokeAsync("LeaveConversation", _loadedConvId);
+
         _loadedConvId = ConversationId!;
         
         if (hubConnection is not null)
@@ -900,8 +925,14 @@
             ? selectedConv.GroupName
             : (selectedUsers.Count == 0 ? "You" : selectedUsers[0].DisplayName);
 
-        await StartHubAsync();
+        messages = await conversationService.GetMessagesAsync(ConversationId!);
+
+        if (hubConnection == null)
+            await StartHubAsync();
+
+        await hubConnection!.InvokeAsync("JoinConversation", ConversationId);
         StateHasChanged();
+        await ScrollToBottom();
     }
 
     private async Task StartHubAsync()
@@ -911,10 +942,21 @@
             .WithAutomaticReconnect()
             .Build();
 
-        hubConnection.On<string, string>("ReceiveMessage", (user, message) =>
+        hubConnection.On<MessageDto>("ReceiveMessage", (msg) =>
         {
-            messages.Add($"{user}: {message}");
-            InvokeAsync(StateHasChanged);
+            var existing = messages.FirstOrDefault(m => m.TempId == msg.TempId);
+            if (existing != null)
+            {
+                existing.MessageId = msg.MessageId;
+                existing.CreatedAt = msg.CreatedAt;
+                existing.Status = MessageStatus.Sent;
+            }
+            else
+            {                
+                messages.Add(msg);
+            }
+
+            InvokeAsync(StateHasChanged);            
         });
 
         try { await hubConnection.StartAsync(); }
@@ -923,11 +965,37 @@
 
     private async Task SendMessage()
     {
-        if (hubConnection?.State == HubConnectionState.Connected
-            && !string.IsNullOrWhiteSpace(newMessageText))
+        if (string.IsNullOrWhiteSpace(newMessageText)) return;
+        if (hubConnection?.State != HubConnectionState.Connected) return;
+
+        var tempId = Guid.NewGuid().ToString();
+        var content = newMessageText;
+        newMessageText = string.Empty;
+        
+        messages.Add(new MessageDto
         {
-            await hubConnection.InvokeAsync("SendMessage", currentUserId, newMessageText);
-            newMessageText = string.Empty;
+            TempId = tempId,
+            SenderId = currentUserId!,
+            Content = content,
+            ConversationId = Guid.Parse(ConversationId!),
+            CreatedAt = DateTime.UtcNow,
+            Status = MessageStatus.Pending
+        });
+        StateHasChanged();
+        await ScrollToBottom();
+
+        try
+        {
+            // Gửi lên server → lưu DB → broadcast lại → cập nhật thành Sent
+            await hubConnection.InvokeAsync("SendMessage", tempId, ConversationId, currentUserId, content);
+        }
+        catch (Exception ex)
+        {
+            // Nếu lỗi → đánh dấu Failed
+            var failed = messages.FirstOrDefault(m => m.TempId == tempId);
+            if (failed != null) failed.Status = MessageStatus.Failed;
+            StateHasChanged();
+            Console.Error.WriteLine(ex);
         }
     }
 
@@ -941,5 +1009,14 @@
     {
         if (hubConnection is not null)
             await hubConnection.DisposeAsync();
+    }
+
+    private async Task ScrollToBottom()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("scrollToBottom", msgAreaRef);
+        }
+        catch { }
     }
 }

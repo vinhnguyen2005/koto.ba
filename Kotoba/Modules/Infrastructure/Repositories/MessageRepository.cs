@@ -1,4 +1,5 @@
-﻿using Kotoba.Modules.Domain.Entities;
+using Kotoba.Modules.Domain.DTOs;
+using Kotoba.Modules.Domain.Entities;
 using Kotoba.Modules.Domain.Enums;
 using Kotoba.Modules.Domain.Interfaces;
 using Kotoba.Modules.Infrastructure.Data;
@@ -104,6 +105,25 @@ namespace Kotoba.Modules.Infrastructure.Repositories
                 receipt.ReceivedAt ??= updatedAtUtc;
                 receipt.ReadAt ??= updatedAtUtc;
             }
+        }
+
+        public async Task<List<MessageDto>> GetMessagesAsync(Guid conversationId)
+        {
+            return await _context.Messages
+                .Where(m => m.ConversationId == conversationId && !m.IsDeleted)
+                .OrderBy(m => m.CreatedAt)
+                .Include(m => m.Sender)
+                .Select(m => new MessageDto
+                {
+                    TempId = m.Id.ToString(),
+                    MessageId = m.Id,
+                    SenderId = m.SenderId,                    
+                    Content = m.Content,
+                    ConversationId = conversationId,
+                    CreatedAt = m.CreatedAt,
+                    Status = MessageStatus.Sent
+                })
+                .ToListAsync();
         }
     }
 }

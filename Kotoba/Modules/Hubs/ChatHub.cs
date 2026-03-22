@@ -1,4 +1,6 @@
+using Kotoba.Modules.Domain.DTOs;
 using Kotoba.Modules.Domain.Entities;
+using Kotoba.Modules.Domain.Enums;
 using Kotoba.Modules.Infrastructure.Data;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Identity.Client;
@@ -7,42 +9,52 @@ namespace Kotoba.Modules.Hubs
 {
     public class ChatHub : Hub
     {
-        //private KotobaDbContext _context;
+        private readonly KotobaDbContext _context;
 
-        public async Task SendMessage(string user, string content)
+        public ChatHub(KotobaDbContext context)
         {
-            //var senderId = Context.UserIdentifier!;
+            _context = context;
+        }
 
-            //var message = new Message
-            //{
-            //    Id = Guid.NewGuid(),
-            //    ConversationId = conversationId,
-            //    SenderId = senderId,
-            //    Content = content,
-            //    CreatedAt = DateTime.UtcNow
-            //};
+        // Join room theo conversationId
+        public async Task JoinConversation(string conversationId)
+        {
+            await Groups.AddToGroupAsync(Context.ConnectionId, conversationId);
+        }
 
-            //await _context.Messages.AddAsync(message);
-            //await _context.SaveChangesAsync();
+        public async Task LeaveConversation(string conversationId)
+        {
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, conversationId);
+        }
 
-            //await Clients.Users(senderId).SendAsync("MessageConfirmed", new
-            //{
-            //    TempId = tempId,
-            //    MessageId = message.Id,
-            //    CreatedAt = message.CreatedAt
-            //});
+        public async Task SendMessage(string tempId, string conversationId, string senderId, string content)
+        {
+            // Lưu DB
+            var message = new Message
+            {
+                Id = Guid.NewGuid(),
+                ConversationId = Guid.Parse(conversationId),
+                SenderId = senderId,
+                Content = content,
+                CreatedAt = DateTime.UtcNow
+            };
 
-            //await Clients.Group(conversationId.ToString()).SendAsync("ReceiveMessage", new
-            //{
-            //    ConversationId = conversationId,
-            //    Content = content,
-            //    TempId = tempId
-            //});
+            await _context.Messages.AddAsync(message);
+            await _context.SaveChangesAsync();
 
-            await Clients.All.SendAsync("ReceiveMessage", user, content);
+            var dto = new MessageDto
+            {
+                TempId = tempId,
+                MessageId = message.Id,
+                SenderId = senderId,
+                Content = content,
+                ConversationId = Guid.Parse(conversationId),
+                CreatedAt = message.CreatedAt,
+                Status = MessageStatus.Sent
+            };
 
-
-
+            // Broadcast chỉ trong group (conversation)
+            await Clients.Group(conversationId).SendAsync("ReceiveMessage", dto);
         }
     }
 }
