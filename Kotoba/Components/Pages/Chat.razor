@@ -4,25 +4,25 @@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inject NavigationManager Navigation
 
-    <ChatNav currentUserId="@currentUserId"/>
+<ChatNav currentUserId="@currentUserId" />
 <ChatMain ConversationId="@ConversationId" currentUserId="@currentUserId" />
 
 @code {
-    [Parameter] public string? ConversationId { get; set; }
-    private string? currentUserId;
+	[Parameter] public string? ConversationId { get; set; }
+	private string? currentUserId;
 
-    protected override async Task OnInitializedAsync()
-    {
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        var user = authState.User;
-        if (user.Identity?.IsAuthenticated == true)
-        {
-            currentUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        }
-        if (string.IsNullOrEmpty(currentUserId))
-        {
-            Navigation.NavigateTo("/login", true);
-            return;
-        }
-    }
+	protected override async Task OnInitializedAsync()
+	{
+		var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+		var user = authState.User;
+		if (user.Identity?.IsAuthenticated == true)
+		{
+			currentUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+		}
+		if (string.IsNullOrEmpty(currentUserId))
+		{
+			Navigation.NavigateTo("/login", true);
+			return;
+		}
+	}
 }

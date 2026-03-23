@@ -9,20 +9,23 @@ namespace Kotoba.Modules.Infrastructure.Repositories
 {
     public class ConversationParticipantRepository : IConversationParticipantRepository
     {
-        private readonly KotobaDbContext _context;
+        private readonly IDbContextFactory<KotobaDbContext> _dbFactory;
 
-        public ConversationParticipantRepository(KotobaDbContext context)
+        public ConversationParticipantRepository(IDbContextFactory<KotobaDbContext> dbFactory)
         {
-            _context = context;
+            _dbFactory = dbFactory;
         }
+
 
         public async Task<IEnumerable<ConversationParticipant>> GetAllAsync()
         {
+            using var _context = await _dbFactory.CreateDbContextAsync();
             return await _context.ConversationParticipants.ToListAsync();
         }
 
         public async Task<bool> IsParticipant(Guid conversationId, string senderId)
         {
+            using var _context = await _dbFactory.CreateDbContextAsync();
             return await _context.ConversationParticipants
             .AnyAsync(p => p.ConversationId == conversationId
                         && p.UserId == senderId
@@ -31,6 +34,7 @@ namespace Kotoba.Modules.Infrastructure.Repositories
 
         public IQueryable<Guid> GetAllConversationIdsForUserAsync(string userId)
         {
+            using var _context = _dbFactory.CreateDbContext();
             return _context.ConversationParticipants
             .Where(p => p.UserId == userId && p.IsActive)
             .Select(p => p.ConversationId);
@@ -38,12 +42,14 @@ namespace Kotoba.Modules.Infrastructure.Repositories
 
         public async Task AddAsync(ConversationParticipant participant)
         {
+            using var _context = await _dbFactory.CreateDbContextAsync();
             await _context.ConversationParticipants.AddAsync(participant);
             await _context.SaveChangesAsync();
         }
 
         public async Task<List<ConversationParticipant>> GetAllConversationByGroupNameForUserAsync(string userId, string groupName)
         {
+            using var _context = await _dbFactory.CreateDbContextAsync();
             return await _context.ConversationParticipants
             .Include(p => p.Conversation)
             .Where(p => p.UserId == userId
@@ -56,17 +62,18 @@ namespace Kotoba.Modules.Infrastructure.Repositories
 
         public async Task<List<ConversationParticipant>> GetAllConversationByUserAsync(string userId)
         {
+            using var _context = await _dbFactory.CreateDbContextAsync();
             return await _context.ConversationParticipants
-            .Include(p => p.Conversation)
-            .Where(p => p.UserId == userId
-                        && p.IsActive
-                        && p.Conversation.Type == ConversationType.Direct)
-            .ToListAsync();
-
+                .Include(p => p.Conversation)
+                    .ThenInclude(c => c.Participants)
+                        .ThenInclude(p => p.User)
+                .Where(p => p.UserId == userId && p.IsActive)
+                .ToListAsync();
         }
 
         public async Task<List<UserProfile>> GetOtherUsersInConversationAsync(string conversationId, string userId)
         {
+            using var _context = await _dbFactory.CreateDbContextAsync();
             return await _context.ConversationParticipants
                 .Where(p => p.ConversationId.ToString() == conversationId
                          && p.UserId != userId

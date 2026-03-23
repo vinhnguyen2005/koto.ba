@@ -144,11 +144,18 @@ namespace Kotoba.Modules.Infrastructure.Services.Conversations
                     Type = cp.Conversation.Type,
                     GroupName = cp.Conversation.GroupName,
                     CreatedAt = cp.Conversation.CreatedAt,
-                    UpdatedAt = cp.Conversation.UpdatedAt
+                    UpdatedAt = cp.Conversation.UpdatedAt,
+                    Participants = cp.Conversation.Participants.Select(p => new UserProfile
+                    {
+                        UserId = p.UserId,
+                        DisplayName = p.User?.DisplayName ?? "",
+                        AvatarUrl = p.User?.AvatarUrl,
+                        IsOnline = p.User?.IsOnline ?? false
+                    }).ToList()
                 }).ToList();
-                return await Task.FromResult(conversationDtos);
+                return conversationDtos;
             }
-            return await Task.FromResult(new List<ConversationDto>());
+            return new List<ConversationDto>();
         }
 
         public async Task<ConversationDto?> FindDirectConversationsAsync(string userAId, string userBId)

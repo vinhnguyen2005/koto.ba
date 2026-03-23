@@ -1,7 +1,13 @@
 @inject IConversationService conversationService
 @inject IUserService userService
 @inject NavigationManager Navigation
-
+@inject IConversationService conversationService
+@using Kotoba.Modules.Infrastructure.Services.Conversations
+@using Kotoba.Modules.Domain.Entities
+@using Kotoba.Modules.Domain.Enums
+@using Kotoba.Modules.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<KotobaDbContext> DbFactory
 <style>
     :root {
         --lime: #7AB800;
@@ -844,93 +850,251 @@
         }
 </style>
 
+<script>
+	function selectChat(item){
+	document.querySelectorAll('.chat-item').forEach(i=>i.classList.remove('active'));
+	item.classList.add('active');
+	}
+	function sendMessage(){
+	const input=document.getElementById('msgInput');
+	const text=input.value.trim();
+	if(!text)return;
+	const area=document.getElementById('msgArea');
+	const typing=area.querySelector('.typing-indicator');
+	const group=document.createElement('div');
+	group.className='msg-group own';
+	group.innerHTML=`
+	<div class="msg-row own"><div class="msg-bubble">${esc(text)}</div></div>
+	<div class="msg-meta"><span class="msg-time">Just now</span><span class="msg-check">✓</span></div>`;
+	area.insertBefore(group,typing);
+	input.value='';
+	area.scrollTop=area.scrollHeight;
+	}
+	function handleKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}}
+	function esc(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+</script>
+
+
+@if (showGroupModal)
+{
+	<div style="position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:100;display:flex;align-items:center;justify-content:center;"
+		 @onclick="() => showGroupModal = false">
+
+		<div style="background:#fff;border-radius:20px;padding:24px;width:400px;max-width:92vw;display:flex;flex-direction:column;gap:12px;max-height:80vh;overflow-y:auto;"
+			 @onclick:stopPropagation="true">
+
+			<div style="display:flex;align-items:center;justify-content:space-between;">
+				<span style="font-family:'Syne',sans-serif;font-weight:700;font-size:17px;">
+					New Group
+				</span>
+
+				<div class="icon-btn" @onclick="() => showGroupModal = false">
+					✕
+				</div>
+			</div>
+
+			<input class="search-input"
+				   style="padding:10px 14px;"
+				   placeholder="Group name…"
+				   @bind="newGroupName"
+				   maxlength="60" />
+
+			<input class="search-input"
+				   style="padding:10px 14px;"
+				   placeholder="Search users to add…"
+				   @oninput="SearchUsersForGroup" />
+
+			@if (groupSearchUsers.Any())
+			{
+				<div style="display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto;">
+					@foreach (var u in groupSearchUsers)
+					{
+						<div style="padding:9px 12px;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-size:13px;background:@(selectedParticipantIds.Contains(u.UserId!) ? "var(--lime-pale)" : "transparent")"
+							 @onclick="() => ToggleParticipant(u.UserId!, u.DisplayName!)">
+
+							<span>@u.DisplayName</span>
+
+							@if (selectedParticipantIds.Contains(u.UserId!))
+							{
+								<span style="color:var(--lime)">✓</span>
+							}
+						</div>
+					}
+				</div>
+			}
+
+			@if (selectedParticipantIds.Any())
+			{
+				<div style="display:flex;flex-wrap:wrap;gap:6px;">
+					@foreach (var id in selectedParticipantIds)
+					{
+						var name = selectedParticipantNames.GetValueOrDefault(id, id[..4] + "…");
+
+						<span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:var(--lime-pale);border:1px solid rgba(122,184,0,0.3);border-radius:20px;font-size:12px;font-weight:600;color:var(--lime);">
+							@name
+
+							<span style="cursor:pointer;opacity:.6;"
+								  @onclick="() => ToggleParticipant(id, name)">
+								✕
+							</span>
+						</span>
+					}
+				</div>
+			}
+
+			<button style="width:100%;padding:11px;background:var(--lime);border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-weight:700;font-size:14px;color:#1A1F0E;cursor:pointer;opacity:@(CanCreateGroup ? "1" : "0.45")"
+					@onclick="CreateGroup"
+					disabled="@(CanCreateGroup ? null : "disabled")">
+
+				@(isCreatingGroup ? "Creating…" : "Create Group")
+			</button>
+
+		</div>
+	</div>
+}
+
 <div class="chat-list-panel">
-    <div class="panel-header">
-        <div class="panel-title">
-            Messages
-            <div class="header-actions">
-                <div class="icon-btn" title="New chat">
-                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14" /></svg>
-                </div>
-                <div class="icon-btn" title="Filter">
-                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M3 4h18M7 8h10M11 12h2" /></svg>
-                </div>
-            </div>
-        </div>
-        <div class="search-box">
-            <div class="search-icon"><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" /></svg></div>
-            <input class="search-input" name="searchConversation" placeholder="Search conversations…" @oninput="HandleSubmit">
-        </div>
-    </div>
+	<div class="panel-header">
+		<div class="panel-title">
+			Messages
+			<div class="header-actions">
+				<div class="icon-btn" title="New group" @onclick="OpenGroupModal">
+					<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+						<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+						<circle cx="9" cy="7" r="4" />
+						<path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
+					</svg>
+				</div>
+				<div class="icon-btn" title="Filter">
+					<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M3 4h18M7 8h10M11 12h2" /></svg>
+				</div>
+			</div>
+		</div>
+		<div class="search-box">
+			<div class="search-icon"><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" /></svg></div>
+			<input class="search-input" name="searchConversation" placeholder="Search conversations…" @oninput="HandleSubmit">
+		</div>
+	</div>
 
-    <div class="filter-tabs">
-        <div class="filter-tab active">All</div>
-        <div class="filter-tab">Unread</div>
-        <div class="filter-tab">Groups</div>
-    </div>
+	<div class="filter-tabs">
+		<div class="filter-tab @(activeFilter=="all"?"active":"")"
+			 @onclick='()=>activeFilter="all"'>
+			All
+		</div>
+		<div class="filter-tab @(activeFilter=="unread"?"active":"")"
+			 @onclick='()=>activeFilter="unread"'>
+			Unread
+		</div>
+		<div class="filter-tab @(activeFilter=="groups"?"active":"")"
+			 @onclick='()=>activeFilter="groups"'>
+			Groups
+		</div>
+	</div>
+	<div class="chat-list">
+		@* Search Users Result *@
+		@if (users != null && users.Any())
+		{
+			<div class="section-label">Users</div>
+			@foreach (var user in users)
+			{
+				<div class="chat-item" @onclick="() => SelectConversation(user)">
+					<div class="chat-avatar"><div class="avatar-img">🥝</div></div>
+					<div class="chat-info">
+						<div class="chat-name-row">
+							<div class="chat-name">@user.DisplayName</div>
+						</div>
+					</div>
+				</div>
+			}
+		}
 
-    <div class="chat-list">
+		@* Direct Messages *@
+		@{
+			var directs = FilteredConversations.Where(c => c.Type == ConversationType.Direct).ToList();
+		}
+		@if (directs.Any())
+		{
+			<div class="section-label">Direct Messages</div>
+			@foreach (var conv in directs)
+			{
+				var other = conv.Participants?.FirstOrDefault(p => p.UserId != currentUserId);
+				var displayName = other?.DisplayName ?? "Direct Message";
 
-        @* Search Users Result *@
-        @if (users != null && users.Any())
-        {
-            <div class="section-label">Users</div>
-            @foreach (var user in users)
-            {
-                <div class="chat-item" @onclick="() => SelectConversation(user)">
-                    <div class="chat-avatar">
-                        <div class="avatar-img">🥝</div>
-                    </div>
-                    <div class="chat-info">
-                        <div class="chat-name-row">
-                            <div class="chat-name">@user.DisplayName</div>
-                        </div>
-                    </div>
-                </div>
-            }
-        }
+				<div class="chat-item" @onclick="() => SelectConversation(conv)">
+					<div class="chat-avatar"><div class="avatar-img">🥝</div></div>
+					<div class="chat-info">
+						<div class="chat-name-row">
+							<div class="chat-name">@displayName</div>
+						</div>
+					</div>
+				</div>
+			}
+		}
 
-        @* Search Groups Result *@
-        @if (conversations != null && conversations.Any())
-        {
-            <div class="section-label">Groups</div>
-            @foreach (var conv in conversations)
-            {
-                <div class="chat-item" @onclick="() => SelectConversation(conv)">
-                    <div class="chat-avatar">
-                        <div class="avatar-img">🥝</div>
-                    </div>
-                    <div class="chat-info">
-                        <div class="chat-name-row">
-                            <div class="chat-name">@conv.GroupName</div>
-                        </div>
-                    </div>
-                </div>
-            }
-        }
+		@* Groups *@
+		@{
+			var groups = FilteredConversations.Where(c => c.Type == ConversationType.Group).ToList();
+		}
+		@if (groups.Any())
+		{
+			<div class="section-label">Groups</div>
+			@foreach (var conv in groups)
+			{
+				<div class="chat-item" @onclick="() => SelectConversation(conv)">
+					<div class="chat-avatar"><div class="avatar-img">🌿</div></div>
+					<div class="chat-info">
+						<div class="chat-name-row">
+							<div class="chat-name">@conv.GroupName</div>
+						</div>
+					</div>
+				</div>
+			}
+		}
 
-    </div>
+	</div>
 </div>
 
 @code {
     private List<UserProfile>? users;
     private List<ConversationDto>? conversations;
-    [Parameter] public string? currentUserId { get; set; } = string.Empty;    
+    [Parameter] public string? currentUserId { get; set; } = string.Empty;
+	private string activeFilter = "all";
 
-    private async Task HandleSubmit(ChangeEventArgs e)
-    {
-        var q = e?.Value?.ToString();
-        if (!string.IsNullOrEmpty(q))
-        {
-            conversations = await conversationService.FindGroupConversationsAsync(currentUserId!, q);
-            users = userService.GetUsersByDisplayNameAsync(q).ToList();
-        }
-        else
-        {
-            conversations = new();
-            users = new();
-        }
-    }
+	private string _loadedForUserId = "";
+
+	protected override async Task OnParametersSetAsync()
+	{
+		if (string.IsNullOrEmpty(currentUserId)) return;
+		if (_loadedForUserId == currentUserId) return; 
+
+		_loadedForUserId = currentUserId;
+		conversations = await conversationService.GetUserConversationsAsync(currentUserId!);
+		StateHasChanged();
+	}
+
+	private IEnumerable<ConversationDto> FilteredConversations => activeFilter switch
+	{
+		"groups" => conversations?
+			.Where(c => c.Type == ConversationType.Group)
+			?? Enumerable.Empty<ConversationDto>(),
+		_ => conversations ?? Enumerable.Empty<ConversationDto>()
+	};
+
+	private async Task HandleSubmit(ChangeEventArgs e)
+	{
+		var q = e?.Value?.ToString();
+		if (!string.IsNullOrEmpty(q))
+		{
+			conversations = await conversationService.FindGroupConversationsAsync(currentUserId!, q);
+			users = userService.GetUsersByDisplayNameAsync(q).ToList();
+			StateHasChanged();
+		}
+		else
+		{
+			conversations = await conversationService.GetUserConversationsAsync(currentUserId!);
+			users = new();
+		}
+	}
 
     private async Task SelectConversation(UserProfile user)
     {
@@ -943,4 +1107,87 @@
     {
         Navigation.NavigateTo($"/chat/{conv.ConversationId}");
     }
+
+	private bool showGroupModal;
+	private bool isCreatingGroup;
+	private string newGroupName = "";
+	private List<UserProfile> groupSearchUsers = new();
+	private List<string> selectedParticipantIds = new();
+	private Dictionary<string, string> selectedParticipantNames = new();
+	private bool CanCreateGroup =>
+	!string.IsNullOrWhiteSpace(newGroupName)
+	&& selectedParticipantIds.Any()
+	&& !isCreatingGroup;
+
+	public void OpenGroupModal()
+	{
+		showGroupModal = true;
+		isCreatingGroup = false;
+		newGroupName = "";
+		groupSearchUsers.Clear();
+		selectedParticipantIds.Clear();
+		selectedParticipantNames.Clear();
+	}
+
+	private async Task SearchUsersForGroup(ChangeEventArgs e)
+	{
+		var q = e.Value?.ToString() ?? "";
+		if (string.IsNullOrEmpty(q) || string.IsNullOrEmpty(currentUserId))
+		{
+			groupSearchUsers.Clear();
+			return;
+		}
+		using var dbContext = DbFactory.CreateDbContext();
+		groupSearchUsers = await dbContext.Users.Where(u => u.DisplayName.Contains(q) && u.Id != currentUserId && !selectedParticipantIds.Contains(u.Id)).
+		Select(u => new UserProfile { UserId = u.Id, DisplayName = u.DisplayName }).Take(7)
+			.ToListAsync();
+		StateHasChanged();
+	}
+
+	public void ToggleParticipant(string userId, string displayName)
+	{
+		if (selectedParticipantIds.Contains(userId))
+		{
+			selectedParticipantIds.Remove(userId);
+			selectedParticipantNames.Remove(userId);
+		}
+		else
+		{
+			selectedParticipantIds.Add(userId);
+			selectedParticipantNames[userId] = displayName;
+		}
+	}
+
+	public async Task CreateGroup()
+	{
+		if (!CanCreateGroup) return;
+		isCreatingGroup = true;
+		StateHasChanged();
+		try
+		{
+			var ids = selectedParticipantIds.ToList();
+			ids.Add(currentUserId);
+			var conv = await conversationService.CreateGroupConversationAsync(new CreateGroupRequest
+				{
+					GroupName = newGroupName,
+					ParticipantIds = ids
+				});
+
+			if (conv != null)
+			{
+				conversations = await conversationService.GetUserConversationsAsync(currentUserId!);
+				showGroupModal = false;
+				Navigation.NavigateTo($"/chat/{conv.ConversationId}");
+			}
+
+		}
+		catch (Exception e)
+		{
+			Console.WriteLine(e.Message);
+		}
+		isCreatingGroup = false;
+		StateHasChanged();
+	}
+
+
 }

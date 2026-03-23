@@ -8,23 +8,26 @@ namespace Kotoba.Modules.Infrastructure.Repositories
 {
     public class ConversationRepository : IConversationRepository
     {
-        private readonly KotobaDbContext _context;
+        private readonly IDbContextFactory<KotobaDbContext> _dbFactory;
 
-        public ConversationRepository(KotobaDbContext context)
+        public ConversationRepository(IDbContextFactory<KotobaDbContext> dbFactory)
         {
-            _context = context;
+            _dbFactory = dbFactory;
         }
+
 
         public async Task<IEnumerable<Conversation>> GetAllAsync()
         {
+            using var _context = await _dbFactory.CreateDbContextAsync();
             return await _context.Conversations
                 .ToListAsync();
         }
 
         public async Task<ConversationDto?> GetConversationByIdAsync(Guid conversationId)
         {
+            using var _context = await _dbFactory.CreateDbContextAsync();
             return await _context.Conversations
-                .Where(c => c.Id == conversationId && c.Type == Domain.Enums.ConversationType.Direct)
+                .Where(c => c.Id == conversationId)
                 .Select(c => new ConversationDto
                 {
                     ConversationId = c.Id,
@@ -35,9 +38,9 @@ namespace Kotoba.Modules.Infrastructure.Repositories
                 })
                 .FirstOrDefaultAsync();
         }
-
         public async Task AddAsync(Conversation conversation)
         {
+            using var _context = await _dbFactory.CreateDbContextAsync();
             await _context.Conversations.AddAsync(conversation);
             await _context.SaveChangesAsync();
         }
@@ -49,6 +52,7 @@ namespace Kotoba.Modules.Infrastructure.Repositories
 
         public async Task<ConversationDto?> GetConversationDetailByIdAsync(string conversationId)
         {
+            using var _context = await _dbFactory.CreateDbContextAsync();
             return await _context.Conversations
                 .Where(c => conversationId != null && c.Id.ToString() == conversationId)
                 .Select(c => new ConversationDto
