@@ -5,6 +5,7 @@
 @using Microsoft.AspNetCore.SignalR.Client
 @using Kotoba.Modules.Domain.Enums
 @inject IJSRuntime JS
+@inject IHttpContextAccessor HttpContextAccessor
 
 <style>
 
@@ -278,13 +279,13 @@
 
 	/* ===== MAIN CHAT ===== */
 	.chat-main {
-	flex: 1;
-	display: flex;
-	flex-direction: column;
-	overflow: hidden;
-	background: var(--bg);
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+		background: var(--bg);
+		min-height: 0;
 	}
-
 	.chat-header {
 	padding: 0 20px;
 	height: 62px;
@@ -343,12 +344,13 @@
 
 	/* Messages */
 	.messages-area {
-	flex: 1;
-	overflow-y: auto;
-	padding: 20px 24px;
-	display: flex;
-	flex-direction: column;
-	gap: 2px;
+		flex: 1;
+		overflow-y: auto;
+		padding: 20px 24px;
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		min-height: 0; 
 	}
 
 	.messages-area::-webkit-scrollbar {
@@ -565,9 +567,10 @@
 
 	/* Input area */
 	.input-area {
-	padding: 12px 20px;
-	border-top: 1px solid var(--border);
-	background: var(--surface);
+		padding: 12px 20px;
+		border-top: 1px solid var(--border);
+		background: var(--surface);
+		flex-shrink: 0; 
 	}
 
 	.input-toolbar {
@@ -812,6 +815,43 @@
 	color: var(--lime);
 	background: var(--lime-pale);
 	}
+
+	/* Reaction tooltip */
+	.reaction-chip {
+		position: relative;
+	}
+
+	.reaction-tooltip {
+		display: none;
+		position: absolute;
+		bottom: calc(100% + 6px);
+		left: 50%;
+		transform: translateX(-50%);
+		background: #1A1F0E;
+		color: #fff;
+		font-size: 11px;
+		padding: 5px 10px;
+		border-radius: 8px;
+		white-space: nowrap;
+		z-index: 50;
+		pointer-events: none;
+		box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+	}
+
+		.reaction-tooltip::after {
+			content: '';
+			position: absolute;
+			top: 100%;
+			left: 50%;
+			transform: translateX(-50%);
+			border: 5px solid transparent;
+			border-top-color: #1A1F0E;
+		}
+
+	.reaction-chip:hover .reaction-tooltip {
+		display: block;
+	}
+
 </style>
 @if (selectedConv != null)
 {
@@ -834,39 +874,119 @@
             </div>
         </div>
 
-        <div class="messages-area" id="msgArea">
+
         <div class="messages-area" id="msgArea" @ref="msgAreaRef">
             <div class="msg-date-divider">Today, March 14</div>
 
-            @foreach (var msg in messages)
-            {
-                <div class="msg-avatar-sm">🌿</div>
-                var isOwn = msg.SenderId == currentUserId;
-                <div class="msg-group @(isOwn ? "own" : "")">
-                    <div class="msg-row @(isOwn ? "own" : "")">
-                        @if (!isOwn)
-                        {
-                            <div class="msg-avatar-sm">🌿</div>
-                        }
-                        <div class="msg-bubble @(msg.Status == MessageStatus.Pending ? "sending" : "")">
-                            @msg.Content
-                        </div>
-                    </div>
-                    <div class="msg-meta" style="@(isOwn ? "" : "margin-left:36px")">
-                        <span class="msg-time">
-                            @(msg.Status == MessageStatus.Pending
-                                                ? "Sending..."
-                                                : msg.CreatedAt.ToLocalTime().ToString("hh:mm tt"))
-                        </span>
-                        @if (isOwn)
-                        {
-                            <span class="msg-check">
-                                @(msg.Status == MessageStatus.Pending ? "🕐" : "✓")
-                            </span>
-                        }
-                    </div>
-                </div>
-            }
+				@foreach (var msg in messages)
+				{
+					var isOwn = msg.SenderId == currentUserId;
+
+					<div class="msg-group @(isOwn ? "own" : "")"
+						 @onmouseenter="() => hoveredMessageId = msg.MessageId"
+						 @onmouseleave="() => {
+						if (reactionPickerMessageId != msg.MessageId)
+							hoveredMessageId = null;
+						}">
+
+						<div class="msg-row @(isOwn ? "own" : "")">
+							@if (!isOwn)
+							{
+								<div class="msg-avatar-sm">🌿</div>
+							}
+
+						<div style="display:flex;flex-direction:column;gap:2px;">
+							@if (selectedConv!.Type == ConversationType.Group && !isOwn)
+							{
+								var senderName = selectedUsers?.FirstOrDefault(u => u.UserId == msg.SenderId)?.DisplayName ?? "Unknown";
+								<span style="font-size:11px;color:var(--muted);padding-left:2px;margin-bottom:2px;">@senderName</span>
+							}
+							<div class="msg-bubble @(msg.Status == MessageStatus.Pending ? "sending" : "")">
+								@msg.Content
+							</div>
+						</div>
+
+							@* hiện reaction khi hover *@
+							@if (hoveredMessageId == msg.MessageId)
+							{
+								<div style="width:26px;height:26px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;"
+									 @onclick:stopPropagation="true"
+									 @onclick="() => ToggleReactionPicker(msg.MessageId)">
+									😊
+								</div>
+							}
+						</div>
+
+						@* chọn emoji *@
+						@if (reactionPickerMessageId == msg.MessageId)
+						{
+							<div style="background:var(--surface);border:1px solid var(--border);border-radius:30px;padding:6px 10px;display:flex;gap:4px;box-shadow:0 4px 20px rgba(0,0,0,.12);z-index:20;"
+								 @onclick:stopPropagation="true">
+								@foreach (var (emoji, rType) in ReactionEmojis)
+								{
+									var rc = rType;
+									var ic = msg.MessageId;
+									<span style="font-size:20px;cursor:pointer;padding:2px;"
+										  @onclick="() => SendReaction(ic, rc)">
+										@emoji
+									</span>
+								}
+							</div>
+						}
+
+						@* Hiển thị reaction *@
+						@if (msg.Reactions?.Any() == true)
+						{
+							<div class="msg-reactions">
+								@foreach (var grp in msg.Reactions.GroupBy(r => r.Type))
+								{
+									var gt = grp.Key;
+									var mid = msg.MessageId;
+									var mine = grp.Any(r => r.UserId == currentUserId);
+									var ec = ReactionEmojis.FirstOrDefault(x => x.type == gt).emoji ?? "👍";
+
+									<span class="reaction-chip @(mine ? "mine" : "")"
+										  @onclick="() => HandleReactionClick(mid, gt)">
+										@ec @grp.Count()
+									</span>
+								}
+							</div>
+						}
+
+						<div class="msg-meta" style="@(isOwn ? "" : "margin-left:36px")">
+							<span class="msg-time">
+								@(msg.Status == MessageStatus.Pending
+															? "Sending..."
+															: msg.CreatedAt.ToLocalTime().ToString("hh:mm tt"))
+							</span>
+
+							@if (isOwn)
+							{
+								<span class="msg-check">
+									@(msg.Status == MessageStatus.Pending ? "🕐" : "✓")
+								</span>
+							}
+						</div>
+					</div>
+				}
+
+			@if (isTyping)
+			{
+				<div class="typing-indicator">
+					<div class="msg-avatar-sm">🌿</div>
+					<div style="display:flex;flex-direction:column;gap:2px;">
+						@if (selectedConv!.Type == ConversationType.Group && !string.IsNullOrEmpty(typingUserName))
+						{
+
+							<span style="font-size:11px;color:var(--muted);padding-left:2px;">@typingUserName</span>
+						}
+						<div class="typing-dots">
+
+							<div class="dot"></div><div class="dot"></div><div class="dot"></div>
+						</div>
+					</div>
+				</div>
+			}
         </div>
 
         <div class="input-area">
@@ -874,13 +994,18 @@
                 <button class="input-tool-btn" title="Emoji"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><path d="M8 13s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01" /></svg></button>
                 <button class="input-tool-btn" title="Attach"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" /></svg></button>
                 <button class="input-tool-btn" title="Image"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg></button>
-                <textarea class="msg-input" placeholder="Type a message…" rows="1" id="msgInput" @bind="newMessageText"></textarea>
+				<textarea class="msg-input"
+						  placeholder="Type a message…"
+						  rows="1"
+						  id="msgInput"
+						  @bind="newMessageText"
+						  @bind:event="oninput"
+						  @onkeydown="HandleKeyDown"></textarea>
                 <button class="input-tool-btn" title="Voice"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" /><path d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8" /></svg></button>
                 <button class="send-btn" id="sendButton" @onclick="SendMessage" title="Send"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" /></svg></button>
             </div>
         </div>
     </div>
-</div>
 }
 
 @code {
@@ -894,7 +1019,21 @@
     private string newMessageText = string.Empty;    
     private HubConnection? hubConnection;
     private string _loadedConvId = string.Empty;
-
+	private Guid? hoveredMessageId;
+	private bool isTyping;
+	private bool isOtherOnline;
+	private Guid? reactionPickerMessageId;
+	private string? typingUserName;
+	private static readonly (string emoji, ReactionType type)[] ReactionEmojis =
+			[
+			("👍", ReactionType.Like),
+			("❤️", ReactionType.Love),
+			("😂", ReactionType.Haha),
+			("😮", ReactionType.Wow),
+			("😢", ReactionType.Sad),
+			("😡", ReactionType.Angry),
+	];
+	private System.Threading.Timer? _typingTimer;
     private ElementReference msgAreaRef;
 
     protected override async Task OnParametersSetAsync()
@@ -931,34 +1070,99 @@
         if (hubConnection == null)
             await StartHubAsync();
 
-        await hubConnection!.InvokeAsync("JoinConversation", ConversationId);
+		await hubConnection!.InvokeAsync("JoinConversation", ConversationId);
         StateHasChanged();
         await ScrollToBottom();
     }
 
     private async Task StartHubAsync()
     {
-        hubConnection = new HubConnectionBuilder()
-            .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
-            .WithAutomaticReconnect()
-            .Build();
+		var cookies = HttpContextAccessor.HttpContext?.Request.Cookies;
+		var cookieStr = string.Join("; ", cookies?.Select(c => $"{c.Key}={c.Value}") ?? []);
 
-        hubConnection.On<MessageDto>("ReceiveMessage", (msg) =>
-        {
-            var existing = messages.FirstOrDefault(m => m.TempId == msg.TempId);
-            if (existing != null)
-            {
-                existing.MessageId = msg.MessageId;
-                existing.CreatedAt = msg.CreatedAt;
-                existing.Status = MessageStatus.Sent;
-            }
-            else
-            {                
-                messages.Add(msg);
-            }
+		hubConnection = new HubConnectionBuilder()
+			.WithUrl(Navigation.ToAbsoluteUri("/chathub"), options =>
+			{
+				options.Headers.Add("Cookie", cookieStr);
+			})
+			.WithAutomaticReconnect()
+			.Build();
 
-            InvokeAsync(StateHasChanged);            
-        });
+		hubConnection.On<MessageDto, string>("MessageConfirmed", async (msg, tempId) =>
+		{
+			var existing = messages.FirstOrDefault(m => m.TempId == tempId);
+			if (existing != null)
+			{
+				existing.MessageId = msg.MessageId;
+				existing.CreatedAt = msg.CreatedAt;
+				existing.Status = MessageStatus.Sent;
+			}
+			else
+			{
+				messages.Add(msg); 
+			}
+			await InvokeAsync(StateHasChanged);
+			await ScrollToBottom();
+		});
+
+		hubConnection.On<ReactionDto>("ReactionUpdated", async (reaction) =>
+		{
+			var msg = messages.FirstOrDefault(m => m.MessageId == reaction.MessageId);
+			if (msg != null)
+			{
+				msg.Reactions ??= new List<ReactionDto>();
+
+				var existing = msg.Reactions
+					.FirstOrDefault(r => r.UserId == reaction.UserId);
+
+				if (existing != null)
+					existing.Type = reaction.Type;
+				else
+					msg.Reactions.Add(reaction);
+			}
+
+		await InvokeAsync(StateHasChanged);
+		});
+
+		hubConnection.On<TypingStatusDto>("UserTyping", async (status) =>
+		{
+			if (status.UserId == currentUserId) return;
+
+			isTyping = status.IsTyping;
+
+			if (status.IsTyping)
+			{
+				typingUserName = selectedUsers?.FirstOrDefault(u => u.UserId == status.UserId)?.DisplayName;
+				_typingTimer?.Dispose();
+				_typingTimer = new System.Threading.Timer(async _ =>
+				{
+					isTyping = false;
+					await InvokeAsync(StateHasChanged);
+				}, null, 3000, System.Threading.Timeout.Infinite);
+			}
+			else
+			{
+				typingUserName = null;
+			}
+
+			await InvokeAsync(StateHasChanged);
+		});
+
+		hubConnection.On<System.Text.Json.JsonElement>("ReactionRemoved", async (data) =>
+		{
+			try
+			{
+				var messageId = data.GetProperty("messageId").GetGuid();
+				var userId = data.GetProperty("userId").GetString();
+
+				var msg = messages.FirstOrDefault(m => m.MessageId == messageId);
+				msg?.Reactions?.RemoveAll(r => r.UserId == userId);
+			}
+			catch { }
+
+			await InvokeAsync(StateHasChanged);
+		});
+
 
         try { await hubConnection.StartAsync(); }
         catch (Exception ex) { Console.Error.WriteLine(ex); }
@@ -988,7 +1192,12 @@
         try
         {
             // Gửi lên server → lưu DB → broadcast lại → cập nhật thành Sent
-            await hubConnection.InvokeAsync("SendMessage", tempId, ConversationId, currentUserId, content);
+			await hubConnection.InvokeAsync("SendMessage", new SendMessageRequest
+				{
+					ConversationId = Guid.Parse(ConversationId!),
+					Content = content,
+					TempId = tempId
+				});
         }
         catch (Exception ex)
         {
@@ -1000,17 +1209,26 @@
         }
     }
 
-    private async Task HandleKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter" && !e.ShiftKey)
-            await SendMessage();
-    }
+	private async Task HandleKeyDown(KeyboardEventArgs e)
+	{
+		if (e.Key == "Enter" && !e.ShiftKey)
+		{
+			await hubConnection!.InvokeAsync("StopTyping", Guid.Parse(ConversationId!));
+			await SendMessage();
+		}
+		else
+		{
+			if (hubConnection?.State == HubConnectionState.Connected)
+				await hubConnection.InvokeAsync("SendTyping", Guid.Parse(ConversationId!));
+		}
+	}
 
-    public async ValueTask DisposeAsync()
-    {
-        if (hubConnection is not null)
-            await hubConnection.DisposeAsync();
-    }
+	public async ValueTask DisposeAsync()
+	{
+		_typingTimer?.Dispose();
+		if (hubConnection is not null)
+			await hubConnection.DisposeAsync();
+	}
 
     private async Task ScrollToBottom()
     {
@@ -1020,4 +1238,46 @@
         }
         catch { }
     }
+
+	private void ToggleReactionPicker(Guid messageId)
+	{
+		reactionPickerMessageId =
+			reactionPickerMessageId == messageId ? null : messageId;
+
+		StateHasChanged(); 
+	}
+
+	private async Task SendReaction(Guid messageId, ReactionType type)
+	{
+		if (hubConnection == null || string.IsNullOrEmpty(ConversationId)) return;
+		reactionPickerMessageId = null;
+		try
+		{
+			await hubConnection.InvokeAsync("ReactToMessage",
+				Guid.Parse(ConversationId), 
+				messageId,
+				type);
+		}
+		catch { }
+	}
+
+	private async Task HandleReactionClick(Guid messageId, ReactionType type)
+	{
+		if (hubConnection == null || string.IsNullOrEmpty(ConversationId)) return;
+		var msg = messages.FirstOrDefault(m => m.MessageId == messageId);
+		var mine = msg?.Reactions?.FirstOrDefault(r => r.UserId == currentUserId);
+		try
+		{
+			if (mine?.Type == type)
+				await hubConnection.InvokeAsync("RemoveReaction",
+					Guid.Parse(ConversationId), 
+					messageId);
+			else
+				await hubConnection.InvokeAsync("ReactToMessage",
+					Guid.Parse(ConversationId), 
+					messageId,
+					type);
+		}
+		catch { }
+	}
 }

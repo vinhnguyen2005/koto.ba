@@ -113,15 +113,22 @@ namespace Kotoba.Modules.Infrastructure.Repositories
                 .Where(m => m.ConversationId == conversationId && !m.IsDeleted)
                 .OrderBy(m => m.CreatedAt)
                 .Include(m => m.Sender)
+                .Include(m => m.Reactions) 
                 .Select(m => new MessageDto
                 {
                     TempId = m.Id.ToString(),
                     MessageId = m.Id,
-                    SenderId = m.SenderId,                    
+                    SenderId = m.SenderId,
                     Content = m.Content,
                     ConversationId = conversationId,
                     CreatedAt = m.CreatedAt,
-                    Status = MessageStatus.Sent
+                    Status = MessageStatus.Sent,
+                    Reactions = m.Reactions.Select(r => new ReactionDto 
+                    {
+                        MessageId = r.MessageId,
+                        UserId = r.UserId,
+                        Type = r.Type
+                    }).ToList()
                 })
                 .ToListAsync();
         }
