@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="AutoMapper" Version="16.1.1" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.25" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="8.0.25" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.25" />
@@ -29,7 +30,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Modules\Domain\DTOs\" />
     <Folder Include="Modules\Infrastructure\Services\Realtime\" />
   </ItemGroup>
 

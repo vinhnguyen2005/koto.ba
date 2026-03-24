@@ -1,19 +1,23 @@
+using AutoMapper;
 using Kotoba.Modules.Domain.DTOs;
 using Kotoba.Modules.Domain.Entities;
 using Kotoba.Modules.Domain.Interfaces;
 using Kotoba.Modules.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Internal;
 
 namespace Kotoba.Modules.Infrastructure.Services.Social
 {
     public class StoryService : IStoryService
     {
-        private readonly KotobaDbContext _db;
+        private readonly IStoryRepository _storyRepository;
+        private readonly IMapper _mapper;
         private static readonly TimeSpan StoryLifetime = TimeSpan.FromHours(24);
 
-        public StoryService(KotobaDbContext db)
+        public StoryService(IStoryRepository storyRepository, IMapper mapper)
         {
-            _db = db;
+            _storyRepository = storyRepository;
+            _mapper = mapper;
         }
 
         public async Task<StoryDto?> CreateStoryAsync(CreateStoryRequest request)
@@ -32,32 +36,15 @@ namespace Kotoba.Modules.Infrastructure.Services.Social
                 ExpiresAt = DateTime.UtcNow.Add(StoryLifetime)
             };
 
-            _db.Stories.Add(story);
-            await _db.SaveChangesAsync();
+            await _storyRepository.AddAsync(story);
 
-            return MapToDto(story);
+            return _mapper.Map<StoryDto>(story);
         }
 
         public async Task<List<StoryDto>> GetActiveStoriesAsync()
         {
-            var now = DateTime.UtcNow;
-
-            return await _db.Stories
-                .AsNoTracking()
-                .Where(s => s.ExpiresAt > now)         
-                .OrderByDescending(s => s.CreatedAt)
-                .Select(s => MapToDto(s))
-                .ToListAsync();
+            var stories = await _storyRepository.GetActiveAsync();
+            return _mapper.Map<List<StoryDto>>(stories);
         }
-
-        // ── helpers ──────────────────────────────────────────────────────────
-        private static StoryDto MapToDto(Story s) => new()
-        {
-            StoryId = s.Id,
-            UserId = s.UserId,
-            Content = s.Content,
-            MediaUrl = s.MediaUrl,
-            ExpiresAt = s.ExpiresAt
-        };
     }
 }
