@@ -175,13 +175,8 @@ namespace Kotoba.Modules.Infrastructure.Services.Conversations
                 return selfConv;
             }
 
-            // Find conversation IDs where userA is a participant
-            var userAConvIds = _conversationParticipantRepository.GetAllConversationIdsForUserAsync(userAId);
-
-            // Find conversation IDs where userB is a participant
-            var userBConvIds = _conversationParticipantRepository.GetAllConversationIdsForUserAsync(userBId);
-
-            // The direct conversation is the one shared by BOTH users
+            var userAConvIds = await _conversationParticipantRepository.GetAllConversationIdsForUserAsync(userAId);
+            var userBConvIds = await _conversationParticipantRepository.GetAllConversationIdsForUserAsync(userBId);
             var sharedConvId = userAConvIds.Intersect(userBConvIds).FirstOrDefault();
 
             if (sharedConvId == default)

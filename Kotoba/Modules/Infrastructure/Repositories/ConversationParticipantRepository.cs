@@ -32,14 +32,14 @@ namespace Kotoba.Modules.Infrastructure.Repositories
                         && p.IsActive);
         }
 
-        public IQueryable<Guid> GetAllConversationIdsForUserAsync(string userId)
+        public async Task<List<Guid>> GetAllConversationIdsForUserAsync(string userId)
         {
-            using var _context = _dbFactory.CreateDbContext();
-            return _context.ConversationParticipants
-            .Where(p => p.UserId == userId && p.IsActive)
-            .Select(p => p.ConversationId);
+            using var _context = await _dbFactory.CreateDbContextAsync();
+            return await _context.ConversationParticipants
+                .Where(p => p.UserId == userId && p.IsActive)
+                .Select(p => p.ConversationId)
+                .ToListAsync(); 
         }
-
         public async Task AddAsync(ConversationParticipant participant)
         {
             using var _context = await _dbFactory.CreateDbContextAsync();
