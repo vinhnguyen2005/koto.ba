@@ -1036,7 +1036,9 @@
 			@foreach (var user in users)
 			{
 				<div class="chat-item" @onclick="() => SelectConversation(user)">
-					<div class="chat-avatar"><div class="avatar-img">🥝</div></div>
+                        <div class="chat-avatar">
+                            <div class="avatar-img">🥝</div>
+                        </div>
 					<div class="chat-info">
 						<div class="chat-name-row">
 							<div class="chat-name">@user.DisplayName</div>
@@ -1059,7 +1061,12 @@
 				var displayName = other?.DisplayName ?? "Direct Message";
 
 				<div class="chat-item" @onclick="() => SelectConversation(conv)">
-					<div class="chat-avatar"><div class="avatar-img">🥝</div></div>
+
+                        <div class="chat-avatar">
+                            <div class="avatar-img">
+                                🥝
+                            </div>
+                        </div>
 					<div class="chat-info">
 						<div class="chat-name-row">
 							<div class="chat-name">@displayName</div>
@@ -1099,6 +1106,8 @@
 	private string activeFilter = "all";
 
 	private string _loadedForUserId = "";
+    private HashSet<string> notifiedUsers = new();
+
 
 	protected override async Task OnParametersSetAsync()
 	{
@@ -1253,4 +1262,5 @@
 		if (e.Key == "Enter") await SaveThought();
 		else if (e.Key == "Escape") isEditingThought = false;
 	}
+
 }
