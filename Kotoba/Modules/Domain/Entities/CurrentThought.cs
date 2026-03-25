@@ -1,4 +1,4 @@
-﻿namespace Kotoba.Modules.Domain.Entities
+namespace Kotoba.Modules.Domain.Entities
 {
     public class CurrentThought
     {
