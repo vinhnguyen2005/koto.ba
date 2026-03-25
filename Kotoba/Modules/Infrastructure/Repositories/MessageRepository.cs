@@ -8,16 +8,17 @@ using Microsoft.EntityFrameworkCore;
 namespace Kotoba.Modules.Infrastructure.Repositories
 {
     public class MessageRepository : IMessageRepository
-    {
-        private readonly KotobaDbContext _context;
+    {        
+        private readonly IDbContextFactory<KotobaDbContext> _factory;
 
-        public MessageRepository(KotobaDbContext context)
-        {
-            _context = context;
+        public MessageRepository(KotobaDbContext context, IDbContextFactory<KotobaDbContext> factory)
+        {            
+            _factory = factory;
         }
 
         public async Task<IEnumerable<Message>> GetAllAsync()
         {
+            await using var _context = await _factory.CreateDbContextAsync();
             return await _context.Messages
                 .Include(m => m.Receipts)
                 .ToListAsync();
@@ -25,6 +26,7 @@ namespace Kotoba.Modules.Infrastructure.Repositories
 
         public async Task<Message?> GetAsync(Guid messageId)
         {
+            await using var _context = await _factory.CreateDbContextAsync();
             return await _context.Messages
                 .Include(m => m.Receipts)
                 .FirstOrDefaultAsync(m => m.Id == messageId);
@@ -32,6 +34,7 @@ namespace Kotoba.Modules.Infrastructure.Repositories
 
         public async Task<IEnumerable<Message>> GetAllByConversationIdAsync(Guid conversationId)
         {
+            await using var _context = await _factory.CreateDbContextAsync();
             return await _context.Messages
                 .Where(m => m.ConversationId == conversationId)
                 .Include(m => m.Receipts)
@@ -41,6 +44,7 @@ namespace Kotoba.Modules.Infrastructure.Repositories
 
         public async Task AddAsync(Message message)
         {
+            await using var _context = await _factory.CreateDbContextAsync();
             await _context.Messages.AddAsync(message);
         }
 
@@ -48,6 +52,7 @@ namespace Kotoba.Modules.Infrastructure.Repositories
         {
             pageSize = Math.Clamp(pageSize, 1, 100);
             page = Math.Max(page, 1);
+            await using var _context = await _factory.CreateDbContextAsync();
 
             var messages = await _context.Messages
                 .Where(m => m.ConversationId == conversationId && !m.IsDeleted)
@@ -67,11 +72,13 @@ namespace Kotoba.Modules.Infrastructure.Repositories
 
         public async Task AddReceiptsAsync(IEnumerable<MessageReceipt> receipts)
         {
+            await using var _context = await _factory.CreateDbContextAsync();
             await _context.MessageReceipts.AddRangeAsync(receipts);
         }
 
         public async Task<List<MessageReceipt>> GetReceiptsByMessageIdAsync(Guid messageId)
         {
+            await using var _context = await _factory.CreateDbContextAsync();
             return await _context.MessageReceipts
                 .Where(r => r.MessageId == messageId)
                 .AsNoTracking()
@@ -80,6 +87,7 @@ namespace Kotoba.Modules.Infrastructure.Repositories
 
         public async Task<MessageReceipt?> GetReceiptAsync(Guid messageId, string userId)
         {
+            await using var _context = await _factory.CreateDbContextAsync();
             return await _context.MessageReceipts
                 .FirstOrDefaultAsync(r => r.MessageId == messageId && r.UserId == userId);
         }
@@ -108,14 +116,15 @@ namespace Kotoba.Modules.Infrastructure.Repositories
         }
 
         public async Task<List<MessageDto>> GetMessagesAsync(Guid conversationId)
-{
-    return await _context.Messages
-        .Where(m => m.ConversationId == conversationId && !m.IsDeleted)
-        .OrderBy(m => m.CreatedAt)
-        .Include(m => m.Sender)
-        .Include(m => m.Attachments)
-        .Include(m => m.Reactions)
-        .Select(m => new MessageDto
+        {
+            await using var _context = await _factory.CreateDbContextAsync();
+            return await _context.Messages
+            .Where(m => m.ConversationId == conversationId && !m.IsDeleted)
+            .OrderBy(m => m.CreatedAt)
+            .Include(m => m.Sender)
+            .Include(m => m.Attachments)
+            .Include(m => m.Reactions)
+            .Select(m => new MessageDto
         {
             TempId = m.Id.ToString(),
             MessageId = m.Id,

@@ -1,0 +1,179 @@
+@using Kotoba.Modules.Domain.DTOs
+@using Kotoba.Modules.Domain.Enums
+@inject IConversationService conversationService
+@inject IJSRuntime JS
+
+@if (conversation != null)
+{
+    <div class="profile-panel">
+        <div class="profile-top">
+            <div class="profile-avatar-lg">
+                @(conversation.Type == ConversationType.Group ? "👥" : "🌿")
+            </div>
+            <div class="profile-name">@conversationName</div>
+            <div class="profile-username">
+                @(conversation.Type == ConversationType.Group
+                            ? $"{members?.Count ?? 0} members"
+                            : "Direct message")
+        </div>
+        <div class="profile-status-badge">
+            <div class="status-dot-sm"></div>
+            Online
+        </div>
+    </div>
+
+        @* Members *@
+    @if (conversation.Type == ConversationType.Group && members != null)
+        {
+            <div class="profile-section">
+                <div class="profile-section-title">Members</div>
+                @foreach (var m in members)
+                {
+                    <div class="setting-member">
+                        <div class="setting-member-avatar">@m.DisplayName[0]</div>
+                        <span class="setting-member-name">@m.DisplayName</span>
+                    </div>
+                }
+            </div>
+        }
+
+        @* Images *@
+        @if (images.Any())
+        {
+            <div class="profile-section">
+                <div class="profile-section-title">Shared images</div>
+                <div class="shared-media">
+                    @foreach (var img in images.Take(9))
+                    {
+                        <div class="media-thumb" @onclick="() => OpenImage(img.Url)">
+                            <img src="@img.Url" alt="@img.FileName"
+                                 style="width:100%;height:100%;object-fit:cover;display:block;" />
+                        </div>
+                    }
+                    @if (images.Count > 9)
+                    {
+                        <div class="media-thumb more">+@(images.Count - 9)</div>
+                    }
+                </div>
+            </div>
+        }
+
+        @* Files *@
+        @if (files.Any())
+        {
+            <div class="profile-section">
+                <div class="profile-section-title">Shared files</div>
+                <div class="setting-files">
+                    @foreach (var f in files)
+                    {
+                        <a href="@f.Url" target="_blank" class="setting-file-row">
+                            <div class="setting-file-icon">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                     stroke="#378ADD" stroke-width="1.5" stroke-linecap="round">
+                                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                                    <polyline points="14 2 14 8 20 8" />
+                                </svg>
+                            </div>
+                            <div class="setting-file-info">
+                                <div class="setting-file-name">@f.FileName</div>
+                                <div class="setting-file-size">@FormatSize(f.Size)</div>
+                            </div>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                 stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                 style="color:var(--muted);flex-shrink:0">
+                                <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
+                                <polyline points="15 3 21 3 21 9" />
+                                <line x1="10" y1="14" x2="21" y2="3" />
+                            </svg>
+                        </a>
+                    }
+                </div>
+            </div>
+        }
+
+        @* Actions — UI only *@
+        <div class="profile-section">
+            <div class="profile-section-title">Actions</div>
+            <button class="profile-action-btn">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                    <path d="M13.73 21a2 2 0 01-3.46 0" />
+                </svg>
+                Mute notifications
+            </button>
+            <button class="profile-action-btn" style="color:#c0392b;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+                    <polyline points="16 17 21 12 16 7" />
+                    <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+                Leave conversation
+            </button>
+            <button class="profile-action-btn" style="color:#c0392b;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+                    <path d="M10 11v6M14 11v6" />
+                    <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
+                </svg>
+                Delete conversation
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string? ConversationId { get; set; }
+    [Parameter] public string? CurrentUserId { get; set; }
+
+    private ConversationDto? conversation;
+    private List<UserProfile>? members;
+    private string? conversationName;
+    private List<AttachmentDto> images = new();
+    private List<AttachmentDto> files = new();
+    private string _loadedId = string.Empty;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.IsNullOrEmpty(ConversationId) || _loadedId == ConversationId) return;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loadedId = ConversationId!;
+
+        conversation = await conversationService.GetConversationDetailAsync(ConversationId!);
+        if (conversation == null) return;
+
+        members = await conversationService.GetOtherUsersInConversationsAsync(ConversationId!, CurrentUserId!);
+
+        conversationName = conversation.Type == ConversationType.Group
+            ? conversation.GroupName
+            : (members.Count == 0 ? "You" : members[0].DisplayName);
+
+        var messages = await conversationService.GetMessagesAsync(ConversationId!);
+
+        var allAttachments = messages
+            .SelectMany(m => m.Attachments ?? new())
+            .ToList();
+
+        images = allAttachments.Where(a => a.ContentType.StartsWith("image/")).ToList();
+        files = allAttachments.Where(a => !a.ContentType.StartsWith("image/")).ToList();
+
+        StateHasChanged();
+    }
+
+    private async Task OpenImage(string url)
+        => await JS.InvokeVoidAsync("window.open", url, "_blank");
+
+    private string FormatSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024} KB";
+        return $"{bytes / (1024 * 1024)} MB";
+    }
+}
