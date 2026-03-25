@@ -382,6 +382,7 @@ body {
     }
 
 .story-card-bg {
+    z-index: 0;
     width: 100%;
     height: 100%;
     display: flex;
@@ -389,6 +390,61 @@ body {
     justify-content: center;
     font-size: 48px;
     position: relative;
+}
+
+/* 🔥 Blurred background layer */
+.preview-bg {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    filter: blur(20px) brightness(0.7);
+    transform: scale(1.2); /* prevent edges showing */
+}
+
+/* 🖼 Main image */
+.preview-img {
+    position: relative;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    z-index: 1;
+}
+
+.preview-img-textonly {
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    position: absolute;
+}
+
+.preview-text-textonly {
+    padding: 16px;
+    color: white;
+    font-size: 10px;
+    font-weight: 600;
+    word-break: break-word;
+    z-index: 1;
+}
+
+/* ✏️ Text */
+.preview-text {
+    position: absolute;
+    background-color: black;
+    border-radius: 10px;
+    font-size: 10px;
+    top: 5%;
+    z-index: 2;
+    color: white;
+    font-weight: 600;
+    padding: 5px 10px;
+    text-align: center;
+}
+
+.story-ring-image {
+    width: 24px;
+    height: 24px;
+    position: absolute;
 }
 
 .bg1 {
@@ -435,7 +491,7 @@ body {
 
 .story-card-header {
     position: absolute;
-    top: 22px;
+    top: 10px;
     left: 10px;
     right: 10px;
     display: flex;
@@ -526,15 +582,6 @@ body {
     font-size: 90px;
 }
 
-.viewer-progress {
-    position: absolute;
-    top: 12px;
-    left: 12px;
-    right: 12px;
-    display: flex;
-    gap: 4px;
-}
-
 .vp-bar {
     height: 2px;
     flex: 1;
@@ -545,19 +592,59 @@ body {
 
 .vp-fill {
     height: 100%;
-    background: var(--lime-light);
-    width: 0;
-    transition: width 5s linear;
+    background: white;
+    width: 0%;
+}
+
+    /* completed stories */
+    .vp-fill.done {
+        width: 100%;
+    }
+
+    /* 🔥 active story animation */
+    .vp-fill.active {
+        animation: fillBar 5s linear forwards;
+    }
+
+    .vp-fill.paused {
+        animation-play-state: paused;
+    }
+
+@keyframes fillBar {
+    from {
+        width: 0%;
+    }
+
+    to {
+        width: 100%;
+    }
+}
+.viewer-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
 }
 
 .viewer-header {
     position: absolute;
-    top: 24px;
+    top: 36px;
     left: 12px;
     right: 12px;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    z-index: 50;
+}
+
+.viewer-progress {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    display: flex;
+    gap: 4px;
+    z-index: 30;
 }
 
 .viewer-user {
@@ -630,4 +717,101 @@ body {
 .empty-sub {
     font-size: 14px;
     margin-bottom: 16px;
+}
+
+.viewer-click {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 50%;
+    z-index: 5;
+}
+
+    .viewer-click.left {
+        left: 0;
+    }
+
+    .viewer-click.right {
+        right: 0;
+    }
+
+.story-bg {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    filter: blur(20px) brightness(0.7);
+    transform: scale(1.2); /* prevent edges showing */
+}
+
+.story-img {
+    position: absolute;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.story-text {
+    position: absolute;
+    background-color: black;
+    border-radius: 10px;
+    font-size: 10px;
+    top: 5%;
+    color: white;
+    font-weight: 600;
+    padding: 5px 10px;
+    text-align: center;
+}
+
+.viewer-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text2);
+    box-shadow: 0 4px 14px rgba(45,80,22,0.2);
+    z-index: 20;
+    transition: all 0.2s;
+}
+
+    /* LEFT */
+    .viewer-nav.left {
+        left: calc(50% - 240px); /* adjust based on viewer width */
+    }
+
+    /* RIGHT */
+    .viewer-nav.right {
+        right: calc(50% - 240px);
+    }
+
+    .viewer-nav:hover {
+        background: var(--lime-pale);
+        border-color: var(--lime);
+        color: var(--lime);
+        transform: translateY(-50%) scale(1.05);
+    }
+
+
+.story-img-textonly {
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    position: absolute;
+}
+
+.story-text-textonly {
+    padding: 16px;
+    color: white;
+    font-size: 30px;
+    font-weight: 600;
+    word-break: break-word;
+    z-index: 1;
 }

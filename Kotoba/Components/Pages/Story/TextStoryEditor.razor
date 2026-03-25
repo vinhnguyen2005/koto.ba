@@ -1,0 +1,78 @@
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Nav
+
+<div class="editor">
+    <div class="editor-left">
+        <div class="controls">
+            <label>Content</label>
+            <textarea @bind="content" placeholder="Write something..." />
+        </div>
+        
+
+        <div class="color-picker">
+            @foreach (var item in colors)
+            {
+                <div class="color"
+                     style="background:@item.Value"
+                     @onclick="() => SelectBackground(item.Key, item.Value)">
+                </div>
+            }
+        </div>
+        <button class="home-btn home-btn-secondary" @onclick="Submit">Post Story</button>
+    </div>
+
+    <div class="editor-right">
+            <div class="preview" style="background:@bgColor">
+                <div class="preview-text" style="font-size:24px">
+                    @content
+                </div>
+            </div>
+    </div>
+
+    
+</div>
+
+@code {
+    private string content = "";
+    private string bgColor = "#000";
+
+    private string? bgImage;
+
+    private void SelectBackground(string image, string color)
+    {
+        bgImage = image;
+        bgColor = color;
+    }
+
+    private Dictionary<string, string> colors = new()
+{
+        ["/assets/black.png"] = "#000000",
+        ["/assets/blue.png"] = "#0096FF",
+        ["/assets/red.png"] = "#ff4d4f",
+        ["/assets/cyan.png"] = "#36cfc9",
+        ["/assets/purple.png"] = "#9254de",
+        ["/assets/yellow.png"] = "#fadb14"
+
+};
+
+    [Inject] private IStoryService StoryService { get; set; }
+
+    private async Task Submit()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var userId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return;
+        }
+
+        await StoryService.CreateStoryAsync(new CreateStoryRequest
+        {
+            UserId = userId,
+            Content = content,
+            MediaUrl = bgImage
+        });
+        Nav.NavigateTo("/story");
+    }
+}

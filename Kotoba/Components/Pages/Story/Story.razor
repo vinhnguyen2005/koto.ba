@@ -1,0 +1,345 @@
+@page "/story"
+@inject NavigationManager Nav
+@inject IStoryService StoryService;
+
+	<div class="story-container full-screen">
+		<div class="story-header">
+			<div class="story-title">Stories</div>
+		</div>
+		<div class="story-content">
+			<div class="story-section-label" style="margin-bottom:12px">Your Story</div>
+			<div class="stories-row">
+            <div class="story-bubble" @onclick="GoToCreateStory">
+					<div class="story-add-ring"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" color="var(--lime)"><path d="M12 5v14M5 12h14" /></svg></div>
+					<div class="story-name">Add Story</div>
+				</div>
+				@foreach (var story in stories)
+				{
+					<div class="story-bubble"
+					@onclick="() => OpenStory(story.User.UserId)">
+
+						<div class="story-ring unseen">
+							<div class="story-inner">
+                                <img class="story-ring-image" src="@(story.User.AvatarUrl ?? "/assets/kiwi.png")" />
+							</div>
+						</div>
+
+						<div class="story-name unseen">
+							@story.User.DisplayName
+						</div>
+					</div>
+				}
+			</div>
+		<div class="story-section-label">Featured</div>
+
+		@if (stories == null || !stories.Any())
+		{
+			<div class="empty-featured">
+				<div class="empty-icon">📸</div>
+				<div class="empty-text">No stories available</div>
+				<div class="empty-sub">Follow people or add your own story</div>
+			</div>
+		}
+		else
+		{
+			<div class="carousel-wrap">
+				<button class="carousel-btn prev hidden" id="prevBtn" onclick="scroll(-1)">
+					<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+						<path d="M15 18l-6-6 6-6" />
+					</svg>
+				</button>
+
+				<div class="stories-grid" id="storiesGrid">
+					@foreach (var story in stories)
+					{
+                        <div class="story-card" @onclick="() => OpenStory(story.User.UserId)">
+                            @if (!string.IsNullOrEmpty(story.MediaUrl) && story.MediaUrl.Contains("uploads"))
+                            {
+                                <div class="story-card-bg">
+                                    <div class="preview-bg" style="background-image:url('@story.MediaUrl')"></div>
+                                    <img src="@story.MediaUrl" class="preview-img" />
+
+                                    <div class="preview-text">@story.Content</div>
+                                </div>
+
+                                <div class="story-card-header">
+                                    <img src="@(story.User.AvatarUrl ?? "/assets/kiwi.png")" class="story-card-avatar" />
+                                </div>
+
+                                <div class="story-card-footer">
+                                    <div class="story-card-time">@GetTimeAgo(story.ExpiresAt)</div>
+                                </div>
+                            } else
+                            {
+                                <div class="story-card-bg">
+                                    <div class="preview-bg" style="background-image:url('@story.MediaUrl')"></div>
+                                    <img src="@story.MediaUrl" class="preview-img-textonly"/>
+
+                                    <div class="preview-text-textonly">@story.Content</div>
+                                </div>
+
+                                <div class="story-card-header">
+                                    <img src="@story.User.AvatarUrl" class="story-card-avatar" />
+                                </div>
+
+                                <div class="story-card-footer">
+                                    <div class="story-card-time">@GetTimeAgo(story.ExpiresAt)</div>
+                                </div>
+                            }
+
+						</div>
+					}
+				</div>
+
+				<button class="carousel-btn next" id="nextBtn" onclick="scroll(1)">
+					<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+						<path d="M9 18l6-6-6-6" />
+					</svg>
+				</button>
+			</div>
+		}
+		</div>
+	</div>
+
+@if (isViewerOpen && currentStories != null)
+{
+    var story = currentStories[currentIndex];
+
+    <div class="story-viewer open">
+        <div class="viewer-nav left"
+             @onclick="HandlePrev"
+             @onclick:stopPropagation="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" fill="none">
+                <path d="M15 18l-6-6 6-6" />
+            </svg>
+        </div>
+        <div class="viewer-wrap">
+            <!-- HEADER outside inner, won't be affected by content re-render -->
+
+            <div class="story-viewer-inner" @onclick="ResumeStory">
+                <div class="viewer-progress">
+                    @for (int i = 0; i < currentStories.Count; i++)
+                    {
+                        <div class="vp-bar">
+                            <div class="vp-fill
+                                @(i < currentIndex ? "done" : "")
+                                @(i == currentIndex ? "active" : "")
+                                @(isPaused && i == currentIndex ? "paused" : "")"
+                                 @key="i">
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <!-- CONTENT -->
+                @if (!string.IsNullOrEmpty(story.MediaUrl) && story.MediaUrl.Contains("uploads"))
+                {
+                    <div class="story-bg" style="background-image:url('@story.MediaUrl')"></div>
+                    <img src="@story.MediaUrl" class="story-img" />
+                    <div class="story-text">
+                        @story.Content
+                    </div>
+                } else
+                {
+                    <img src="@story.MediaUrl" class="story-img-textonly" />
+                    <div class="story-text-textonly">
+                        @story.Content
+                    </div>
+                }
+
+                <div class="viewer-header">
+                    <div class="viewer-user">
+                        <img src="@(story.User?.AvatarUrl ?? "/assets/kiwi.png")" class="story-card-avatar" />
+                        <div>
+                            <div class="story-card-user">@(story.User?.DisplayName ?? "")</div>
+                            <div class="story-card-time">@GetTimeAgo(story.ExpiresAt)</div>
+                        </div>
+                    </div>
+                    <div class="viewer-close" @onclick="CloseStory">×</div>
+                </div>
+            </div>
+        </div>
+        <div class="viewer-nav right"
+             @onclick="HandleNext"
+             @onclick:stopPropagation="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" fill="none">
+                <path d="M9 18l6-6-6-6" />
+            </svg>
+        </div>
+    </div>
+}
+	<script>
+		let t;
+		function closeStory(){document.getElementById('storyViewer').classList.remove('open');clearTimeout(t);document.getElementById('vpFill').style.width='0';}
+		document.getElementById('storyViewer').addEventListener('click',e=>{if(e.target===document.getElementById('storyViewer'))closeStory();});
+
+		/* Carousel */
+		const grid=document.getElementById('storiesGrid');
+		const prev=document.getElementById('prevBtn');
+		const next=document.getElementById('nextBtn');
+		function scroll(dir){grid.scrollBy({left:dir*200,behavior:'smooth'});}
+		function updateBtns(){
+		const atStart=grid.scrollLeft<=4;
+		const atEnd=grid.scrollLeft+grid.clientWidth>=grid.scrollWidth-4;
+		prev.classList.toggle('hidden',atStart);
+		next.classList.toggle('hidden',atEnd);
+		}
+		grid.addEventListener('scroll',updateBtns);
+		window.addEventListener('resize',updateBtns);
+		updateBtns();
+	</script>
+
+@code {
+    private List<StoryDto> stories = new();
+    private List<StoryDto> currentStories;
+    private int currentIndex = 0;
+    private Timer? storyTimer;
+    private int remainingTime = 5000;
+    private DateTime startTime;
+    private bool isViewerOpen = false;
+    private bool isPaused = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        stories = await StoryService.GetActiveStoriesAsync();
+    }
+    private async Task OpenStory(string userId)
+    {
+        currentStories = await StoryService.GetActiveStoriesByUserIdAsync(userId);
+
+        if (currentStories == null || !currentStories.Any())
+            return;
+
+        currentIndex = 0;
+        isViewerOpen = true;
+
+        StartStoryTimer();
+    }
+
+    private void CloseStory()
+    {
+        storyTimer?.Dispose();
+        isViewerOpen = false;
+        currentStories = null;
+        currentIndex = 0;
+    }
+	private string GetTimeAgo(DateTime expiresAt)
+	{
+		var created = expiresAt.AddHours(-24);
+		var diff = DateTime.UtcNow - created;
+
+		if (diff.TotalMinutes < 1) return "Just now";
+		if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes} min ago";
+		if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h ago";
+
+		return $"{(int)diff.TotalDays}d ago";
+	}
+
+    private void GoToCreateStory()
+    {
+        Nav.NavigateTo("/story/create");
+    }
+
+    private void StartStoryTimer()
+    {
+        storyTimer?.Dispose();
+        remainingTime = 5000;
+        startTime = DateTime.UtcNow;
+
+        storyTimer = new Timer(_ =>
+        {
+            InvokeAsync(() =>
+            {
+                NextStory();
+                StateHasChanged();
+            });
+        }, null, 5000, Timeout.Infinite);
+    }
+
+    private void PauseStory()
+    {
+        if (isPaused) return;
+
+        isPaused = true;
+        var elapsed = (int)(DateTime.UtcNow - startTime).TotalMilliseconds;
+        remainingTime = Math.Max(0, remainingTime - elapsed);
+        storyTimer?.Dispose();
+    }
+
+    private void ResumeStory()
+    {
+        if (!isPaused) return;
+
+        isPaused = false;
+        StartStoryTimer();
+    }
+
+    private void NextStory()
+    {
+        if (currentStories == null) return;
+        isPaused = false;
+
+        if (currentIndex < currentStories.Count - 1)
+        {
+            currentIndex++;
+            StartStoryTimer();
+        }
+        else
+        {
+            CloseStory();
+        }
+
+        StateHasChanged();
+    }
+
+    private void PrevStory()
+    {
+        if (currentStories == null) return;
+        isPaused = false;
+
+        if (currentIndex > 0)
+        {
+            currentIndex--;
+            StartStoryTimer();
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleNext()
+    {
+        await InvokeAsync(() =>
+        {
+            isPaused = false;
+            if (currentStories == null) return;
+
+            if (currentIndex < currentStories.Count - 1)
+            {
+                currentIndex++;
+                StartStoryTimer();
+            }
+            else
+            {
+                CloseStory();
+            }
+
+            StateHasChanged();
+        });
+    }
+
+    private async Task HandlePrev()
+    {
+        await InvokeAsync(() =>
+        {
+            isPaused = false;
+            if (currentStories == null) return;
+
+            if (currentIndex > 0)
+            {
+                currentIndex--;
+                StartStoryTimer();
+            }
+
+            StateHasChanged();
+        });
+    }
+}

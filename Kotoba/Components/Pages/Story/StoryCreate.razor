@@ -1,0 +1,50 @@
+
+@page "/story/create"
+
+<div class="story-container full-screen">
+    <div class="story-header">
+        <div class="story-title">Stories - Create new Story</div>
+    </div>
+    <div class="create-container">
+
+        @if (mode == null)
+        {
+            <div class="mode-select">
+                <div class="mode-card" @onclick="() => SelectMode(StoryMode.Text)">
+                    <div class="icon">Aa</div>
+                    <div class="text">Create a text story</div>
+                </div>
+
+                <div class="mode-card" @onclick="() => SelectMode(StoryMode.Image)">
+                    <div class="icon">🖼️</div>
+                    <div class="text">Create a photo story</div>
+                </div>
+            </div>
+        }
+        else
+        {
+            @if (mode == StoryMode.Text)
+            {
+                <TextStoryEditor />
+            }
+            else if (mode == StoryMode.Image)
+            {
+                <ImageStoryEditor />
+            }
+        }
+    </div>
+</div>
+@code {
+    public enum StoryMode
+    {
+        Text,
+        Image
+    }
+
+    private StoryMode? mode;
+
+    private void SelectMode(StoryMode selected)
+    {
+        mode = selected;
+    }
+}
