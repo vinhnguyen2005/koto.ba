@@ -7,9 +7,8 @@
 @using Kotoba.Modules.Domain.Enums
 @inject IJSRuntime JS
 @inject IHttpClientFactory HttpClientFactory
-
+@inject IHttpContextAccessor HttpContextAccessor
 <style>
-
     /* ===== CHAT LIST ===== */
     .chat-list-panel {
         width: 300px;
@@ -27,7 +26,7 @@
     }
 
     .panel-title {
-        font-family: 'Syne',sans-serif;
+        font-family: 'Syne', sans-serif;
         font-weight: 700;
         font-size: 20px;
         color: var(--text);
@@ -56,11 +55,11 @@
         transition: all 0.2s;
     }
 
-        .icon-btn:hover {
-            background: var(--lime-pale);
-            color: var(--lime);
-            border-color: var(--lime);
-        }
+    .icon-btn:hover {
+        background: var(--lime-pale);
+        color: var(--lime);
+        border-color: var(--lime);
+    }
 
     .search-box {
         position: relative;
@@ -73,20 +72,20 @@
         border: 1.5px solid var(--border);
         border-radius: 10px;
         color: var(--text);
-        font-family: 'DM Sans',sans-serif;
+        font-family: 'DM Sans', sans-serif;
         font-size: 13px;
         outline: none;
         transition: all 0.25s;
     }
 
-        .search-input::placeholder {
-            color: #BCC4A0;
-        }
+    .search-input::placeholder {
+        color: #BCC4A0;
+    }
 
-        .search-input:focus {
-            border-color: var(--lime);
-            background: #fff;
-        }
+    .search-input:focus {
+        border-color: var(--lime);
+        background: #fff;
+    }
 
     .search-icon {
         position: absolute;
@@ -114,17 +113,17 @@
         border: 1px solid transparent;
     }
 
-        .filter-tab.active {
-            background: var(--lime-pale);
-            color: var(--lime);
-            border-color: rgba(122,184,0,0.25);
-            font-weight: 600;
-        }
+    .filter-tab.active {
+        background: var(--lime-pale);
+        color: var(--lime);
+        border-color: rgba(122,184,0,0.25);
+        font-weight: 600;
+    }
 
-        .filter-tab:hover:not(.active) {
-            color: var(--text);
-            background: var(--surface2);
-        }
+    .filter-tab:hover:not(.active) {
+        color: var(--text);
+        background: var(--surface2);
+    }
 
     .chat-list {
         overflow-y: auto;
@@ -132,32 +131,24 @@
         padding: 6px;
     }
 
-        .chat-list::-webkit-scrollbar {
-            width: 3px;
-        }
-
-        .chat-list::-webkit-scrollbar-thumb {
-            background: rgba(122,184,0,0.2);
-            border-radius: 2px;
-        }
+    .chat-list::-webkit-scrollbar { width: 3px; }
+    .chat-list::-webkit-scrollbar-thumb {
+        background: rgba(122,184,0,0.2);
+        border-radius: 2px;
+    }
 
     .chat-item {
         display: flex;
         gap: 10px;
-        padding: 10px 10px;
+        padding: 10px;
         border-radius: 12px;
         cursor: pointer;
         transition: all 0.2s;
         position: relative;
     }
 
-        .chat-item:hover {
-            background: var(--surface2);
-        }
-
-        .chat-item.active {
-            background: var(--lime-pale);
-        }
+    .chat-item:hover { background: var(--surface2); }
+    .chat-item.active { background: var(--lime-pale); }
 
     .chat-avatar {
         position: relative;
@@ -168,7 +159,7 @@
         width: 44px;
         height: 44px;
         border-radius: 50%;
-        background: linear-gradient(135deg,#4A7C1F,#2D5016);
+        background: linear-gradient(135deg, #4A7C1F, #2D5016);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -176,9 +167,7 @@
         border: 2px solid transparent;
     }
 
-    .chat-item.active .avatar-img {
-        border-color: rgba(122,184,0,0.35);
-    }
+    .chat-item.active .avatar-img { border-color: rgba(122,184,0,0.35); }
 
     .online-dot {
         position: absolute;
@@ -191,9 +180,7 @@
         border: 2px solid var(--surface);
     }
 
-    .chat-item.active .online-dot {
-        border-color: var(--lime-pale);
-    }
+    .chat-item.active .online-dot { border-color: var(--lime-pale); }
 
     .chat-info {
         flex: 1;
@@ -216,15 +203,8 @@
         text-overflow: ellipsis;
     }
 
-    .chat-item.has-unread .chat-name {
-        font-weight: 700;
-        color: var(--text);
-    }
-
-    .chat-item.has-unread .chat-time {
-        color: var(--lime);
-        font-weight: 600;
-    }
+    .chat-item.has-unread .chat-name { font-weight: 700; }
+    .chat-item.has-unread .chat-time { color: var(--lime); font-weight: 600; }
 
     .chat-time {
         font-size: 11px;
@@ -249,10 +229,7 @@
         flex: 1;
     }
 
-        .chat-preview.unread {
-            color: var(--text);
-            font-weight: 600;
-        }
+    .chat-preview.unread { color: var(--text); font-weight: 600; }
 
     .unread-badge {
         flex-shrink: 0;
@@ -285,6 +262,8 @@
         flex-direction: column;
         overflow: hidden;
         background: var(--bg);
+        min-height: 0;
+        height: 100%;
     }
 
     .chat-header {
@@ -302,7 +281,7 @@
         width: 38px;
         height: 38px;
         border-radius: 50%;
-        background: linear-gradient(135deg,#4A7C1F,#2D5016);
+        background: linear-gradient(135deg, #4A7C1F, #2D5016);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -321,12 +300,10 @@
         border: 2px solid var(--surface);
     }
 
-    .chat-header-info {
-        flex: 1;
-    }
+    .chat-header-info { flex: 1; }
 
     .chat-header-name {
-        font-family: 'Syne',sans-serif;
+        font-family: 'Syne', sans-serif;
         font-weight: 700;
         font-size: 15px;
         color: var(--text);
@@ -338,12 +315,9 @@
         font-weight: 500;
     }
 
-    .chat-header-actions {
-        display: flex;
-        gap: 4px;
-    }
+    .chat-header-actions { display: flex; gap: 4px; }
 
-    /* Messages */
+    /* ===== MESSAGES ===== */
     .messages-area {
         flex: 1;
         overflow-y: auto;
@@ -351,16 +325,14 @@
         display: flex;
         flex-direction: column;
         gap: 2px;
+        min-height: 0;
     }
 
-        .messages-area::-webkit-scrollbar {
-            width: 4px;
-        }
-
-        .messages-area::-webkit-scrollbar-thumb {
-            background: rgba(122,184,0,0.2);
-            border-radius: 2px;
-        }
+    .messages-area::-webkit-scrollbar { width: 4px; }
+    .messages-area::-webkit-scrollbar-thumb {
+        background: rgba(122,184,0,0.2);
+        border-radius: 2px;
+    }
 
     .msg-date-divider {
         text-align: center;
@@ -372,12 +344,13 @@
         gap: 12px;
     }
 
-        .msg-date-divider::before, .msg-date-divider::after {
-            content: '';
-            flex: 1;
-            height: 1px;
-            background: var(--border);
-        }
+    .msg-date-divider::before,
+    .msg-date-divider::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: var(--border);
+    }
 
     .msg-group {
         margin-bottom: 10px;
@@ -386,10 +359,8 @@
         align-items: flex-start;
     }
 
-        .msg-group.own {
-            align-items: flex-end;
-        }
-    /* base row: received messages */
+    .msg-group.own { align-items: flex-end; }
+
     .msg-row {
         display: flex;
         gap: 8px;
@@ -401,7 +372,7 @@
         width: 28px;
         height: 28px;
         border-radius: 50%;
-        background: linear-gradient(135deg,#4A7C1F,#2D5016);
+        background: linear-gradient(135deg, #4A7C1F, #2D5016);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -409,7 +380,6 @@
         flex-shrink: 0;
     }
 
-    /* BUBBLES */
     .msg-bubble {
         padding: 10px 14px;
         border-radius: 18px;
@@ -418,7 +388,7 @@
         word-break: break-word;
         max-width: 360px;
     }
-    /* received */
+
     .msg-row:not(.own) .msg-bubble {
         background: var(--surface);
         border: 1px solid var(--border);
@@ -426,24 +396,17 @@
         color: var(--text);
         box-shadow: 0 1px 4px rgba(45,80,22,0.06);
     }
-    /* OWN messages */
-    .msg-row.own {
-        justify-content: flex-end;
+
+    .msg-row.own { justify-content: flex-end; }
+    .msg-row.own .msg-avatar-sm { display: none; }
+    .msg-row.own .msg-bubble {
+        background: var(--lime);
+        color: #1A1F0E;
+        border-bottom-right-radius: 5px;
+        font-weight: 500;
+        box-shadow: 0 2px 8px rgba(122,184,0,0.25);
     }
 
-        .msg-row.own .msg-avatar-sm {
-            display: none;
-        }
-
-        .msg-row.own .msg-bubble {
-            background: var(--lime);
-            color: #1A1F0E;
-            border-bottom-right-radius: 5px;
-            font-weight: 500;
-            box-shadow: 0 2px 8px rgba(122,184,0,0.25);
-        }
-
-    /* meta row — sits inside msg-group, inherits align-items:flex-end for own */
     .msg-meta {
         display: flex;
         align-items: center;
@@ -452,15 +415,8 @@
         margin-top: 2px;
     }
 
-    .msg-time {
-        font-size: 10px;
-        color: var(--muted);
-    }
-
-    .msg-check {
-        font-size: 11px;
-        color: var(--lime);
-    }
+    .msg-time { font-size: 10px; color: var(--muted); }
+    .msg-check { font-size: 11px; color: var(--lime); }
 
     .msg-image-wrap {
         display: inline-block;
@@ -475,7 +431,7 @@
     .msg-image {
         width: 100%;
         height: 150px;
-        background: linear-gradient(135deg,var(--lime-pale),var(--surface3));
+        background: linear-gradient(135deg, var(--lime-pale), var(--surface3));
         display: flex;
         align-items: center;
         justify-content: center;
@@ -489,20 +445,19 @@
         color: var(--text);
     }
 
-    /* reactions sit flush below the bubble, offset by avatar width only */
+    /* ===== REACTIONS ===== */
     .msg-reactions {
         display: flex;
         gap: 4px;
-        margin-top: -6px; /* overlap slightly under bubble */
-        margin-left: 36px; /* align with bubble start (after avatar) */
+        margin-top: -6px;
+        margin-left: 36px;
         margin-bottom: 2px;
     }
 
-    .msg-group.own .msg-reactions {
-        margin-left: 0;
-    }
+    .msg-group.own .msg-reactions { margin-left: 0; }
 
     .reaction-chip {
+        position: relative;
         background: var(--surface);
         border: 1px solid var(--border);
         border-radius: 20px;
@@ -513,13 +468,42 @@
         box-shadow: 0 1px 4px rgba(45,80,22,0.08);
     }
 
-        .reaction-chip:hover {
-            background: var(--lime-pale);
-            border-color: var(--lime);
-            transform: scale(1.08);
-        }
+    .reaction-chip:hover {
+        background: var(--lime-pale);
+        border-color: var(--lime);
+        transform: scale(1.08);
+    }
 
-    /* Typing */
+    .reaction-tooltip {
+        display: none;
+        position: absolute;
+        bottom: calc(100% + 6px);
+        left: 50%;
+        transform: translateX(-50%);
+        background: #1A1F0E;
+        color: #fff;
+        font-size: 11px;
+        padding: 5px 10px;
+        border-radius: 8px;
+        white-space: nowrap;
+        z-index: 50;
+        pointer-events: none;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    .reaction-tooltip::after {
+        content: '';
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        border: 5px solid transparent;
+        border-top-color: #1A1F0E;
+    }
+
+    .reaction-chip:hover .reaction-tooltip { display: block; }
+
+    /* ===== TYPING ===== */
     .typing-indicator {
         display: flex;
         gap: 8px;
@@ -547,281 +531,29 @@
         opacity: 0.7;
     }
 
-        .dot:nth-child(2) {
-            animation-delay: .2s;
-        }
-
-        .dot:nth-child(3) {
-            animation-delay: .4s;
-        }
+    .dot:nth-child(2) { animation-delay: .2s; }
+    .dot:nth-child(3) { animation-delay: .4s; }
 
     @@keyframes bounce {
-        0%, 60%, 100% {
-            transform: translateY(0)
-        }
-
-        30% {
-            transform: translateY(-6px)
-        }
+        0%, 60%, 100% { transform: translateY(0); }
+        30% { transform: translateY(-6px); }
     }
 
-    /* Input area */
+    /* ===== INPUT AREA ===== */
     .input-area {
         padding: 12px 20px;
         border-top: 1px solid var(--border);
         background: var(--surface);
-    }
-
-    .input-toolbar {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 10px 12px;
-        background: var(--surface2);
-        border: 1.5px solid var(--border);
-        border-radius: 16px;
-        transition: border-color 0.3s;
-    }
-
-        .input-toolbar:focus-within {
-            border-color: var(--lime);
-            box-shadow: 0 0 0 3px rgba(122,184,0,0.08);
-        }
-
-    .input-tool-btn {
-        width: 32px;
-        height: 32px;
-        border-radius: 8px;
-        border: none;
-        background: transparent;
-        color: var(--muted);
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.2s;
         flex-shrink: 0;
     }
-
-        .input-tool-btn:hover {
-            background: var(--lime-pale);
-            color: var(--lime);
-        }
-
-    .msg-input {
-        flex: 1;
-        border: none;
-        background: transparent;
-        color: var(--text);
-        font-family: 'DM Sans',sans-serif;
-        font-size: 14px;
-        outline: none;
-        resize: none;
-        max-height: 120px;
-    }
-
-        .msg-input::placeholder {
-            color: #BCC4A0;
-        }
-
-    .send-btn {
-        width: 36px;
-        height: 36px;
-        background: var(--lime);
-        border: none;
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        flex-shrink: 0;
-        transition: all 0.2s;
-        color: #1A1F0E;
-    }
-
-        .send-btn:hover {
-            background: var(--lime-bright);
-            transform: scale(1.05);
-        }
-
-        .send-btn:active {
-            transform: scale(0.95);
-        }
-
-    /* ===== PROFILE PANEL ===== */
-    .profile-panel {
-        width: 272px;
-        background: var(--surface);
-        border-left: 1px solid var(--border);
-        display: flex;
-        flex-direction: column;
-        overflow-y: auto;
-        padding: 20px;
-    }
-
-        .profile-panel::-webkit-scrollbar {
-            width: 3px;
-        }
-
-        .profile-panel::-webkit-scrollbar-thumb {
-            background: rgba(122,184,0,0.2);
-            border-radius: 2px;
-        }
-
-    .profile-top {
-        text-align: center;
-        padding-bottom: 18px;
-        border-bottom: 1px solid var(--border);
-        margin-bottom: 18px;
-    }
-
-    .profile-avatar-lg {
-        width: 72px;
-        height: 72px;
-        border-radius: 50%;
-        background: linear-gradient(135deg,var(--lime-light) 0%,var(--lime) 60%,#4A7C1F 100%);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 32px;
-        margin: 0 auto 10px;
-        border: 3px solid rgba(122,184,0,0.25);
-        box-shadow: 0 4px 16px rgba(122,184,0,0.2);
-    }
-
-    .profile-name {
-        font-family: 'Syne',sans-serif;
-        font-weight: 700;
-        font-size: 15px;
-        color: var(--text);
-        margin-bottom: 3px;
-    }
-
-    .profile-username {
-        font-size: 12px;
-        color: var(--muted);
-        margin-bottom: 10px;
-    }
-
-    .profile-status-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 12px;
-        background: rgba(34,197,94,0.1);
-        border: 1px solid rgba(34,197,94,0.2);
-        border-radius: 20px;
-        font-size: 11px;
-        color: #16A34A;
-    }
-
-    .status-dot-sm {
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        background: #22C55E;
-    }
-
-    .profile-section {
-        margin-bottom: 18px;
-    }
-
-    .profile-section-title {
-        font-size: 10px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 1.5px;
-        color: var(--muted);
-        margin-bottom: 8px;
-    }
-
-    .copy-feature-card {
-        background: linear-gradient(135deg,var(--lime-pale),rgba(122,184,0,0.06));
-        border: 1px solid rgba(122,184,0,0.25);
-        border-radius: 12px;
-        padding: 14px;
-        margin-bottom: 8px;
-    }
-
-    .copy-feature-title {
-        font-size: 12px;
-        font-weight: 700;
-        color: var(--lime);
-        margin-bottom: 5px;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-
-    .copy-feature-desc {
-        font-size: 11px;
-        color: var(--text2);
-        line-height: 1.5;
-    }
-
-    .profile-action-btn {
-        width: 100%;
-        padding: 9px 12px;
-        background: var(--surface2);
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        color: var(--text2);
-        font-size: 13px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-bottom: 6px;
-        transition: all 0.2s;
-        font-family: 'DM Sans',sans-serif;
-    }
-
-        .profile-action-btn:hover {
-            background: var(--lime-pale);
-            color: var(--lime);
-            border-color: rgba(122,184,0,0.25);
-        }
-
-    /* FIX: shared media grid - proper thumbnails */
-    .shared-media {
-        display: grid;
-        grid-template-columns: repeat(3,1fr);
-        gap: 4px;
-    }
-
-    .media-thumb {
-        aspect-ratio: 1;
-        background: var(--surface2);
-        border-radius: 8px;
-        overflow: hidden;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 18px;
-        cursor: pointer;
-        transition: opacity 0.2s;
-        border: 1px solid var(--border);
-        color: var(--text2);
-    }
-
-        .media-thumb:hover {
-            opacity: 0.75;
-        }
-
-        .media-thumb.more {
-            font-size: 12px;
-            font-weight: 700;
-            color: var(--lime);
-            background: var(--lime-pale);
-        }
 
     .pending-strip {
-        padding: 10px 12px 8px; /* thêm padding-bottom */
+        padding: 10px 12px 8px;
         display: flex;
-        padding-bottom: 15px;
         flex-wrap: wrap;
         gap: 8px;
-        border-bottom: 0.5px solid rgba(0,0,0,0.08); /* đường kẻ ngăn cách */
+        border-bottom: 0.5px solid rgba(0,0,0,0.08);
+        margin-bottom: 8px;
     }
 
     .att-chip {
@@ -830,15 +562,13 @@
         border-radius: 10px;
         overflow: hidden;
         border: 0.5px solid rgba(0,0,0,0.12);
-        background: var(--bg-secondary, #f5f5f3);
+        background: var(--surface2);
         height: 48px;
         max-width: 210px;
         transition: border-color .15s;
     }
 
-        .att-chip:hover {
-            border-color: rgba(0,0,0,0.25);
-        }
+    .att-chip:hover { border-color: rgba(0,0,0,0.25); }
 
     .att-thumb {
         width: 48px;
@@ -896,13 +626,237 @@
         border-bottom: none;
     }
 
-        .att-remove:hover {
-            color: #c0392b;
-        }
+    .att-remove:hover { color: #c0392b; }
+
+    .input-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 12px;
+        background: var(--surface2);
+        border: 1.5px solid var(--border);
+        border-radius: 16px;
+        transition: border-color 0.3s;
+    }
+
+    .input-toolbar:focus-within {
+        border-color: var(--lime);
+        box-shadow: 0 0 0 3px rgba(122,184,0,0.08);
+    }
+
+    .input-tool-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        border: none;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        flex-shrink: 0;
+    }
+
+    .input-tool-btn:hover {
+        background: var(--lime-pale);
+        color: var(--lime);
+    }
+
+    .msg-input {
+        flex: 1;
+        border: none;
+        background: transparent;
+        color: var(--text);
+        font-family: 'DM Sans', sans-serif;
+        font-size: 14px;
+        outline: none;
+        resize: none;
+        max-height: 120px;
+    }
+
+    .msg-input::placeholder { color: #BCC4A0; }
+
+    .send-btn {
+        width: 36px;
+        height: 36px;
+        background: var(--lime);
+        border: none;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: all 0.2s;
+        color: #1A1F0E;
+    }
+
+    .send-btn:hover { background: var(--lime-bright); transform: scale(1.05); }
+    .send-btn:active { transform: scale(0.95); }
+
+    /* ===== PROFILE PANEL ===== */
+    .profile-panel {
+        width: 272px;
+        background: var(--surface);
+        border-left: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+        padding: 20px;
+    }
+
+    .profile-panel::-webkit-scrollbar { width: 3px; }
+    .profile-panel::-webkit-scrollbar-thumb {
+        background: rgba(122,184,0,0.2);
+        border-radius: 2px;
+    }
+
+    .profile-top {
+        text-align: center;
+        padding-bottom: 18px;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 18px;
+    }
+
+    .profile-avatar-lg {
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--lime-light) 0%, var(--lime) 60%, #4A7C1F 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 32px;
+        margin: 0 auto 10px;
+        border: 3px solid rgba(122,184,0,0.25);
+        box-shadow: 0 4px 16px rgba(122,184,0,0.2);
+    }
+
+    .profile-name {
+        font-family: 'Syne', sans-serif;
+        font-weight: 700;
+        font-size: 15px;
+        color: var(--text);
+        margin-bottom: 3px;
+    }
+
+    .profile-username {
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 10px;
+    }
+
+    .profile-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 12px;
+        background: rgba(34,197,94,0.1);
+        border: 1px solid rgba(34,197,94,0.2);
+        border-radius: 20px;
+        font-size: 11px;
+        color: #16A34A;
+    }
+
+    .status-dot-sm {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #22C55E;
+    }
+
+    .profile-section { margin-bottom: 18px; }
+
+    .profile-section-title {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        color: var(--muted);
+        margin-bottom: 8px;
+    }
+
+    .copy-feature-card {
+        background: linear-gradient(135deg, var(--lime-pale), rgba(122,184,0,0.06));
+        border: 1px solid rgba(122,184,0,0.25);
+        border-radius: 12px;
+        padding: 14px;
+        margin-bottom: 8px;
+    }
+
+    .copy-feature-title {
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--lime);
+        margin-bottom: 5px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .copy-feature-desc {
+        font-size: 11px;
+        color: var(--text2);
+        line-height: 1.5;
+    }
+
+    .profile-action-btn {
+        width: 100%;
+        padding: 9px 12px;
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        color: var(--text2);
+        font-size: 13px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 6px;
+        transition: all 0.2s;
+        font-family: 'DM Sans', sans-serif;
+    }
+
+    .profile-action-btn:hover {
+        background: var(--lime-pale);
+        color: var(--lime);
+        border-color: rgba(122,184,0,0.25);
+    }
+
+    .shared-media {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 4px;
+    }
+
+    .media-thumb {
+        aspect-ratio: 1;
+        background: var(--surface2);
+        border-radius: 8px;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        cursor: pointer;
+        transition: opacity 0.2s;
+        border: 1px solid var(--border);
+        color: var(--text2);
+    }
+
+    .media-thumb:hover { opacity: 0.75; }
+
+    .media-thumb.more {
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--lime);
+        background: var(--lime-pale);
+    }
 </style>
 @if (selectedConv != null)
 {
-    <!-- MAIN CHAT -->
     <div class="chat-main">
         <div class="chat-header">
             <div class="chat-header-avatar">
@@ -927,44 +881,107 @@
             @foreach (var msg in messages)
             {
                 var isOwn = msg.SenderId == currentUserId;
-                <div class="msg-group @(isOwn ? "own" : "")">
+
+                <div class="msg-group @(isOwn ? "own" : "")"
+                     @onmouseenter="() => hoveredMessageId = msg.MessageId"
+                     @onmouseleave="() => {
+                         if (reactionPickerMessageId != msg.MessageId)
+                             hoveredMessageId = null;
+                     }">
+
                     <div class="msg-row @(isOwn ? "own" : "")">
                         @if (!isOwn)
                         {
                             <div class="msg-avatar-sm">🌿</div>
                         }
-                        <div class="msg-bubble @(msg.Status == MessageStatus.Pending ? "sending" : "")">
-                            @if (!string.IsNullOrWhiteSpace(msg.Content))
+
+                        <div style="display:flex;flex-direction:column;gap:2px;">
+                            @if (selectedConv!.Type == ConversationType.Group && !isOwn)
                             {
-                                <div class="msg-text">@msg.Content</div>
+                                var senderName = selectedUsers?.FirstOrDefault(u => u.UserId == msg.SenderId)?.DisplayName ?? "Unknown";
+                                <span style="font-size:11px;color:var(--muted);padding-left:2px;margin-bottom:2px;">@senderName</span>
                             }
 
-                            @if (msg.Attachments != null && msg.Attachments.Any())
+                            <div class="msg-bubble @(msg.Status == MessageStatus.Pending ? "sending" : "")">
+                                @if (!string.IsNullOrWhiteSpace(msg.Content))
+                                {
+                                    <div class="msg-text">@msg.Content</div>
+                                }
+
+                                @if (msg.Attachments != null && msg.Attachments.Any())
+                                {
+                                    <div class="msg-attachments" style="margin-top:8px;display:flex;flex-direction:column;gap:4px;">
+                                        @foreach (var att in msg.Attachments)
+                                        {
+                                            if (att.ContentType.StartsWith("image/"))
+                                            {
+                                                <img src="@att.Url" alt="@att.FileName"
+                                                     style="max-width:200px;border-radius:8px;cursor:pointer;"
+                                                     @onclick="() => OpenImage(att.Url)" />
+                                            }
+                                            else
+                                            {
+                                                <a href="@att.Url" target="_blank" class="msg-file-link"
+                                                   style="display:flex;align-items:center;gap:4px;padding:8px;background:rgba(0,0,0,0.05);border-radius:4px;text-decoration:none;color:inherit;">
+                                                    <span>📎</span>
+                                                    <span>@att.FileName</span>
+                                                </a>
+                                            }
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        </div>
+
+                        @if (hoveredMessageId == msg.MessageId)
+                        {
+                            <div style="width:26px;height:26px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;"
+                                 @onclick:stopPropagation="true"
+                                 @onclick="() => ToggleReactionPicker(msg.MessageId)">
+                                😊
+                            </div>
+                        }
+                    </div>
+
+                    @if (reactionPickerMessageId == msg.MessageId)
+                    {
+                        <div style="background:var(--surface);border:1px solid var(--border);border-radius:30px;padding:6px 10px;display:flex;gap:4px;box-shadow:0 4px 20px rgba(0,0,0,.12);z-index:20;"
+                             @onclick:stopPropagation="true">
+                            @foreach (var (emoji, rType) in ReactionEmojis)
                             {
-                                <div class="msg-attachments" style="margin-top: 8px; display: flex; flex-direction: column; gap: 4px;">
-                                    @foreach (var att in msg.Attachments)
-                                    {
-                                        if (att.ContentType.StartsWith("image/"))
-                                        {
-                                            <img src="@att.Url" alt="@att.FileName" style="max-width: 200px; border-radius: 8px; cursor: pointer;" @onclick="() => OpenImage(att.Url)" />
-                                        }
-                                        else
-                                        {
-                                            <a href="@att.Url" target="_blank" class="msg-file-link" style="display: flex; align-items: center; gap: 4px; padding: 8px; background: rgba(0,0,0,0.05); border-radius: 4px; text-decoration: none; color: inherit;">
-                                                <span>📎</span>
-                                                <span>@att.FileName</span>
-                                            </a>
-                                        }
-                                    }
-                                </div>
+                                var rc = rType;
+                                var ic = msg.MessageId;
+                                <span style="font-size:20px;cursor:pointer;padding:2px;"
+                                      @onclick="() => SendReaction(ic, rc)">
+                                    @emoji
+                                </span>
                             }
-                    </div>
-                    </div>
+                        </div>
+                    }
+
+                    @if (msg.Reactions?.Any() == true)
+                    {
+                        <div class="msg-reactions">
+                            @foreach (var grp in msg.Reactions.GroupBy(r => r.Type))
+                            {
+                                var gt = grp.Key;
+                                var mid = msg.MessageId;
+                                var mine = grp.Any(r => r.UserId == currentUserId);
+                                var ec = ReactionEmojis.FirstOrDefault(x => x.type == gt).emoji ?? "👍";
+
+                                <span class="reaction-chip @(mine ? "mine" : "")"
+                                      @onclick="() => HandleReactionClick(mid, gt)">
+                                    @ec @grp.Count()
+                                </span>
+                            }
+                        </div>
+                    }
+
                     <div class="msg-meta" style="@(isOwn ? "" : "margin-left:36px")">
                         <span class="msg-time">
                             @(msg.Status == MessageStatus.Pending
-                                                ? "Sending..."
-                                                : msg.CreatedAt.ToLocalTime().ToString("hh:mm tt"))
+                                ? "Sending..."
+                                : msg.CreatedAt.ToLocalTime().ToString("hh:mm tt"))
                         </span>
                         @if (isOwn)
                         {
@@ -975,10 +992,25 @@
                     </div>
                 </div>
             }
+
+            @if (isTyping)
+            {
+                <div class="typing-indicator">
+                    <div class="msg-avatar-sm">🌿</div>
+                    <div style="display:flex;flex-direction:column;gap:2px;">
+                        @if (selectedConv!.Type == ConversationType.Group && !string.IsNullOrEmpty(typingUserName))
+                        {
+                            <span style="font-size:11px;color:var(--muted);padding-left:2px;">@typingUserName</span>
+                        }
+                        <div class="typing-dots">
+                            <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                        </div>
+                    </div>
+                </div>
+            }
         </div>
 
         <div class="input-area">
-            @* Preview *@
             @if (pendingFile != null || pendingImages.Any())
             {
                 <div class="pending-strip">
@@ -997,8 +1029,7 @@
                             </div>
                             <button class="att-remove" @onclick="RemoveFile">
                                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                                    <line x1="2" y1="2" x2="10" y2="10" />
-                                    <line x1="10" y1="2" x2="2" y2="10" />
+                                    <line x1="2" y1="2" x2="10" y2="10" /><line x1="10" y1="2" x2="2" y2="10" />
                                 </svg>
                             </button>
                         </div>
@@ -1013,32 +1044,41 @@
                             </div>
                             <button class="att-remove" @onclick="() => RemoveImage(img)">
                                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                                    <line x1="2" y1="2" x2="10" y2="10" />
-                                    <line x1="10" y1="2" x2="2" y2="10" />
+                                    <line x1="2" y1="2" x2="10" y2="10" /><line x1="10" y1="2" x2="2" y2="10" />
                                 </svg>
                             </button>
                         </div>
                     }
                 </div>
             }
+
             <div class="input-toolbar">
-                <button class="input-tool-btn" title="Emoji"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><path d="M8 13s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01" /></svg></button>
+                <button class="input-tool-btn" title="Emoji">
+                    <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><path d="M8 13s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01" /></svg>
+                </button>
+
                 <label for="filePicker" class="input-tool-btn" title="Attach">
                     <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" /></svg>
                 </label>
-                <InputFile id="filePicker" OnChange="OnFileSelected" style="display: none;" />
+                <InputFile id="filePicker" OnChange="OnFileSelected" style="display:none;" />
 
                 <label for="imagePicker" class="input-tool-btn" title="Image">
                     <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg>
                 </label>
-                <InputFile id="imagePicker" OnChange="OnImagesSelected" multiple accept="image/*" style="display: none;" />
+                <InputFile id="imagePicker" OnChange="OnImagesSelected" multiple accept="image/*" style="display:none;" />
+
                 <textarea class="msg-input" placeholder="Type a message…" rows="1"
                           id="msgInput"
                           @bind="newMessageText"
                           @bind:event="oninput"
                           @onkeydown="HandleKeyDown"></textarea>
-                <button class="input-tool-btn" title="Voice"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" /><path d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8" /></svg></button>
-                <button class="send-btn" id="sendButton" @onclick="SendMessage" title="Send"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" /></svg></button>
+
+                <button class="input-tool-btn" title="Voice">
+                    <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" /><path d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8" /></svg>
+                </button>
+                <button class="send-btn" id="sendButton" @onclick="SendMessage" title="Send">
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" /></svg>
+                </button>
             </div>
         </div>
     </div>
@@ -1050,7 +1090,7 @@
         public string FileName { get; set; } = string.Empty;
         public string ContentType { get; set; } = string.Empty;
         public string PreviewUrl { get; set; } = string.Empty;
-        public byte[]? Buffer { get; set; } // ✅ thêm field này
+        public byte[]? Buffer { get; set; }
         public IBrowserFile File { get; set; } = null!;
         public bool IsImage => ContentType.StartsWith("image/");
     }
@@ -1066,9 +1106,24 @@
     private HubConnection? hubConnection;
     private string _loadedConvId = string.Empty;
 
-    // ✅ 1 file, nhiều ảnh
     private PendingFile? pendingFile = null;
     private List<PendingFile> pendingImages = new();
+
+    private Guid? hoveredMessageId;
+    private bool isTyping;
+    private Guid? reactionPickerMessageId;
+    private string? typingUserName;
+    private System.Threading.Timer? _typingTimer;
+
+    private static readonly (string emoji, ReactionType type)[] ReactionEmojis =
+    [
+        ("👍", ReactionType.Like),
+        ("❤️", ReactionType.Love),
+        ("😂", ReactionType.Haha),
+        ("😮", ReactionType.Wow),
+        ("😢", ReactionType.Sad),
+        ("😡", ReactionType.Angry),
+    ];
 
     private ElementReference msgAreaRef;
 
@@ -1105,41 +1160,103 @@
 
         messages = await conversationService.GetMessagesAsync(ConversationId!);
 
-        await StartHubAsync();
-        await hubConnection!.InvokeAsync("JoinConversation", ConversationId);
+        if (hubConnection == null)
+            await StartHubAsync();
 
+        await hubConnection!.InvokeAsync("JoinConversation", ConversationId);
         StateHasChanged();
         await ScrollToBottom();
     }
 
     private async Task StartHubAsync()
     {
+        var cookies = HttpContextAccessor.HttpContext?.Request.Cookies;
+        var cookieStr = string.Join("; ", cookies?.Select(c => $"{c.Key}={c.Value}") ?? []);
+
         hubConnection = new HubConnectionBuilder()
-            .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
+            .WithUrl(Navigation.ToAbsoluteUri("/chathub"), options =>
+            {
+                options.Headers.Add("Cookie", cookieStr);
+            })
             .WithAutomaticReconnect()
             .Build();
 
-        hubConnection.On<MessageDto>("ReceiveMessage", async (msg) =>
+        hubConnection.On<MessageDto, string>("MessageConfirmed", async (msg, tempId) =>
         {
             await InvokeAsync(async () =>
             {
-                var existing = messages.FirstOrDefault(m => m.TempId == msg.TempId);
+                var existing = messages.FirstOrDefault(m => m.TempId == tempId);
                 if (existing != null)
                 {
-                    // Tin mình gửi → update Sending → Sent + gắn attachments thật từ server
                     existing.MessageId = msg.MessageId;
                     existing.CreatedAt = msg.CreatedAt;
                     existing.Status = MessageStatus.Sent;
-                    existing.Attachments = msg.Attachments; // ✅ thay preview bằng URL thật
+                    existing.Attachments = msg.Attachments;
                 }
                 else
                 {
-                    // Tin người khác
                     messages.Add(msg);
                 }
-
                 StateHasChanged();
                 await ScrollToBottom();
+            });
+        });
+
+        hubConnection.On<ReactionDto>("ReactionUpdated", async (reaction) =>
+        {
+            await InvokeAsync(() =>
+            {
+                var msg = messages.FirstOrDefault(m => m.MessageId == reaction.MessageId);
+                if (msg != null)
+                {
+                    msg.Reactions ??= new List<ReactionDto>();
+                    var existing = msg.Reactions.FirstOrDefault(r => r.UserId == reaction.UserId);
+                    if (existing != null)
+                        existing.Type = reaction.Type;
+                    else
+                        msg.Reactions.Add(reaction);
+                }
+                StateHasChanged();
+            });
+        });
+
+        hubConnection.On<TypingStatusDto>("UserTyping", async (status) =>
+        {
+            if (status.UserId == currentUserId) return;
+            await InvokeAsync(() =>
+            {
+                isTyping = status.IsTyping;
+                if (status.IsTyping)
+                {
+                    typingUserName = selectedUsers?.FirstOrDefault(u => u.UserId == status.UserId)?.DisplayName;
+                    _typingTimer?.Dispose();
+                    _typingTimer = new System.Threading.Timer(async _ =>
+                    {
+                        isTyping = false;
+                        await InvokeAsync(StateHasChanged);
+                    }, null, 3000, System.Threading.Timeout.Infinite);
+                }
+                else
+                {
+                    typingUserName = null;
+                }
+                StateHasChanged();
+            });
+        });
+
+        hubConnection.On<System.Text.Json.JsonElement>("ReactionRemoved", async (data) =>
+        {
+            await InvokeAsync(() =>
+            {
+                try
+                {
+                    var messageId = data.GetProperty("messageId").GetGuid();
+                    var userId = data.GetProperty("userId").GetString();
+                    var msg = messages.FirstOrDefault(m => m.MessageId == messageId);
+                    msg?.Reactions?.RemoveAll(r => r.UserId == userId);
+                }
+                catch { }
+                StateHasChanged();
             });
         });
 
@@ -1147,13 +1264,10 @@
         catch (Exception ex) { Console.Error.WriteLine(ex); }
     }
 
-    // ===== FILE PICKERS =====    
-
     private async Task OnFileSelected(InputFileChangeEventArgs e)
     {
         var file = e.File;
         if (file == null) return;
-
         pendingFile = new PendingFile
         {
             FileName = file.Name,
@@ -1169,8 +1283,7 @@
         {
             using var ms = new MemoryStream();
             await file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(ms);
-            var buffer = ms.ToArray(); // ✅ đảm bảo đọc hết
-
+            var buffer = ms.ToArray();
             pendingImages.Add(new PendingFile
             {
                 FileName = file.Name,
@@ -1186,7 +1299,6 @@
     private void RemoveFile() { pendingFile = null; StateHasChanged(); }
     private void RemoveImage(PendingFile img) { pendingImages.Remove(img); StateHasChanged(); }
 
-    // ===== SEND =====
     private async Task SendMessage()
     {
         var hasText = !string.IsNullOrWhiteSpace(newMessageText);
@@ -1198,7 +1310,6 @@
         var content = newMessageText;
         newMessageText = string.Empty;
 
-        // Preview attachments hiện ngay
         var previewAttachments = new List<AttachmentDto>();
         if (pendingFile != null)
             previewAttachments.Add(new AttachmentDto
@@ -1212,7 +1323,7 @@
             {
                 FileName = img.FileName,
                 ContentType = img.ContentType,
-                Url = img.PreviewUrl // preview tạm
+                Url = img.PreviewUrl
             });
 
         var fileToUpload = pendingFile;
@@ -1220,7 +1331,6 @@
         pendingFile = null;
         pendingImages.Clear();
 
-        // Hiện Sending ngay lập tức
         messages.Add(new MessageDto
         {
             TempId = tempId,
@@ -1234,13 +1344,10 @@
         StateHasChanged();
         await ScrollToBottom();
 
-        // Thay thế đoạn try-catch trong hàm SendMessage của bạn bằng đoạn này:
-
         try
         {
             var uploadedFiles = new List<AttachmentDto>();
 
-            // 1. Chỉ lưu file vật lý xuống ổ cứng và lấy thông tin
             if (fileToUpload != null)
             {
                 using var stream = fileToUpload.File.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
@@ -1255,7 +1362,6 @@
                 uploadedFiles.Add(fileDto);
             }
 
-            // 2. Gửi Hub toàn bộ thông tin
             await hubConnection.InvokeAsync("SendMessage", tempId, ConversationId, currentUserId, content, uploadedFiles);
         }
         catch (Exception ex)
@@ -1270,7 +1376,15 @@
     private async Task HandleKeyDown(KeyboardEventArgs e)
     {
         if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await hubConnection!.InvokeAsync("StopTyping", Guid.Parse(ConversationId!));
             await SendMessage();
+        }
+        else
+        {
+            if (hubConnection?.State == HubConnectionState.Connected)
+                await hubConnection.InvokeAsync("SendTyping", Guid.Parse(ConversationId!));
+        }
     }
 
     private string FormatSize(long bytes)
@@ -1289,13 +1403,42 @@
         catch { }
     }
 
+    private void ToggleReactionPicker(Guid messageId)
+    {
+        reactionPickerMessageId = reactionPickerMessageId == messageId ? null : messageId;
+        StateHasChanged();
+    }
+
+    private async Task SendReaction(Guid messageId, ReactionType type)
+    {
+        if (hubConnection == null || string.IsNullOrEmpty(ConversationId)) return;
+        reactionPickerMessageId = null;
+        try
+        {
+            await hubConnection.InvokeAsync("ReactToMessage", Guid.Parse(ConversationId), messageId, type);
+        }
+        catch { }
+    }
+
+    private async Task HandleReactionClick(Guid messageId, ReactionType type)
+    {
+        if (hubConnection == null || string.IsNullOrEmpty(ConversationId)) return;
+        var msg = messages.FirstOrDefault(m => m.MessageId == messageId);
+        var mine = msg?.Reactions?.FirstOrDefault(r => r.UserId == currentUserId);
+        try
+        {
+            if (mine?.Type == type)
+                await hubConnection.InvokeAsync("RemoveReaction", Guid.Parse(ConversationId), messageId);
+            else
+                await hubConnection.InvokeAsync("ReactToMessage", Guid.Parse(ConversationId), messageId, type);
+        }
+        catch { }
+    }
+
     public async ValueTask DisposeAsync()
     {
+        _typingTimer?.Dispose();
         if (hubConnection is not null)
-        {
-            if (!string.IsNullOrEmpty(_loadedConvId))
-                try { await hubConnection.InvokeAsync("LeaveConversation", _loadedConvId); } catch { }
             await hubConnection.DisposeAsync();
-        }
     }
 }

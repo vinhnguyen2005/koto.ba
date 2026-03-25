@@ -4,25 +4,57 @@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inject NavigationManager Navigation
 
-    <ChatNav currentUserId="@currentUserId"/>
-<ChatMain ConversationId="@ConversationId" currentUserId="@currentUserId" />
+<style>
+    /* Chat page: keep the outer page fixed; only inner panes scroll */
+    .chat-shell {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+        width: 100%;
+        height: 100vh;
+        overflow: hidden;
+    }
 
-@code {
-    [Parameter] public string? ConversationId { get; set; }
-    private string? currentUserId;
+    .chat-shell > .chat-list-panel {
+        flex-shrink: 0;
+        min-height: 0;
+        height: 100%;
+    }
 
-    protected override async Task OnInitializedAsync()
-    {
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        var user = authState.User;
-        if (user.Identity?.IsAuthenticated == true)
-        {
-            currentUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        }
-        if (string.IsNullOrEmpty(currentUserId))
-        {
-            Navigation.NavigateTo("/login", true);
-            return;
+    .chat-shell > .chat-main {
+        min-height: 0;
+        height: 100%;
+    }
+
+    @@media (max-width: 640.98px) {
+        /* When layout switches to column, avoid hard clamping to 100vh. */
+        .chat-shell {
+            height: 100%;
         }
     }
+</style>
+
+<div class="chat-shell">
+    <ChatNav currentUserId="@currentUserId" />
+    <ChatMain ConversationId="@ConversationId" currentUserId="@currentUserId" />
+</div>
+
+@code {
+	[Parameter] public string? ConversationId { get; set; }
+	private string? currentUserId;
+
+	protected override async Task OnInitializedAsync()
+	{
+		var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+		var user = authState.User;
+		if (user.Identity?.IsAuthenticated == true)
+		{
+			currentUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+		}
+		if (string.IsNullOrEmpty(currentUserId))
+		{
+			Navigation.NavigateTo("/login", true);
+			return;
+		}
+	}
 }

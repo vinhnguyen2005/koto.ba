@@ -31,8 +31,9 @@ html, body {
 body {
     font-family: 'DM Sans',sans-serif;
     background: var(--bg);
-    height: 100vh;
-    overflow: hidden;
+    min-height: 100vh;
+    overflow-x: hidden;
+    overflow-y: auto;
     color: var(--text);
 }
 

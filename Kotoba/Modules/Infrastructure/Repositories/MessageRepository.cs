@@ -108,31 +108,38 @@ namespace Kotoba.Modules.Infrastructure.Repositories
         }
 
         public async Task<List<MessageDto>> GetMessagesAsync(Guid conversationId)
+{
+    return await _context.Messages
+        .Where(m => m.ConversationId == conversationId && !m.IsDeleted)
+        .OrderBy(m => m.CreatedAt)
+        .Include(m => m.Sender)
+        .Include(m => m.Attachments)
+        .Include(m => m.Reactions)
+        .Select(m => new MessageDto
         {
-            return await _context.Messages
-                .Where(m => m.ConversationId == conversationId && !m.IsDeleted)
-                .OrderBy(m => m.CreatedAt)
-                .Include(m => m.Sender)
-                .Include(m => m.Attachments)
-                .Select(m => new MessageDto
-                {
-                    TempId = m.Id.ToString(),
-                    MessageId = m.Id,
-                    SenderId = m.SenderId,                    
-                    Content = m.Content,
-                    ConversationId = conversationId,
-                    CreatedAt = m.CreatedAt,
-                    Status = MessageStatus.Sent,
-                    Attachments = m.Attachments.Select(a => new AttachmentDto
-                    {
-                        Id = a.Id,
-                        FileName = a.FileName,
-                        ContentType = a.ContentType,
-                        Url = a.Url,
-                        Size = a.Size
-                    }).ToList()
-                })
-                .ToListAsync();
-        }
+            TempId = m.Id.ToString(),
+            MessageId = m.Id,
+            SenderId = m.SenderId,
+            Content = m.Content,
+            ConversationId = conversationId,
+            CreatedAt = m.CreatedAt,
+            Status = MessageStatus.Sent,
+            Attachments = m.Attachments.Select(a => new AttachmentDto
+            {
+                Id = a.Id,
+                FileName = a.FileName,
+                ContentType = a.ContentType,
+                Url = a.Url,
+                Size = a.Size
+            }).ToList(), // ✅ đóng Attachments.Select đúng chỗ
+            Reactions = m.Reactions.Select(r => new ReactionDto
+            {
+                MessageId = r.MessageId,
+                UserId = r.UserId,
+                Type = r.Type
+            }).ToList() // ✅ Reactions là field riêng của MessageDto
+        })
+        .ToListAsync();
+}
     }
 }

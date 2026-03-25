@@ -14,6 +14,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Kotoba.Modules.Hubs;
+using Kotoba.Modules.Application.Mappings;
+using AutoMapper;
 
 namespace Kotoba
 {
@@ -33,6 +35,7 @@ namespace Kotoba
             {
                 options.EnableDetailedErrors = true; 
             });
+
 
             builder.Services.AddDbContextFactory<KotobaDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -64,12 +67,16 @@ namespace Kotoba
                 options.AccessDeniedPath = "/login";
             });
 
+
+            builder.Services.AddAutoMapper(cfg => cfg.AddMaps(typeof(Program).Assembly));
+
             builder.Services.AddScoped<IReactionService, ReactionService>();
             builder.Services.AddScoped<IAttachmentService, AttachmentService>();
             builder.Services.AddScoped<IUserService, UserService>();
             builder.Services.AddSingleton<IPresenceService, PresenceService>();
             builder.Services.AddScoped<IPresenceBroadcastService, PresenceBroadcastService>();
             builder.Services.AddScoped<IConversationService, ConversationService>();
+            builder.Services.AddScoped<IStoryRepository, StoryRepository>();
             builder.Services.AddScoped<ConversationParticipantRepository>();
             builder.Services.AddScoped<ConversationRepository>();
             builder.Services.AddScoped<UserProfileRepository>();

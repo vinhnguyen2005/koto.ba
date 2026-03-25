@@ -144,11 +144,18 @@ namespace Kotoba.Modules.Infrastructure.Services.Conversations
                     Type = cp.Conversation.Type,
                     GroupName = cp.Conversation.GroupName,
                     CreatedAt = cp.Conversation.CreatedAt,
-                    UpdatedAt = cp.Conversation.UpdatedAt
+                    UpdatedAt = cp.Conversation.UpdatedAt,
+                    Participants = cp.Conversation.Participants.Select(p => new UserProfile
+                    {
+                        UserId = p.UserId,
+                        DisplayName = p.User?.DisplayName ?? "",
+                        AvatarUrl = p.User?.AvatarUrl,
+                        IsOnline = p.User?.IsOnline ?? false
+                    }).ToList()
                 }).ToList();
-                return await Task.FromResult(conversationDtos);
+                return conversationDtos;
             }
-            return await Task.FromResult(new List<ConversationDto>());
+            return new List<ConversationDto>();
         }
 
         public async Task<ConversationDto?> FindDirectConversationsAsync(string userAId, string userBId)
@@ -168,13 +175,8 @@ namespace Kotoba.Modules.Infrastructure.Services.Conversations
                 return selfConv;
             }
 
-            // Find conversation IDs where userA is a participant
-            var userAConvIds = _conversationParticipantRepository.GetAllConversationIdsForUserAsync(userAId);
-
-            // Find conversation IDs where userB is a participant
-            var userBConvIds = _conversationParticipantRepository.GetAllConversationIdsForUserAsync(userBId);
-
-            // The direct conversation is the one shared by BOTH users
+            var userAConvIds = await _conversationParticipantRepository.GetAllConversationIdsForUserAsync(userAId);
+            var userBConvIds = await _conversationParticipantRepository.GetAllConversationIdsForUserAsync(userBId);
             var sharedConvId = userAConvIds.Intersect(userBConvIds).FirstOrDefault();
 
             if (sharedConvId == default)
