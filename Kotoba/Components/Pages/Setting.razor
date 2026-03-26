@@ -1,0 +1,522 @@
+@page "/settings"
+@inject INotificationSettingsService NotifSettings
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@using Kotoba.Modules.Infrastructure.Services.Settings
+
+<div class="settings-layout">
+
+    <div class="settings-nav">
+        <div class="settings-title">Settings</div>
+        <div class="settings-section">
+            <div class="settings-section-label">Account</div>
+            <div class="settings-link @(activeSection == "notifications" ? "active" : "")"
+                 @onclick='() => activeSection = "notifications"'>
+                <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                Notifications
+            </div>
+            <div class="settings-link @(activeSection == "privacy" ? "active" : "")"
+                 @onclick='() => activeSection = "privacy"'>
+                <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+                Privacy &amp; Security
+            </div>
+            <div class="settings-link @(activeSection == "copy" ? "active" : "")"
+                 @onclick='() => activeSection = "copy"'>
+                <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                Copy Messenger
+            </div>
+        </div>
+        <div class="settings-section">
+            <div class="settings-section-label">App</div>
+            <div class="settings-link @(activeSection == "appearance" ? "active" : "")"
+                 @onclick='() => activeSection = "appearance"'>
+                <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+                </svg>
+                Appearance
+            </div>
+            <div class="settings-link @(activeSection == "language" ? "active" : "")"
+                 @onclick='() => activeSection = "language"'>
+                <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+                </svg>
+                Language
+            </div>
+        </div>
+        <div class="settings-section">
+            <div class="settings-section-label">Support</div>
+            <div class="settings-link">
+                <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Help &amp; Support
+            </div>
+            <div class="settings-link danger" @onclick='() => Navigation.NavigateTo("/")'>
+                <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#EF4444" stroke-width="2">
+                    <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                Sign Out
+            </div>
+        </div>
+    </div>
+
+    <div class="settings-content">
+
+        @if (activeSection == "notifications")
+        {
+            <div class="settings-header-wrapper">
+                <div class="settings-header-left">
+                    <div class="settings-page-title">Notifications</div>
+                    <div class="settings-page-subtitle">Manage how and when you receive alerts</div>
+
+                    @* Browser permission warning *@
+                    @if (permissionState == "denied")
+                    {
+                        <div class="perm-banner">
+                            <span class="perm-banner-icon">⚠️</span>
+                            <span>
+                                Browser notifications are <strong>blocked</strong> for this site.
+                                <button class="perm-link" @onclick="RequestPermission">Enable in browser settings</button>
+                                to receive pop-up alerts.
+                            </span>
+                        </div>
+                    }
+                    else if (permissionState == "default")
+                    {
+                        <div class="perm-banner">
+                            <span class="perm-banner-icon">🔔</span>
+                            <span>
+                                Allow browser notifications so Kotoba can alert you.
+                                <button class="home-btn home-btn-secondary" @onclick="RequestPermission">Allow notifications</button>
+                            </span>
+                        </div>
+                    }
+                </div>
+                <div class="settings-header-right">
+                    @if (activeSection == "notifications" && isDirty)
+                    {
+                        <div class="save-bar">
+                            <span class="save-msg"><strong>Unsaved changes</strong> — save before leaving.</span>
+                            <div class="settings-header-right">
+                                <button class="home-btn home-btn-secondary" @onclick="Discard">Discard</button>
+                                <button class="home-btn home-btn-primary" @onclick="Save">@(isSaving ? "Saving…" : "Save")</button>
+                            </div>
+                        </div>
+                    }
+
+                    @if (showSavedToast)
+                    {
+                        <div class="saved-toast">
+                            <div class="toast-dot"></div>
+                            Settings saved
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @* ── Messages ── *@
+            <div class="setting-group">
+                <div class="setting-group-title">Messages</div>
+                <div class="setting-card">
+
+                    @* Direct messages *@
+                    <div class="setting-row">
+                        <div class="setting-icon">
+                            <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                            </svg>
+                        </div>
+                        <div class="setting-info">
+                            <div class="setting-label">Message Notifications</div>
+                            <div class="setting-desc">Get notified when you receive a new direct message</div>
+                        </div>
+                        <div class="setting-control">
+                            <label class="toggle">
+                                <input type="checkbox" checked="@draft.DirectMessages"
+                                       @onchange="e => Mutate(s => s.DirectMessages = (bool)e.Value!)" />
+                                <div class="toggle-track"></div>
+                                <div class="toggle-thumb"></div>
+                            </label>
+                        </div>
+                    </div>
+
+                    @* Group messages *@
+                    <div class="setting-row">
+                        <div class="setting-icon">
+                            <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                        </div>
+                        <div class="setting-info">
+                            <div class="setting-label">Group Mentions</div>
+                            <div class="setting-desc">Notify when someone messages in a group you belong to</div>
+                        </div>
+                        <div class="setting-control">
+                            <label class="toggle">
+                                <input type="checkbox" checked="@draft.GroupMessages"
+                                       @onchange="e => Mutate(s => s.GroupMessages = (bool)e.Value!)" />
+                                <div class="toggle-track"></div>
+                                <div class="toggle-thumb"></div>
+                            </label>
+                        </div>
+                    </div>
+
+                    @* Mentions *@
+                    <div class="setting-row">
+                        <div class="setting-icon">
+                            <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="4" />
+                                <path d="M16 8v5a3 3 0 006 0v-1a10 10 0 10-3.92 7.94" />
+                            </svg>
+                        </div>
+                        <div class="setting-info">
+                            <div class="setting-label">Mentions &amp; @@you</div>
+                            <div class="setting-desc">Always alert when you're directly mentioned</div>
+                        </div>
+                        <div class="setting-control">
+                            <label class="toggle">
+                                <input type="checkbox" checked="@draft.Mentions"
+                                       @onchange="e => Mutate(s => s.Mentions = (bool)e.Value!)" />
+                                <div class="toggle-track"></div>
+                                <div class="toggle-thumb"></div>
+                            </label>
+                        </div>
+                    </div>
+
+                    @* Someone online *@
+                    <div class="setting-row">
+                        <div class="setting-icon">
+                            <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <circle cx="12" cy="12" r="10" />
+                            </svg>
+                        </div>
+                        <div class="setting-info">
+                            <div class="setting-label">Someone Comes Online</div>
+                            <div class="setting-desc">Notify when a contact becomes active</div>
+                        </div>
+                        <div class="setting-control">
+                            <label class="toggle">
+                                <input type="checkbox" checked="@draft.SomeoneOnline"
+                                       @onchange="e => Mutate(s => s.SomeoneOnline = (bool)e.Value!)" />
+                                <div class="toggle-track"></div>
+                                <div class="toggle-thumb"></div>
+                            </label>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            @* ── Display ── *@
+            <div class="setting-group">
+                <div class="setting-group-title">Display</div>
+                <div class="setting-card">
+
+                    <div class="setting-row">
+                        <div class="setting-icon">
+                            <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                <circle cx="12" cy="12" r="3" />
+                            </svg>
+                        </div>
+                        <div class="setting-info">
+                            <div class="setting-label">Show Message Preview</div>
+                            <div class="setting-desc">Display the first few words of the message in the alert</div>
+                        </div>
+                        <div class="setting-control">
+                            <label class="toggle">
+                                <input type="checkbox" checked="@draft.ShowPreview"
+                                       @onchange="e => Mutate(s => s.ShowPreview = (bool)e.Value!)" />
+                                <div class="toggle-track"></div>
+                                <div class="toggle-thumb"></div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="setting-row">
+                        <div class="setting-icon">
+                            <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                        </div>
+                        <div class="setting-info">
+                            <div class="setting-label">Show Sender Name</div>
+                            <div class="setting-desc">Include who sent the message in the notification</div>
+                        </div>
+                        <div class="setting-control">
+                            <label class="toggle">
+                                <input type="checkbox" checked="@draft.ShowSender"
+                                       @onchange="e => Mutate(s => s.ShowSender = (bool)e.Value!)" />
+                                <div class="toggle-track"></div>
+                                <div class="toggle-thumb"></div>
+                            </label>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            @* ── Sounds ── *@
+            <div class="setting-group">
+                <div class="setting-group-title">Sounds</div>
+                <div class="setting-card">
+
+                    @* Sound on/off *@
+                    <div class="setting-row">
+                        <div class="setting-icon">
+                            <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path d="M9 18V5l12-2v13M9 18c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-2c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z" />
+                            </svg>
+                        </div>
+                        <div class="setting-info">
+                            <div class="setting-label">Notification Sound</div>
+                            <div class="setting-desc">Play a chime when a notification arrives</div>
+                        </div>
+                        <div class="setting-control">
+                            <label class="toggle">
+                                <input type="checkbox" checked="@draft.SoundEnabled"
+                                       @onchange="e => Mutate(s => s.SoundEnabled = (bool)e.Value!)" />
+                                <div class="toggle-track"></div>
+                                <div class="toggle-thumb"></div>
+                            </label>
+                        </div>
+                    </div>
+
+                    
+
+                </div>
+            </div>
+
+            @* ── Quiet Hours ── *@
+            <div class="setting-group">
+                <div class="setting-group-title">Quiet Hours</div>
+                <div class="setting-card">
+
+                    <div class="setting-row">
+                        <div class="setting-icon">
+                            <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+                            </svg>
+                        </div>
+                        <div class="setting-info">
+                            <div class="setting-label">Enable Quiet Hours</div>
+                            <div class="setting-desc">No sound or alerts during the selected window</div>
+                        </div>
+                        <div class="setting-control">
+                            <label class="toggle">
+                                <input type="checkbox" checked="@draft.QuietHoursEnabled"
+                                       @onchange="e => Mutate(s => s.QuietHoursEnabled = (bool)e.Value!)" />
+                                <div class="toggle-track"></div>
+                                <div class="toggle-thumb"></div>
+                            </label>
+                        </div>
+                    </div>
+
+                    @if (draft.QuietHoursEnabled)
+                    {
+                        <div class="quiet-time-row">
+                            <span class="time-lbl">From</span>
+                            <input class="time-input" type="time" value="@draft.QuietFrom"
+                                   @onchange="e => Mutate(s => s.QuietFrom = e.Value!.ToString()!)" />
+                            <span class="time-lbl" style="text-align:center;">to</span>
+                            <input class="time-input" type="time" value="@draft.QuietTo"
+                                   @onchange="e => Mutate(s => s.QuietTo = e.Value!.ToString()!)" />
+                        </div>
+                    }
+
+                </div>
+            </div>
+
+            @* Spacer so save bar doesn't clip last card *@
+            <div style="height:64px;"></div>
+        }
+
+        <!-- ─── PRIVACY (static placeholder, original content) ─── -->
+        @if (activeSection == "privacy")
+        {
+            <div class="settings-page-title">Privacy &amp; Security</div>
+            <div class="settings-page-subtitle">Control who can see your info</div>
+            <div class="setting-group">
+                <div class="setting-group-title">Profile Visibility</div>
+                <div class="setting-card">
+                    <div class="setting-row">
+                        <div class="setting-icon"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg></div>
+                        <div class="setting-info"><div class="setting-label">Last Seen</div><div class="setting-desc">Who can see when you were last online</div></div>
+                        <div class="setting-control"><select class="setting-select"><option>Everyone</option><option>Contacts</option><option>Nobody</option></select></div>
+                    </div>
+                    <div class="setting-row">
+                        <div class="setting-icon"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg></div>
+                        <div class="setting-info"><div class="setting-label">Two-Factor Auth</div><div class="setting-desc">Add extra security to your account</div></div>
+                        <div class="setting-control"><label class="toggle"><input type="checkbox" /><div class="toggle-track"></div><div class="toggle-thumb"></div></label></div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- ─── COPY MESSENGER (static placeholder) ─── -->
+        @if (activeSection == "copy")
+        {
+            <div class="settings-page-title">Copy Messenger</div>
+            <div class="settings-page-subtitle">Mirror your koto.ba chats to other platforms</div>
+            <div class="copy-messenger-card">
+                <div class="copy-title"><svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>What is Copy Messenger?</div>
+                <div class="copy-desc">Copy Messenger lets you replicate the look, feel, and message style of your koto.ba chats to popular messaging platforms. Your conversations stay in sync.</div>
+                <div class="copy-platforms">
+                    <div class="platform-chip active">WhatsApp</div><div class="platform-chip active">Telegram</div>
+                    <div class="platform-chip">iMessage</div><div class="platform-chip">Messenger</div>
+                    <div class="platform-chip">Signal</div><div class="platform-chip">Zalo</div>
+                </div>
+                <button class="btn-configure">Configure Copy Messenger</button>
+            </div>
+            <div class="setting-group">
+                <div class="setting-group-title">Sync Settings</div>
+                <div class="setting-card">
+                    <div class="setting-row">
+                        <div class="setting-icon"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg></div>
+                        <div class="setting-info"><div class="setting-label">Auto Sync</div><div class="setting-desc">Automatically sync new messages to connected platforms</div></div>
+                        <div class="setting-control"><label class="toggle"><input type="checkbox" checked /><div class="toggle-track"></div><div class="toggle-thumb"></div></label></div>
+                    </div>
+                    <div class="setting-row">
+                        <div class="setting-icon"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg></div>
+                        <div class="setting-info"><div class="setting-label">End-to-End Encryption</div><div class="setting-desc">Keep synced messages encrypted</div></div>
+                        <div class="setting-control"><label class="toggle"><input type="checkbox" checked /><div class="toggle-track"></div><div class="toggle-thumb"></div></label></div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- ─── APPEARANCE (static placeholder) ─── -->
+        @if (activeSection == "appearance")
+        {
+            <div class="settings-page-title">Appearance</div>
+            <div class="settings-page-subtitle">Customize how koto.ba looks for you</div>
+            <div class="setting-group">
+                <div class="setting-group-title">Theme &amp; Colors</div>
+                <div class="setting-card">
+                    <div class="setting-row">
+                        <div class="setting-icon"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg></div>
+                        <div class="setting-info"><div class="setting-label">Dark Mode</div><div class="setting-desc">Switch to dark interface</div></div>
+                        <div class="setting-control"><label class="toggle"><input type="checkbox" /><div class="toggle-track"></div><div class="toggle-thumb"></div></label></div>
+                    </div>
+                    <div class="setting-row">
+                        <div class="setting-icon" style="background:var(--lime-pale)">🎨</div>
+                        <div class="setting-info"><div class="setting-label">Accent Color</div><div class="setting-desc">Choose your interface accent</div></div>
+                        <div class="setting-control">
+                            <div class="theme-swatches">
+                                <div class="swatch active" style="background:#7AB800"></div>
+                                <div class="swatch" style="background:#0EA5E9"></div>
+                                <div class="swatch" style="background:#EC4899"></div>
+                                <div class="swatch" style="background:#F97316"></div>
+                                <div class="swatch" style="background:#8B5CF6"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="setting-row">
+                        <div class="setting-icon"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h7" /></svg></div>
+                        <div class="setting-info"><div class="setting-label">Font Size</div><div class="setting-desc">Adjust message text size</div></div>
+                        <div class="setting-control"><input type="range" style="width:100px;accent-color:var(--lime)" min="12" max="20" value="14" /></div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- ─── LANGUAGE (static placeholder) ─── -->
+        @if (activeSection == "language")
+        {
+            <div class="settings-page-title">Language</div>
+            <div class="settings-page-subtitle">Choose your preferred language</div>
+            <div class="setting-group">
+                <div class="setting-card">
+                    <div class="setting-row">
+                        <div class="setting-icon">🌐</div>
+                        <div class="setting-info"><div class="setting-label">App Language</div></div>
+                        <div class="setting-control">
+                            <select class="setting-select">
+                                <option>English</option>
+                                <option>Tiếng Việt</option>
+                                <option>中文</option>
+                                <option>日本語</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+    </div><!-- /settings-content -->
+</div><!-- /settings-layout -->
+
+@code {
+    private string activeSection = "notifications";
+
+    private NotificationSettingsDto draft = new();
+    private NotificationSettingsDto saved = new();
+    private bool isDirty;
+    private bool isSaving;
+    private bool showSavedToast;
+    private bool isPlaying;
+    private string permissionState = "default";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            permissionState = await JS.InvokeAsync<string>("notifSettings.getPermission");
+            StateHasChanged();
+        }
+    }
+
+    private void Mutate(Action<NotificationSettingsDto> action)
+    {
+        action(draft);
+        isDirty = true;
+    }
+
+    private async Task Save()
+    {
+        isSaving = true;
+        await NotifSettings.SaveAsync(draft);
+        saved = draft.Clone();
+        isDirty = false;
+        isSaving = false;
+        await ShowToast();
+    }
+
+    private void Discard()
+    {
+        draft = saved.Clone();
+        isDirty = false;
+    }
+
+    private async Task PreviewSound()
+    {
+        if (isPlaying) return;
+        isPlaying = true;
+        StateHasChanged();
+        await JS.InvokeVoidAsync("notifSettings.playSound", draft.Volume / 100.0);
+        await Task.Delay(1400);
+        isPlaying = false;
+    }
+
+    private async Task RequestPermission()
+    {
+        permissionState = await JS.InvokeAsync<string>("notifSettings.requestPermission");
+    }
+
+    private async Task ShowToast()
+    {
+        showSavedToast = true;
+        StateHasChanged();
+        await Task.Delay(2400);
+        showSavedToast = false;
+        StateHasChanged();
+    }
+}

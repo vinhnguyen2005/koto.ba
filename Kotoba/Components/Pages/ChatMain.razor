@@ -8,6 +8,7 @@
 @inject IJSRuntime JS
 @inject IHttpClientFactory HttpClientFactory
 @inject IHttpContextAccessor HttpContextAccessor
+@inject Kotoba.Modules.Infrastructure.Services.Settings.NotificationService Notifier
 @inject ICurrentThoughtService CurrentThoughtService
 @using Kotoba.Modules.Domain.Interfaces
 
@@ -1212,6 +1213,7 @@
             await InvokeAsync(async () =>
             {
                 var existing = messages.FirstOrDefault(m => m.TempId == tempId);
+
                 if (existing != null)
                 {
                     existing.MessageId = msg.MessageId;
@@ -1222,7 +1224,16 @@
                 else
                 {
                     messages.Add(msg);
+
+                    if (msg.SenderId != currentUserId)
+                    {
+                        await Notifier.NotifyAsync(
+                            Modules.Infrastructure.Services.Settings.NotificationEvent.DirectMessage,
+                            msg.SenderId,
+                            msg.Content);
+                    }
                 }
+
                 StateHasChanged();
                 await ScrollToBottom();
             });

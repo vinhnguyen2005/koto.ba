@@ -1,21 +1,24 @@
+using AutoMapper;
 using Kotoba.Components;
+using Kotoba.Modules.Application.Mappings;
 using Kotoba.Modules.Domain.DTOs;
 using Kotoba.Modules.Domain.Entities;
 using Kotoba.Modules.Domain.Interfaces;
+using Kotoba.Modules.Hubs;
 using Kotoba.Modules.Infrastructure.Data;
 using Kotoba.Modules.Infrastructure.Repositories;
-using Kotoba.Modules.Infrastructure.Services.Conversations;
 using Kotoba.Modules.Infrastructure.Services.Attachments;
+using Kotoba.Modules.Infrastructure.Services.Conversations;
 using Kotoba.Modules.Infrastructure.Services.Identity;
+using Kotoba.Modules.Infrastructure.Services.Messages;
 using Kotoba.Modules.Infrastructure.Services.Reactions;
+using Kotoba.Modules.Infrastructure.Services.Realtime;
+using Kotoba.Modules.Infrastructure.Services.Settings;
 using Kotoba.Modules.Infrastructure.Services.Social;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Kotoba.Modules.Hubs;
-using Kotoba.Modules.Application.Mappings;
-using AutoMapper;
 
 namespace Kotoba
 {
@@ -84,6 +87,8 @@ namespace Kotoba
             builder.Services.AddScoped<IStoryService, StoryService>();
             builder.Services.AddScoped<ICurrentThoughtRepository, CurrentThoughtRepository>();
             builder.Services.AddScoped<ICurrentThoughtService, CurrentThoughtService>();
+            builder.Services.AddScoped<INotificationSettingsService, NotificationSettingsService>();
+            builder.Services.AddScoped<NotificationService>();
 
             var app = builder.Build();
 
@@ -159,7 +164,7 @@ namespace Kotoba
                 .AddInteractiveServerRenderMode();
 
 
-            app.MapHub<ChatHub>("/chathub");
+            app.MapHub<Kotoba.Modules.Hubs.ChatHub>("/chathub");
 
             app.Run();
         }
