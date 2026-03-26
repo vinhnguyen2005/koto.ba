@@ -39,14 +39,30 @@ namespace Kotoba.Modules.Hubs
             await AssertUserCanWriteAsync(userId);
 
             var convId = Guid.Parse(conversationId);
+            var conversation = await _context.Conversations
+                .Include(c => c.Participants)
+                    .ThenInclude(p => p.User)
+                .FirstOrDefaultAsync(c => c.Id == convId);
 
-            var isParticipant = await _context.ConversationParticipants
-                .AnyAsync(p => p.ConversationId == convId
-                            && p.UserId == userId
-                            && p.IsActive);
+            if (conversation == null)
+                throw new HubException("Conversation not found.");
+
+            var isParticipant = conversation.Participants
+                .Any(p => p.UserId == userId && p.IsActive);
 
             if (!isParticipant)
                 throw new HubException("Access denied.");
+
+            if (conversation.Type == ConversationType.Direct)
+            {
+                var other = conversation.Participants
+                    .FirstOrDefault(p => p.UserId != userId && p.IsActive);
+
+                if (other?.User?.AccountStatus == AccountStatus.Deleted)
+                {
+                    throw new HubException("Cannot send messages to a deleted account.");
+                }
+            }
 
             var message = new Message
             {

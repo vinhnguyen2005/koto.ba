@@ -4,6 +4,7 @@ using Kotoba.Modules.Domain.Enums;
 using Kotoba.Modules.Domain.Interfaces;
 using Kotoba.Modules.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Identity;
+using System.Threading;
 
 namespace Kotoba.Modules.Infrastructure.Services.Identity
 {
@@ -15,6 +16,7 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
         private readonly UserManager<User> _userManager;
         private readonly SignInManager<User> _signInManager;
         private readonly UserProfileRepository _userProfileRepository;
+        private readonly SemaphoreSlim _userProfileLock = new(1, 1);
 
         public UserService(UserManager<User> userManager, SignInManager<User> signInManager, UserProfileRepository userProfileRepository)
         {
@@ -232,8 +234,6 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
             {
                 return FromIdentityResult(updateResult);
             }
-
-            await _signInManager.SignOutAsync();
             return AccountOperationResult.Success();
         }
 
@@ -298,8 +298,6 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
             {
                 return FromIdentityResult(updateResult);
             }
-
-            await _signInManager.SignOutAsync();
             return AccountOperationResult.Success();
         }
 
@@ -310,26 +308,41 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
                 return null;
             }
 
-            var user = await _userManager.FindByIdAsync(userId);
-            if (user is null)
+            await _userProfileLock.WaitAsync();
+            try
             {
+                var user = await _userManager.FindByIdAsync(userId);
+                if (user is null)
+                {
+                    return null;
+                }
+
+                var bio = await _userManager.GetAuthenticationTokenAsync(user, ProfileTokenProvider, ProfileBioTokenName);
+
+                return new UserProfile
+                {
+                    UserId = user.Id,
+                    DisplayName = user.DisplayName,
+                    AvatarUrl = user.AvatarUrl,
+                    UserName = user.UserName ?? string.Empty,
+                    Email = user.Email ?? string.Empty,
+                    Bio = bio ?? string.Empty,
+                    IsOnline = user.IsOnline,
+                    LastSeenAt = user.LastSeenAt,
+                    AccountStatus = user.AccountStatus
+                };
+            }
+            catch (ObjectDisposedException)
+            {
+                // The underlying UserManager or its store has been disposed,
+                // typically because the circuit or scope is shutting down.
+                // Treat this as "no profile available" for the caller.
                 return null;
             }
-
-            var bio = await _userManager.GetAuthenticationTokenAsync(user, ProfileTokenProvider, ProfileBioTokenName);
-
-            return new UserProfile
+            finally
             {
-                UserId = user.Id,
-                DisplayName = user.DisplayName,
-                AvatarUrl = user.AvatarUrl,
-                UserName = user.UserName ?? string.Empty,
-                Email = user.Email ?? string.Empty,
-                Bio = bio ?? string.Empty,
-                IsOnline = user.IsOnline,
-                LastSeenAt = user.LastSeenAt,
-                AccountStatus = user.AccountStatus
-            };
+                _userProfileLock.Release();
+            }
         }
 
 

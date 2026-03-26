@@ -1157,7 +1157,23 @@
 
     private ElementReference msgAreaRef;
 
-    private bool IsReadOnly => CurrentUserProfile?.AccountStatus == AccountStatus.Deactivated;
+    private bool IsReadOnly
+    {
+        get
+        {
+            if (CurrentUserProfile?.AccountStatus == AccountStatus.Deactivated)
+                return true;
+
+            if (selectedConv?.Type == ConversationType.Direct && selectedUsers?.Count > 0)
+            {
+                var other = selectedUsers[0];
+                if (other.AccountStatus == AccountStatus.Deleted)
+                    return true;
+            }
+
+            return false;
+        }
+    }
 
     private string HeaderStatusText
     {

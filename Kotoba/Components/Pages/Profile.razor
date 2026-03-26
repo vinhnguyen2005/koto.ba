@@ -354,7 +354,7 @@
             return;
         }
 
-        NavigationManager.NavigateTo("/register", forceLoad: true);
+        NavigationManager.NavigateTo("/auth/logout?returnUrl=/register", forceLoad: true);
     }
 
     private void SetActiveTab(ProfileTab tab)

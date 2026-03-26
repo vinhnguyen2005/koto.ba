@@ -42,23 +42,23 @@
 </style>
 
 <div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+    <CascadingValue Value="CurrentUser">
+        <div class="sidebar">
+            <NavMenu />
+        </div>
 
-    <div class="main-content">
-        @if (CurrentUser?.AccountStatus == AccountStatus.Deactivated)
-        {
-            <div class="deactivated-banner">
-                <strong>Your account is deactivated.</strong>
-                <span>You can browse in read-only mode. Go to your profile to reactivate or delete your account.</span>
-            </div>
-        }
+        <div class="main-content">
+            @if (CurrentUser?.AccountStatus == AccountStatus.Deactivated)
+            {
+                <div class="deactivated-banner">
+                    <strong>Your account is deactivated.</strong>
+                    <span>You can browse in read-only mode. Go to your profile to reactivate or delete your account.</span>
+                </div>
+            }
 
-        <CascadingValue Value="CurrentUser">
             @Body
-        </CascadingValue>
-    </div>
+        </div>
+    </CascadingValue>
 </div>
 
 <div id="blazor-error-ui">

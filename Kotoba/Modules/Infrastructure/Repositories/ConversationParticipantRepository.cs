@@ -77,8 +77,7 @@ namespace Kotoba.Modules.Infrastructure.Repositories
             return await _context.ConversationParticipants
                 .Where(p => p.ConversationId.ToString() == conversationId
                          && p.UserId != userId
-                         && p.IsActive
-                         && p.User.AccountStatus != Domain.Enums.AccountStatus.Deleted)
+                         && p.IsActive)
                 .Select(p => new UserProfile
                 {
                     UserId = p.User.Id,

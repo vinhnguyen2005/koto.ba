@@ -195,7 +195,7 @@ namespace Kotoba.Modules.Infrastructure.Services.Conversations
                     CreatedAt = cp.Conversation.CreatedAt,
                     UpdatedAt = cp.Conversation.UpdatedAt,
                     Participants = cp.Conversation.Participants
-                        .Where(p => p.IsActive && p.User.AccountStatus != AccountStatus.Deleted)
+                        .Where(p => p.IsActive)
                         .Select(p => new UserProfile
                     {
                         UserId = p.UserId,

@@ -36,7 +36,7 @@ namespace Kotoba
 
             builder.Services.AddSignalR(options =>
             {
-                options.EnableDetailedErrors = true; 
+                options.EnableDetailedErrors = true;
             });
 
 
@@ -158,6 +158,14 @@ namespace Kotoba
             {
                 await httpContext.SignOutAsync(IdentityConstants.ApplicationScheme);
                 return Results.LocalRedirect("/");
+            })
+            .DisableAntiforgery();
+
+            app.MapGet("/auth/logout", async (HttpContext httpContext, [FromQuery] string? returnUrl) =>
+            {
+                await httpContext.SignOutAsync(IdentityConstants.ApplicationScheme);
+                var target = string.IsNullOrWhiteSpace(returnUrl) ? "/" : returnUrl;
+                return Results.LocalRedirect(target);
             });
 
             app.MapRazorComponents<App>()
