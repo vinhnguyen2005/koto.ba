@@ -1,5 +1,6 @@
 using Kotoba.Modules.Domain.DTOs;
 using Kotoba.Modules.Domain.Entities;
+using Kotoba.Modules.Domain.Enums;
 using Kotoba.Modules.Domain.Interfaces;
 using Kotoba.Modules.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -59,6 +60,26 @@ namespace Kotoba.Modules.Infrastructure.Repositories
                 {
                     ConversationId = c.Id,
                     Type = c.Type,                    
+                    GroupName = c.GroupName,
+                    CreatedAt = c.CreatedAt,
+                    UpdatedAt = c.UpdatedAt
+                })
+                .FirstOrDefaultAsync();
+        }
+
+        public async Task<ConversationDto?> GetDirectConversationAsync(string userAId, string userBId)
+        {
+            using var _context = await _dbFactory.CreateDbContextAsync();
+
+            return await _context.Conversations
+                .Include(c => c.Participants)
+                .Where(c => c.Type == ConversationType.Direct)
+                .Where(c => c.Participants.Any(p => p.UserId == userAId) &&
+                            c.Participants.Any(p => p.UserId == userBId))
+                .Select(c => new ConversationDto
+                {
+                    ConversationId = c.Id,
+                    Type = c.Type,
                     GroupName = c.GroupName,
                     CreatedAt = c.CreatedAt,
                     UpdatedAt = c.UpdatedAt
