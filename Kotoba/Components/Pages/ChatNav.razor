@@ -10,6 +10,9 @@
 @inject IDbContextFactory<KotobaDbContext> DbFactory
 @inject ICurrentThoughtService CurrentThoughtService
 @using Kotoba.Modules.Domain.Interfaces
+@implements IAsyncDisposable
+@inject IHttpContextAccessor HttpContextAccessor
+@using Microsoft.AspNetCore.SignalR.Client
 <style>
 	:root {
 		--lime: #7AB800;
@@ -1107,6 +1110,7 @@
 
 	private string _loadedForUserId = "";
     private HashSet<string> notifiedUsers = new();
+	private HubConnection? _navHub;
 
 
 	protected override async Task OnParametersSetAsync()
@@ -1117,7 +1121,32 @@
 		_loadedForUserId = currentUserId;
 		conversations = await conversationService.GetUserConversationsAsync(currentUserId!);
 		currentThought = await CurrentThoughtService.GetThoughtAsync(currentUserId!);
+		if (_navHub == null)          
+			await StartNavHubAsync(); 
+
 		StateHasChanged();
+	}
+
+	private async Task StartNavHubAsync()
+	{
+		var cookies = HttpContextAccessor.HttpContext?.Request.Cookies;
+		var cookieStr = string.Join("; ", cookies?.Select(c => $"{c.Key}={c.Value}") ?? []);
+
+		_navHub = new HubConnectionBuilder()
+			.WithUrl(Navigation.ToAbsoluteUri("/chathub"), options =>
+			{
+				options.Headers.Add("Cookie", cookieStr);
+			})
+			.WithAutomaticReconnect()
+			.Build();
+
+		_navHub.On("ConversationListChanged", async () =>
+		{
+			conversations = await conversationService.GetUserConversationsAsync(currentUserId!);
+			await InvokeAsync(StateHasChanged);
+		});
+
+		await _navHub.StartAsync(); 
 	}
 
 	private IEnumerable<ConversationDto> FilteredConversations => activeFilter switch
@@ -1261,6 +1290,19 @@
 	{
 		if (e.Key == "Enter") await SaveThought();
 		else if (e.Key == "Escape") isEditingThought = false;
+	}
+
+	public async Task ReloadConversations()
+	{
+		if (string.IsNullOrEmpty(currentUserId)) return;
+		conversations = await conversationService.GetUserConversationsAsync(currentUserId!);
+		StateHasChanged();
+	}
+
+	public async ValueTask DisposeAsync()
+	{
+		if (_navHub is not null)
+			await _navHub.DisposeAsync();
 	}
 
 }

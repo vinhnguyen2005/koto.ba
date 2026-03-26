@@ -1,4 +1,4 @@
-﻿using Kotoba.Modules.Domain.Entities;
+using Kotoba.Modules.Domain.Entities;
 
 namespace Kotoba.Modules.Domain.Interfaces
 {

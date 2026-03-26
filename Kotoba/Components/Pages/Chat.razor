@@ -139,40 +139,50 @@
 </style>
 
 <div class="chat-shell">
-    <ChatNav currentUserId="@currentUserId" />
-    <ChatMain ConversationId="@ConversationId"
-              currentUserId="@currentUserId"
-              OnToggleSetting="ToggleSetting" />
-    @if (showSetting && !string.IsNullOrEmpty(ConversationId))
-    {
-        <ConversationSetting ConversationId="@ConversationId"
-                             CurrentUserId="@currentUserId" />
-    }
+	<ChatNav @ref="chatNavRef" currentUserId="@currentUserId" />
+	<ChatMain ConversationId="@ConversationId"
+			  currentUserId="@currentUserId"
+			  OnToggleSetting="ToggleSetting"
+			  OnConversationListChanged="RefreshNav" />
+	@if (showSetting && !string.IsNullOrEmpty(ConversationId))
+	{
+		<ConversationSetting ConversationId="@ConversationId"
+							 CurrentUserId="@currentUserId"
+							 OnLeft="HandleLeft" />
+	}
 </div>
 
 @code {
 	[Parameter] public string? ConversationId { get; set; }
 	private string? currentUserId;
-    private bool showSetting = false;
+	private bool showSetting = false;
+	private ChatNav? chatNavRef;
 
-    private void ToggleSetting()
-    {
-        showSetting = !showSetting;
-        StateHasChanged();
-    }
+	private void ToggleSetting()
+	{
+		showSetting = !showSetting;
+		StateHasChanged();
+	}
+
+	private async Task HandleLeft()
+	{
+		showSetting = false;
+		Navigation.NavigateTo("/chat", forceLoad: true);
+	}
+
+	private async Task RefreshNav()
+	{
+		if (chatNavRef != null)
+			await chatNavRef.ReloadConversations();
+	}
 
 	protected override async Task OnInitializedAsync()
 	{
 		var authState = await AuthStateProvider.GetAuthenticationStateAsync();
 		var user = authState.User;
 		if (user.Identity?.IsAuthenticated == true)
-		{
 			currentUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-		}
 		if (string.IsNullOrEmpty(currentUserId))
-		{
 			Navigation.NavigateTo("/login", true);
-			return;
-		}
 	}
 }

@@ -84,6 +84,11 @@ namespace Kotoba.Modules.Hubs
             };
 
             await Clients.Group(conversationId).SendAsync("MessageConfirmed", dto, tempId);
+            var participants = await _context.ConversationParticipants
+                .Where(p => p.ConversationId.ToString() == conversationId && p.IsActive)
+                .Select(p => p.UserId)
+                .ToListAsync();
+            await Clients.Users(participants).SendAsync("ConversationListChanged");
         }
 
         public async Task ReactToMessage(Guid conversationId, Guid messageId, ReactionType reactionType)
@@ -155,6 +160,22 @@ namespace Kotoba.Modules.Hubs
 
             if (!isParticipant)
                 throw new HubException("Access denied.");
+        }
+
+        public async Task LeaveGroup(string conversationId)
+        {
+            var userId = Context.UserIdentifier!;
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, conversationId);
+
+            await Clients.Group(conversationId).SendAsync("UserLeftGroup", new { conversationId, userId });
+
+            await Clients.Group(conversationId).SendAsync("ConversationListChanged");
+
+            await _context.ConversationParticipants
+                .Where(p => p.ConversationId == Guid.Parse(conversationId) && p.UserId == userId)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(p => p.IsActive, false)
+                    .SetProperty(p => p.LeftAt, DateTime.UtcNow));
         }
 
         private string GetContentType(string fileName)

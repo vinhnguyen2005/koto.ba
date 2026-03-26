@@ -88,5 +88,19 @@ namespace Kotoba.Modules.Infrastructure.Repositories
                 })
                 .ToListAsync();
         }
+
+        public async Task LeaveConversationAsync(string conversationId, string userId)
+        {
+            using var _context = await _dbFactory.CreateDbContextAsync();
+            var participant = await _context.ConversationParticipants
+                .FirstOrDefaultAsync(p => p.ConversationId.ToString() == conversationId
+                                        && p.UserId == userId
+                                        && p.IsActive);
+            if (participant == null) return;
+
+            participant.IsActive = false;
+            participant.LeftAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+        }
     }
 }

@@ -1115,6 +1115,7 @@
     [Parameter] public EventCallback OnToggleSetting { get; set; }
     [Parameter] public string? ConversationId { get; set; } = string.Empty;
     [Parameter] public string? currentUserId { get; set; } = string.Empty;
+	[Parameter] public EventCallback OnConversationListChanged { get; set; }
 	private string? otherUserThought;
     private ConversationDto? selectedConv;
     private List<UserProfile>? selectedUsers;
@@ -1294,6 +1295,11 @@
 			catch { }
 
 			await InvokeAsync(StateHasChanged);
+		});
+
+		hubConnection.On("ConversationListChanged", async () =>
+		{
+		await OnConversationListChanged.InvokeAsync();
 		});
 
 		hubConnection.On<System.Text.Json.JsonElement>("ThoughtUpdated", async (data) =>

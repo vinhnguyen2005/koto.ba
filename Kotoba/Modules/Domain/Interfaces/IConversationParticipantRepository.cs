@@ -1,4 +1,4 @@
-﻿using Kotoba.Modules.Domain.Entities;
+using Kotoba.Modules.Domain.Entities;
 
 namespace Kotoba.Modules.Domain.Interfaces
 {
@@ -6,5 +6,6 @@ namespace Kotoba.Modules.Domain.Interfaces
     {
         Task<IEnumerable<ConversationParticipant>> GetAllAsync();
         Task<bool> IsParticipant(Guid conversationId, string senderId);
+        Task LeaveConversationAsync(string conversationId, string userId);
     }
 }

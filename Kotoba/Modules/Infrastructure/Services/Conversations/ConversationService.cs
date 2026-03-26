@@ -202,5 +202,8 @@ namespace Kotoba.Modules.Infrastructure.Services.Conversations
 
             return await _messageRepository.GetMessagesAsync(convId);
         }
+
+        public Task LeaveConversationAsync(string conversationId, string userId)
+    => _conversationParticipantRepository.LeaveConversationAsync(conversationId, userId);
     }
 }
