@@ -896,120 +896,147 @@
         <div class="messages-area" id="msgArea" @ref="msgAreaRef">
             <div class="msg-date-divider">Today, March 14</div>
 
-            @foreach (var msg in messages)
-            {
-                var isOwn = msg.SenderId == currentUserId;
+			@foreach (var msg in messages)
+			{
+				var isOwn = msg.SenderId == currentUserId;
 
-                <div class="msg-group @(isOwn ? "own" : "")"
-                     @onmouseenter="() => hoveredMessageId = msg.MessageId"
-                     @onmouseleave="() => {
-                         if (reactionPickerMessageId != msg.MessageId)
-                             hoveredMessageId = null;
-                     }">
+				@if (msg.IsSystemMessage)
+				{
+					<div style="display:flex;align-items:center;justify-content:center;margin:12px 0;">
+						<div style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:rgba(122,184,0,0.08);border:1px solid rgba(122,184,0,0.2);border-radius:20px;font-size:12px;color:var(--muted);">
+							<span>
+								@{
+									var userName = msg.SystemMessageData?.DisplayName ?? "User";
+								}
+								@if (msg.SystemMessageType == SystemMessageType.UserLeft)
+								{
+									@($"👤 {userName} has left the chat")
+								}
+								else if (msg.SystemMessageType == SystemMessageType.MemberRemoved)
+								{
+									@($"👤 {userName} is removed")
+								}
+								else if (msg.SystemMessageType == SystemMessageType.MemberAdded)
+								{
+									@($"👤 {userName} is added to the group")
+								}
+							</span>
+						</div>
+					</div>
+				}
+				else
+				{
+					<div class="msg-group @(isOwn ? "own" : "")"
+						 @onmouseenter="() => hoveredMessageId = msg.MessageId"
+						 @onmouseleave="() => {
+                 if (reactionPickerMessageId != msg.MessageId)
+                     hoveredMessageId = null;
+             }">
 
-                    <div class="msg-row @(isOwn ? "own" : "")">
-                        @if (!isOwn)
-                        {
-                            <div class="msg-avatar-sm">🌿</div>
-                        }
+						<div class="msg-row @(isOwn ? "own" : "")">
+							@if (!isOwn)
+							{
+								<div class="msg-avatar-sm">🌿</div>
+							}
 
-                        <div style="display:flex;flex-direction:column;gap:2px;">
-                            @if (selectedConv!.Type == ConversationType.Group && !isOwn)
-                            {
-                                var senderName = selectedUsers?.FirstOrDefault(u => u.UserId == msg.SenderId)?.DisplayName ?? "Unknown";
-                                <span style="font-size:11px;color:var(--muted);padding-left:2px;margin-bottom:2px;">@senderName</span>
-                            }
+							<div style="display:flex;flex-direction:column;gap:2px;">
+								@if (selectedConv!.Type == ConversationType.Group && !isOwn)
+								{
+									var senderName = selectedUsers?.FirstOrDefault(u => u.UserId == msg.SenderId)?.DisplayName ?? "Unknown";
+									<span style="font-size:11px;color:var(--muted);padding-left:2px;margin-bottom:2px;">@senderName</span>
+								}
 
-                            <div class="msg-bubble @(msg.Status == MessageStatus.Pending ? "sending" : "")">
-                                @if (!string.IsNullOrWhiteSpace(msg.Content))
-                                {
-                                    <div class="msg-text">@msg.Content</div>
-                                }
+								<div class="msg-bubble @(msg.Status == MessageStatus.Pending ? "sending" : "")">
+									@if (!string.IsNullOrWhiteSpace(msg.Content))
+									{
+										<div class="msg-text">@msg.Content</div>
+									}
 
-                                @if (msg.Attachments != null && msg.Attachments.Any())
-                                {
-                                    <div class="msg-attachments" style="margin-top:8px;display:flex;flex-direction:column;gap:4px;">
-                                        @foreach (var att in msg.Attachments)
-                                        {
-                                            if (att.ContentType.StartsWith("image/"))
-                                            {
-                                                <img src="@att.Url" alt="@att.FileName"
-                                                     style="max-width:200px;border-radius:8px;cursor:pointer;"
-                                                     @onclick="() => OpenImage(att.Url)" />
-                                            }
-                                            else
-                                            {
-                                                <a href="@att.Url" target="_blank" class="msg-file-link"
-                                                   style="display:flex;align-items:center;gap:4px;padding:8px;background:rgba(0,0,0,0.05);border-radius:4px;text-decoration:none;color:inherit;">
-                                                    <span>📎</span>
-                                                    <span>@att.FileName</span>
-                                                </a>
-                                            }
-                                        }
-                                    </div>
-                                }
-                            </div>
-                        </div>
+									@if (msg.Attachments != null && msg.Attachments.Any())
+									{
+										<div class="msg-attachments" style="margin-top:8px;display:flex;flex-direction:column;gap:4px;">
+											@foreach (var att in msg.Attachments)
+											{
+												if (att.ContentType.StartsWith("image/"))
+												{
+													<img src="@att.Url" alt="@att.FileName"
+														 style="max-width:200px;border-radius:8px;cursor:pointer;"
+														 @onclick="() => OpenImage(att.Url)" />
+												}
+												else
+												{
+													<a href="@att.Url" target="_blank" class="msg-file-link"
+													   style="display:flex;align-items:center;gap:4px;padding:8px;background:rgba(0,0,0,0.05);border-radius:4px;text-decoration:none;color:inherit;">
+														<span>📎</span>
+														<span>@att.FileName</span>
+													</a>
+												}
+											}
+										</div>
+									}
+								</div>
+							</div>
 
-                        @if (hoveredMessageId == msg.MessageId)
-                        {
-                            <div style="width:26px;height:26px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;"
-                                 @onclick:stopPropagation="true"
-                                 @onclick="() => ToggleReactionPicker(msg.MessageId)">
-                                😊
-                            </div>
-                        }
-                    </div>
+							@if (hoveredMessageId == msg.MessageId)
+							{
+								<div style="width:26px;height:26px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;"
+									 @onclick:stopPropagation="true"
+									 @onclick="() => ToggleReactionPicker(msg.MessageId)">
+									😊
+								</div>
+							}
+						</div>
 
-                    @if (reactionPickerMessageId == msg.MessageId)
-                    {
-                        <div style="background:var(--surface);border:1px solid var(--border);border-radius:30px;padding:6px 10px;display:flex;gap:4px;box-shadow:0 4px 20px rgba(0,0,0,.12);z-index:20;"
-                             @onclick:stopPropagation="true">
-                            @foreach (var (emoji, rType) in ReactionEmojis)
-                            {
-                                var rc = rType;
-                                var ic = msg.MessageId;
-                                <span style="font-size:20px;cursor:pointer;padding:2px;"
-                                      @onclick="() => SendReaction(ic, rc)">
-                                    @emoji
-                                </span>
-                            }
-                        </div>
-                    }
+						@if (reactionPickerMessageId == msg.MessageId)
+						{
+							<div style="background:var(--surface);border:1px solid var(--border);border-radius:30px;padding:6px 10px;display:flex;gap:4px;box-shadow:0 4px 20px rgba(0,0,0,.12);z-index:20;"
+								 @onclick:stopPropagation="true">
+								@foreach (var (emoji, rType) in ReactionEmojis)
+								{
+									var rc = rType;
+									var ic = msg.MessageId;
+									<span style="font-size:20px;cursor:pointer;padding:2px;"
+										  @onclick="() => SendReaction(ic, rc)">
+										@emoji
+									</span>
+								}
+							</div>
+						}
 
-                    @if (msg.Reactions?.Any() == true)
-                    {
-                        <div class="msg-reactions">
-                            @foreach (var grp in msg.Reactions.GroupBy(r => r.Type))
-                            {
-                                var gt = grp.Key;
-                                var mid = msg.MessageId;
-                                var mine = grp.Any(r => r.UserId == currentUserId);
-                                var ec = ReactionEmojis.FirstOrDefault(x => x.type == gt).emoji ?? "👍";
+						@if (msg.Reactions?.Any() == true)
+						{
+							<div class="msg-reactions">
+								@foreach (var grp in msg.Reactions.GroupBy(r => r.Type))
+								{
+									var gt = grp.Key;
+									var mid = msg.MessageId;
+									var mine = grp.Any(r => r.UserId == currentUserId);
+									var ec = ReactionEmojis.FirstOrDefault(x => x.type == gt).emoji ?? "👍";
 
-                                <span class="reaction-chip @(mine ? "mine" : "")"
-                                      @onclick="() => HandleReactionClick(mid, gt)">
-                                    @ec @grp.Count()
-                                </span>
-                            }
-                        </div>
-                    }
+									<span class="reaction-chip @(mine ? "mine" : "")"
+										  @onclick="() => HandleReactionClick(mid, gt)">
+										@ec @grp.Count()
+									</span>
+								}
+							</div>
+						}
 
-                    <div class="msg-meta" style="@(isOwn ? "" : "margin-left:36px")">
-                        <span class="msg-time">
-                            @(msg.Status == MessageStatus.Pending
-                                ? "Sending..."
-                                : msg.CreatedAt.ToLocalTime().ToString("hh:mm tt"))
-                        </span>
-                        @if (isOwn)
-                        {
-                            <span class="msg-check">
-                                @(msg.Status == MessageStatus.Pending ? "🕐" : "✓")
-                            </span>
-                        }
-                    </div>
-                </div>
-            }
+						<div class="msg-meta" style="@(isOwn ? "" : "margin-left:36px")">
+							<span class="msg-time">
+								@(msg.Status == MessageStatus.Pending
+															? "Sending..."
+															: msg.CreatedAt.ToLocalTime().ToString("hh:mm tt"))
+							</span>
+							@if (isOwn)
+							{
+								<span class="msg-check">
+									@(msg.Status == MessageStatus.Pending ? "🕐" : "✓")
+								</span>
+							}
+						</div>
+					</div>
+				}
+			}
 
             @if (isTyping)
             {
@@ -1029,14 +1056,33 @@
         </div>
 
         <div class="input-area">
-            @if (IsReadOnly)
-            {
-                <div class="input-toolbar" style="justify-content:center;">
-                    <span style="font-size:13px;color:var(--muted);">
-                        Sending messages and reactions is disabled while your account is deactivated.
-                    </span>
-                </div>
-            }
+			@if (isUserRemoved)
+			{
+				<div style="padding:12px;background:#fcebeb;border:1px solid #f09595;border-radius:10px;text-align:center;color:#c0392b;font-size:13px;font-weight:600;margin-bottom:10px;">
+					You have been removed from the group
+					@if (redirectCountdown > 0)
+					{
+						<div style="font-size:11px;margin-top:4px;opacity:0.8;">
+							Redirecting in @redirectCountdown second@(redirectCountdown != 1 ? "s" : "")...
+						</div>
+					}
+				</div>
+			}
+			@if (IsReadOnly || isUserRemoved)
+			{
+				<div class="input-toolbar" style="justify-content:center;">
+					<span style="font-size:13px;color:var(--muted);">
+						@if (isUserRemoved)
+						{
+							<span>You cannot send messages - removed from group</span>
+						}
+						else
+						{
+							<span>Sending messages and reactions is disabled while your account is deactivated.</span>
+						}
+					</span>
+				</div>
+			}
             else
             {
                 @if (pendingFile != null || pendingImages.Any())
@@ -1145,6 +1191,14 @@
     private Guid? reactionPickerMessageId;
     private string? typingUserName;
     private System.Threading.Timer? _typingTimer;
+	private bool isUserRemoved = false;
+	private int redirectCountdown = 0;
+
+	private string GetUserInitial(string displayName)
+	{
+		return string.IsNullOrEmpty(displayName) ? "?" : displayName[0].ToString().ToUpper();
+	}
+
 
     private static readonly (string emoji, ReactionType type)[] ReactionEmojis =
     [
@@ -1162,6 +1216,8 @@
     {
         get
         {
+			if (isUserRemoved)
+				return true;
             if (CurrentUserProfile?.AccountStatus == AccountStatus.Deactivated)
                 return true;
 
@@ -1175,6 +1231,17 @@
             return false;
         }
     }
+
+	private SystemMessageDataDto? DeserializeSystemMessageData(string? json)
+	{
+		if (string.IsNullOrEmpty(json)) return null;
+		try
+		{
+			var data = System.Text.Json.JsonSerializer.Deserialize<SystemMessageDataDto>(json);
+			return data;
+		}
+		catch { return null; }
+	}
 
     private string HeaderStatusText
     {
@@ -1217,9 +1284,10 @@
             hubConnection = null;
         }
 
-        messages = new();
-        pendingFile = null;
-        pendingImages.Clear();
+		messages = new();
+		pendingFile = null;
+		pendingImages.Clear();
+		isUserRemoved = false;
 
         selectedConv = await conversationService.GetConversationDetailAsync(ConversationId!);
         if (selectedConv == null) return;
@@ -1334,19 +1402,45 @@
             });
         });
 
+		hubConnection.On<string>("RemovedFromGroup", async (conversationId) =>
+		{
+			await InvokeAsync(async () =>
+			{
+				if (conversationId == ConversationId)
+				{
+					isUserRemoved = true;
+					redirectCountdown = 3;
+					StateHasChanged();
+
+					for (int i = 3; i > 0; i--)
+					{
+						await Task.Delay(1000);
+						redirectCountdown = i - 1;
+						await InvokeAsync(StateHasChanged);
+					}
+
+					messages.Clear();
+					Navigation.NavigateTo("/chat", forceLoad: true);
+				}
+			});
+		});
+
 		hubConnection.On<System.Text.Json.JsonElement>("ReactionRemoved", async (data) =>
 		{
-			try
+			await InvokeAsync(async () =>
 			{
-				var messageId = data.GetProperty("messageId").GetGuid();
-				var userId = data.GetProperty("userId").GetString();
+				try
+				{
+					var messageId = data.GetProperty("messageId").GetGuid();
+					var userId = data.GetProperty("userId").GetString();
 
-				var msg = messages.FirstOrDefault(m => m.MessageId == messageId);
-				msg?.Reactions?.RemoveAll(r => r.UserId == userId);
-			}
-			catch { }
+					var msg = messages.FirstOrDefault(m => m.MessageId == messageId);
+					msg?.Reactions?.RemoveAll(r => r.UserId == userId);
 
-			await InvokeAsync(StateHasChanged);
+					StateHasChanged();
+				}
+				catch { }
+			});
 		});
 
 		hubConnection.On("ConversationListChanged", async () =>

@@ -67,20 +67,54 @@
 			</div>
 		</div>
 
-        @* Members *@
-    @if (conversation.Type == ConversationType.Group && members != null)
-        {
-            <div class="profile-section">
-                <div class="profile-section-title">Members</div>
-                @foreach (var m in members)
-                {
-                    <div class="setting-member">
-                        <div class="setting-member-avatar">@m.DisplayName[0]</div>
-                        <span class="setting-member-name">@m.DisplayName</span>
-                    </div>
-                }
-            </div>
-        }
+		@* Members *@
+		@if (conversation.Type == ConversationType.Group && members != null)
+		{
+			<div class="profile-section">
+				<div class="profile-section-title">Members</div>
+
+				@foreach (var m in members)
+				{
+					var isMe = m.UserId == CurrentUserId;
+					<div class="setting-member" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+						<div style="display:flex;align-items:center;gap:8px;">
+							<div class="setting-member-avatar">@m.DisplayName[0]</div>
+							<span class="setting-member-name">@m.DisplayName @(isMe ? "(You)" : "")</span>
+						</div>
+						@if (!isMe)
+						{
+							<div style="width:26px;height:26px;border-radius:8px;background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.2);display:flex;align-items:center;justify-content:center;cursor:pointer;color:#c0392b;"
+								 title="Remove member"
+								 @onclick="() => ConfirmRemove(m.UserId!)">
+								<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 18L18 6M6 6l12 12" /></svg>
+							</div>
+						}
+					</div>
+				}
+
+				@* Add member *@
+				@if (isAddingMember)
+				{
+					<input style="width:100%;padding:7px 10px;border:1.5px solid var(--lime);border-radius:10px;font-size:12px;outline:none;margin-top:6px;"
+						   placeholder="Search users…"
+						   @oninput="SearchUsersToAdd" />
+
+					@foreach (var u in addMemberResults)
+					{
+						<div style="padding:7px 10px;border-radius:8px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:space-between;"
+							 @onclick="() => AddMember(u.UserId!)">
+							<span>@u.DisplayName</span>
+							<span style="color:var(--lime);font-size:11px;">Add</span>
+						</div>
+					}
+				}
+
+				<button class="profile-action-btn" style="margin-top:6px;" @onclick="() => isAddingMember = !isAddingMember">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14" /></svg>
+					@(isAddingMember ? "Cancel" : "Add member")
+				</button>
+			</div>
+		}
 
 		@* Images *@
 		@if (images.Any())
@@ -211,9 +245,22 @@
 
 	private async Task HandleLeave()
 	{
-		if (string.IsNullOrEmpty(ConversationId) || string.IsNullOrEmpty(CurrentUserId)) return;
-		await conversationService.LeaveConversationAsync(ConversationId, CurrentUserId);
-		await OnLeft.InvokeAsync();
+		try
+		{
+			if (string.IsNullOrEmpty(ConversationId) || string.IsNullOrEmpty(CurrentUserId)) return;
+
+			await EnsureHubAsync();
+
+			if (_settingHub!.State == HubConnectionState.Connected)
+				await _settingHub.InvokeAsync("LeaveGroup", ConversationId);
+
+			await conversationService.LeaveConversationAsync(ConversationId, CurrentUserId);
+			await OnLeft.InvokeAsync();
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine($"Error leaving group: {ex.Message}");
+		}
 	}
 
 	private void ConfirmRemove(string userId)
@@ -261,29 +308,50 @@
 
 	private async Task AddMember(string userId)
 	{
-		await conversationService.AddMemberAsync(ConversationId!, userId);
-		members = await conversationService.GetAllUsersInConversationAsync(ConversationId!);
-		addMemberResults.Clear();
-		addMemberSearch = "";
-		isAddingMember = false;
+		try
+		{
+			await conversationService.AddMemberAsync(ConversationId!, userId);
+			members = await conversationService.GetAllUsersInConversationAsync(ConversationId!);
+			addMemberResults.Clear();
+			addMemberSearch = "";
+			isAddingMember = false;
 
-		await EnsureHubAsync();
-		var participantIds = members?.Select(m => m.UserId!).ToList() ?? new();
-		if (_settingHub!.State == HubConnectionState.Connected)
-			await _settingHub.InvokeAsync("NotifyGroupCreated", participantIds);
+			await EnsureHubAsync();
 
-		StateHasChanged();
+			var addedUser = members?.FirstOrDefault(m => m.UserId == userId);
+			var addedUserName = addedUser?.DisplayName ?? "User";
+
+			if (_settingHub!.State == HubConnectionState.Connected)
+			{
+				await _settingHub.InvokeAsync("NotifyMemberAdded", ConversationId, userId, addedUserName);
+				await _settingHub.InvokeAsync("JoinConversation", ConversationId);
+			}
+
+			StateHasChanged();
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine($"Error adding member: {ex.Message}");
+		}
 	}
 
 	private async Task RemoveMember(string userId)
 	{
-		await conversationService.RemoveMemberAsync(ConversationId!, userId);
-		members = await conversationService.GetAllUsersInConversationAsync(ConversationId!);
-		await EnsureHubAsync();
-		if (_settingHub!.State == HubConnectionState.Connected)
-			await _settingHub.InvokeAsync("KickMember", ConversationId, userId);
+		try
+		{
+			await conversationService.RemoveMemberAsync(ConversationId!, userId);
+			members = await conversationService.GetAllUsersInConversationAsync(ConversationId!);
+			await EnsureHubAsync();
 
-		StateHasChanged();
+			if (_settingHub!.State == HubConnectionState.Connected)
+				await _settingHub.InvokeAsync("KickMember", ConversationId, userId);
+
+			StateHasChanged();
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine($"Error removing member: {ex.Message}");
+		}
 	}
 
 	private async Task EnsureHubAsync()
@@ -297,6 +365,13 @@
 				options.Headers.Add("Cookie", cookieStr);
 			})
 			.Build();
+
+		_settingHub.On("MembersUpdated", async () =>
+		{
+			members = await conversationService.GetAllUsersInConversationAsync(ConversationId!);
+			await InvokeAsync(StateHasChanged);
+		});
+
 		await _settingHub.StartAsync();
 		await _settingHub.InvokeAsync("JoinConversation", ConversationId);
 	}
