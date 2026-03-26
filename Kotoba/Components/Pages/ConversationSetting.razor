@@ -2,106 +2,198 @@
 @using Kotoba.Modules.Domain.Enums
 @inject IConversationService conversationService
 @inject IJSRuntime JS
+@inject IUserService userService
+@inject IHttpContextAccessor HttpContextAccessor
+@using Microsoft.AspNetCore.SignalR.Client
+@inject NavigationManager Navigation
+@inject NavigationManager Navigation
+@inject IHttpContextAccessor HttpContextAccessor
+@using Microsoft.AspNetCore.SignalR.Client
+@implements IAsyncDisposable
+@if (showConfirmModal)
+{
+	<div style="
+        position:fixed;
+        inset:0;
+        background:rgba(0,0,0,0.4);
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        z-index:999;
+		">
+		<div style="
+            background:white;
+            padding:20px;
+            border-radius:12px;
+            width:280px;
+            text-align:center;
+			">
+			<div style="font-weight:600;margin-bottom:10px;">
+				Remove member?
+			</div>
 
+			<div style="font-size:13px;color:#666;margin-bottom:15px;">
+				Are you sure you want to remove this user from the group?
+			</div>
+
+			<div style="display:flex;gap:10px;justify-content:center;">
+				<button class="profile-action-btn"
+						@onclick="() => showConfirmModal = false">
+					Cancel
+				</button>
+
+				<button class="profile-action-btn"
+						style="color:#c0392b;"
+						@onclick="HandleConfirmRemove">
+					Remove
+				</button>
+			</div>
+		</div>
+	</div>
+}
 @if (conversation != null)
 {
-    <div class="profile-panel">
-        <div class="profile-top">
-            <div class="profile-avatar-lg">
-                @(conversation.Type == ConversationType.Group ? "👥" : "🌿")
-            </div>
-            <div class="profile-name">@conversationName</div>
-            <div class="profile-username">
-                @(conversation.Type == ConversationType.Group
-                            ? $"{members?.Count ?? 0} members"
-                            : "Direct message")
-        </div>
-        <div class="profile-status-badge">
-            <div class="status-dot-sm"></div>
-            Online
-        </div>
-    </div>
+	<div class="profile-panel">
+		<div class="profile-top">
+			<div class="profile-avatar-lg">
+				@(conversation.Type == ConversationType.Group ? "👥" : "🌿")
+			</div>
+			<div class="profile-name">@conversationName</div>
+			<div class="profile-username">
+				@(conversation.Type == ConversationType.Group
+								? $"{members?.Count ?? 0} members"
+								: "Direct message")
+			</div>
+			<div class="profile-status-badge">
+				<div class="status-dot-sm"></div>
+				Online
+			</div>
+		</div>
 
-        @* Members *@
-    @if (conversation.Type == ConversationType.Group && members != null)
-        {
-            <div class="profile-section">
-                <div class="profile-section-title">Members</div>
-                @foreach (var m in members)
-                {
-                    <div class="setting-member">
-                        <div class="setting-member-avatar">@m.DisplayName[0]</div>
-                        <span class="setting-member-name">@m.DisplayName</span>
-                    </div>
-                }
-            </div>
-        }
+		@* Members *@
+		@if (conversation.Type == ConversationType.Group && members != null)
+		{
+			<div class="profile-section">
+				<div class="profile-section-title">Members</div>
 
-        @* Images *@
-        @if (images.Any())
-        {
-            <div class="profile-section">
-                <div class="profile-section-title">Shared images</div>
-                <div class="shared-media">
-                    @foreach (var img in images.Take(9))
-                    {
-                        <div class="media-thumb" @onclick="() => OpenImage(img.Url)">
-                            <img src="@img.Url" alt="@img.FileName"
-                                 style="width:100%;height:100%;object-fit:cover;display:block;" />
-                        </div>
-                    }
-                    @if (images.Count > 9)
-                    {
-                        <div class="media-thumb more">+@(images.Count - 9)</div>
-                    }
-                </div>
-            </div>
-        }
+				@foreach (var m in members)
+				{
+					var isMe = m.UserId == CurrentUserId;
+					<div class="setting-member" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+						<div style="display:flex;align-items:center;gap:8px;">
+							<div class="setting-member-avatar">@m.DisplayName[0]</div>
+							<span class="setting-member-name">@m.DisplayName @(isMe ? "(You)" : "")</span>
+						</div>
+						@if (!isMe)
+						{
+							<div style="width:26px;height:26px;border-radius:8px;background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.2);display:flex;align-items:center;justify-content:center;cursor:pointer;color:#c0392b;"
+							title="Remove member"
+								 @onclick="() => ConfirmRemove(m.UserId!)">
+								<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 18L18 6M6 6l12 12" /></svg>
+							</div>
+						}
+					</div>
+				}
 
-        @* Files *@
-        @if (files.Any())
-        {
-            <div class="profile-section">
-                <div class="profile-section-title">Shared files</div>
-                <div class="setting-files">
-                    @foreach (var f in files)
-                    {
-                        <a href="@f.Url" target="_blank" class="setting-file-row">
-                            <div class="setting-file-icon">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                                     stroke="#378ADD" stroke-width="1.5" stroke-linecap="round">
-                                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                                    <polyline points="14 2 14 8 20 8" />
-                                </svg>
-                            </div>
-                            <div class="setting-file-info">
-                                <div class="setting-file-name">@f.FileName</div>
-                                <div class="setting-file-size">@FormatSize(f.Size)</div>
-                            </div>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                                 stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                 style="color:var(--muted);flex-shrink:0">
-                                <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
-                                <polyline points="15 3 21 3 21 9" />
-                                <line x1="10" y1="14" x2="21" y2="3" />
-                            </svg>
-                        </a>
-                    }
-                </div>
-            </div>
-        }
+				@* Add member *@
+				@if (isAddingMember)
+				{
+					<input style="width:100%;padding:7px 10px;border:1.5px solid var(--lime);border-radius:10px;font-size:12px;outline:none;margin-top:6px;"
+					placeholder="Search users…"
+					@oninput="SearchUsersToAdd" />
 
-        @* Actions — UI only *@
-        <div class="profile-section">
-            <div class="profile-section-title">Actions</div>
-            <button class="profile-action-btn">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                    <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                    <path d="M13.73 21a2 2 0 01-3.46 0" />
-                </svg>
-                Mute notifications
-            </button>
+					@foreach (var u in addMemberResults)
+					{
+						<div style="padding:7px 10px;border-radius:8px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:space-between;"
+						@onclick="() => AddMember(u.UserId!)">
+							<span>@u.DisplayName</span>
+							<span style="color:var(--lime);font-size:11px;">Add</span>
+						</div>
+					}
+				}
+
+				<button class="profile-action-btn" style="margin-top:6px;" @onclick="() => isAddingMember = !isAddingMember">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14" /></svg>
+					@(isAddingMember ? "Cancel" : "Add member")
+				</button>
+			</div>
+		}
+
+		@* Images *@
+		@if (images.Any())
+		{
+			<div class="profile-section">
+				<div class="profile-section-title">Shared images</div>
+				<div class="shared-media">
+					@foreach (var img in images.Take(9))
+					{
+						<div class="media-thumb" @onclick="() => OpenImage(img.Url)">
+							<img src="@img.Url" alt="@img.FileName"
+							style="width:100%;height:100%;object-fit:cover;display:block;" />
+						</div>
+					}
+					@if (images.Count > 9)
+					{
+						<div class="media-thumb more">+@(images.Count - 9)</div>
+					}
+				</div>
+			</div>
+		}
+
+		@* Files *@
+		@if (files.Any())
+		{
+			<div class="profile-section">
+				<div class="profile-section-title">Shared files</div>
+				<div class="setting-files">
+					@foreach (var f in files)
+					{
+						<a href="@f.Url" target="_blank" class="setting-file-row">
+							<div class="setting-file-icon">
+								<svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+								stroke="#378ADD" stroke-width="1.5" stroke-linecap="round">
+									<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+									<polyline points="14 2 14 8 20 8" />
+								</svg>
+							</div>
+							<div class="setting-file-info">
+								<div class="setting-file-name">@f.FileName</div>
+								<div class="setting-file-size">@FormatSize(f.Size)</div>
+							</div>
+							<svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+							stroke="currentColor" stroke-width="2" stroke-linecap="round"
+							style="color:var(--muted);flex-shrink:0">
+								<path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
+								<polyline points="15 3 21 3 21 9" />
+								<line x1="10" y1="14" x2="21" y2="3" />
+							</svg>
+						</a>
+					}
+				</div>
+			</div>
+		}
+
+		@* Actions — UI only *@
+		<div class="profile-section">
+			<div class="profile-section-title">Actions</div>
+			@if (conversation!.Type == ConversationType.Direct)
+			{
+				<button class="profile-action-btn" @onclick="() => isFollowing = !isFollowing">
+					<svg width="15" height="15" viewBox="0 0 24 24" fill="@(isFollowing ? "currentColor" : "none")"
+					stroke="currentColor" stroke-width="2" stroke-linecap="round">
+						<path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
+					</svg>
+					@(isFollowing ? "Following" : "Follow")
+				</button>
+			}
+			<button class="profile-action-btn">
+				<svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+				stroke="currentColor" stroke-width="2" stroke-linecap="round">
+					<path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+					<path d="M13.73 21a2 2 0 01-3.46 0" />
+				</svg>
+				Mute notifications
+			</button>
 			@if (conversation!.Type == ConversationType.Group)
 			{
 				<button class="profile-action-btn" style="color:#c0392b;" @onclick="HandleLeave">
@@ -113,36 +205,46 @@
 					Leave group
 				</button>
 			}
-            <button class="profile-action-btn" style="color:#c0392b;">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                    <polyline points="3 6 5 6 21 6" />
-                    <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
-                    <path d="M10 11v6M14 11v6" />
-                    <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
-                </svg>
-                Delete conversation
-            </button>
-        </div>
-    </div>
+			@if (conversation!.Type == ConversationType.Direct){
+
+				<button class="profile-action-btn" style="color:#c0392b;">
+					<svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+					stroke="currentColor" stroke-width="2" stroke-linecap="round">
+						<polyline points="3 6 5 6 21 6" />
+						<path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+						<path d="M10 11v6M14 11v6" />
+						<path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
+					</svg>
+					Delete conversation
+				</button>
+			}
+		</div>
+	</div>
 }
 
 @code {
-    [Parameter] public string? ConversationId { get; set; }
-    [Parameter] public string? CurrentUserId { get; set; }
+	[Parameter] public string? ConversationId { get; set; }
+	[Parameter] public string? CurrentUserId { get; set; }
 	[Parameter] public EventCallback OnLeft { get; set; }
-    private ConversationDto? conversation;
-    private List<UserProfile>? members;
-    private string? conversationName;
-    private List<AttachmentDto> images = new();
-    private List<AttachmentDto> files = new();
-    private string _loadedId = string.Empty;
+	private ConversationDto? conversation;
+	private List<UserProfile>? members;
+	private string? conversationName;
+	private List<AttachmentDto> images = new();
+	private List<AttachmentDto> files = new();
+	private string _loadedId = string.Empty;
+	private bool isFollowing;
+	private bool isAddingMember;
+	private string addMemberSearch = "";
+	private List<UserProfile> addMemberResults = new();
+	private HubConnection? _settingHub;
+	private bool showConfirmModal = false;
+	private string? memberToRemoveId;
 
-    protected override async Task OnParametersSetAsync()
-    {
-        if (string.IsNullOrEmpty(ConversationId) || _loadedId == ConversationId) return;
-        await LoadAsync();
-    }
+	protected override async Task OnParametersSetAsync()
+	{
+		if (string.IsNullOrEmpty(ConversationId) || _loadedId == ConversationId) return;
+		await LoadAsync();
+	}
 
 	private async Task HandleLeave()
 	{
@@ -151,30 +253,96 @@
 		await OnLeft.InvokeAsync();
 	}
 
-    private async Task LoadAsync()
-    {
-        _loadedId = ConversationId!;
+	private void ConfirmRemove(string userId)
+	{
+		memberToRemoveId = userId;
+		showConfirmModal = true;
+	}
 
-        conversation = await conversationService.GetConversationDetailAsync(ConversationId!);
-        if (conversation == null) return;
+	private async Task LoadAsync()
+	{
+		_loadedId = ConversationId!;
 
-        members = await conversationService.GetOtherUsersInConversationsAsync(ConversationId!, CurrentUserId!);
+		conversation = await conversationService.GetConversationDetailAsync(ConversationId!);
+		if (conversation == null) return;
 
-        conversationName = conversation.Type == ConversationType.Group
-            ? conversation.GroupName
-            : (members.Count == 0 ? "You" : members[0].DisplayName);
+		members = await conversationService.GetAllUsersInConversationAsync(ConversationId!);
 
-        var messages = await conversationService.GetMessagesAsync(ConversationId!);
+		conversationName = conversation.Type == ConversationType.Group
+			? conversation.GroupName
+			: (members.Count == 0 ? "You" : members[0].DisplayName);
 
-        var allAttachments = messages
-            .SelectMany(m => m.Attachments ?? new())
-            .ToList();
+		var messages = await conversationService.GetMessagesAsync(ConversationId!);
 
-        images = allAttachments.Where(a => a.ContentType.StartsWith("image/")).ToList();
-        files = allAttachments.Where(a => !a.ContentType.StartsWith("image/")).ToList();
+		var allAttachments = messages
+			.SelectMany(m => m.Attachments ?? new())
+			.ToList();
 
-        StateHasChanged();
-    }
+		images = allAttachments.Where(a => a.ContentType.StartsWith("image/")).ToList();
+		files = allAttachments.Where(a => !a.ContentType.StartsWith("image/")).ToList();
+
+		StateHasChanged();
+	}
+
+	private async Task SearchUsersToAdd(ChangeEventArgs e)
+	{
+		var q = e.Value?.ToString() ?? "";
+		if (string.IsNullOrEmpty(q)) { addMemberResults.Clear(); return; }
+
+		var existing = members?.Select(m => m.UserId).ToHashSet() ?? new();
+		addMemberResults = userService.GetUsersByDisplayNameAsync(q)
+			.Where(u => !existing.Contains(u.UserId))
+			.Take(5).ToList();
+		StateHasChanged();
+	}
+
+	private async Task AddMember(string userId)
+	{
+		await conversationService.AddMemberAsync(ConversationId!, userId);
+		members = await conversationService.GetAllUsersInConversationAsync(ConversationId!);
+		addMemberResults.Clear();
+		addMemberSearch = "";
+		isAddingMember = false;
+
+		await EnsureHubAsync();
+		var participantIds = members?.Select(m => m.UserId!).ToList() ?? new();
+		if (_settingHub!.State == HubConnectionState.Connected)
+			await _settingHub.InvokeAsync("NotifyGroupCreated", participantIds);
+
+		StateHasChanged();
+	}
+
+	private async Task RemoveMember(string userId)
+	{
+		await conversationService.RemoveMemberAsync(ConversationId!, userId);
+		members = await conversationService.GetAllUsersInConversationAsync(ConversationId!);
+		await EnsureHubAsync();
+		if (_settingHub!.State == HubConnectionState.Connected)
+			await _settingHub.InvokeAsync("KickMember", ConversationId, userId);
+
+		StateHasChanged();
+	}
+
+	private async Task EnsureHubAsync()
+	{
+		if (_settingHub != null) return;
+		var cookies = HttpContextAccessor.HttpContext?.Request.Cookies;
+		var cookieStr = string.Join("; ", cookies?.Select(c => $"{c.Key}={c.Value}") ?? []);
+		_settingHub = new HubConnectionBuilder()
+			.WithUrl(Navigation.ToAbsoluteUri("/chathub"), options =>
+			{
+				options.Headers.Add("Cookie", cookieStr);
+			})
+			.Build();
+		await _settingHub.StartAsync();
+		await _settingHub.InvokeAsync("JoinConversation", ConversationId);
+	}
+
+	public async ValueTask DisposeAsync()
+	{
+		if (_settingHub is not null)
+			await _settingHub.DisposeAsync();
+	}
 
     private async Task OpenImage(string url)
         => await JS.InvokeVoidAsync("window.open", url, "_blank");
@@ -185,4 +353,14 @@
         if (bytes < 1024 * 1024) return $"{bytes / 1024} KB";
         return $"{bytes / (1024 * 1024)} MB";
     }
+
+	private async Task HandleConfirmRemove()
+	{
+		if (memberToRemoveId == null) return;
+
+		await RemoveMember(memberToRemoveId);
+
+		showConfirmModal = false;
+		memberToRemoveId = null;
+	}
 }

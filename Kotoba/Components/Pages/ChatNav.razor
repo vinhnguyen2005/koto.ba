@@ -1145,6 +1145,14 @@
 			conversations = await conversationService.GetUserConversationsAsync(currentUserId!);
 			await InvokeAsync(StateHasChanged);
 		});
+		_navHub.On<string>("RemovedFromGroup", async (conversationId) =>
+		{
+		conversations?.RemoveAll(c => c.ConversationId.ToString() == conversationId);
+		await InvokeAsync(StateHasChanged);
+
+		if (Navigation.Uri.Contains(conversationId))
+			Navigation.NavigateTo("/chat");
+		});
 
 		await _navHub.StartAsync(); 
 	}
@@ -1254,6 +1262,8 @@
 			{
 				conversations = await conversationService.GetUserConversationsAsync(currentUserId!);
 				showGroupModal = false;
+				StateHasChanged();
+				if (_navHub?.State == HubConnectionState.Connected) await _navHub.InvokeAsync("NotifyGroupCreated", ids);
 				Navigation.NavigateTo($"/chat/{conv.ConversationId}");
 			}
 
@@ -1276,16 +1286,19 @@
 		thoughtDraft = currentThought ?? "";
 		isEditingThought = true;
 	}
-
 	private async Task SaveThought()
 	{
 		if (string.IsNullOrWhiteSpace(thoughtDraft)) return;
-		await CurrentThoughtService.SetThoughtAsync(currentUserId!, thoughtDraft.Trim());
-		currentThought = thoughtDraft.Trim();
+		var trimmed = thoughtDraft.Trim();
+
+		await CurrentThoughtService.SetThoughtAsync(currentUserId!, trimmed);
+		if (_navHub?.State == HubConnectionState.Connected)
+			await _navHub.InvokeAsync("UpdateThought", trimmed);
+
+		currentThought = trimmed;
 		isEditingThought = false;
 		StateHasChanged();
 	}
-
 	private async Task HandleThoughtKey(KeyboardEventArgs e)
 	{
 		if (e.Key == "Enter") await SaveThought();

@@ -1314,18 +1314,6 @@
 	}
 	});
 
-		hubConnection.On<System.Text.Json.JsonElement>("ThoughtUpdated", async (data) =>
-	{
-	var userId = data.GetProperty("userId").GetString();
-	var content = data.GetProperty("content").GetString();
-
-	if (selectedUsers?.Any(u => u.UserId == userId) == true)
-	{
-		otherUserThought = content;
-		await InvokeAsync(StateHasChanged);
-	}
-	});
-
         try { await hubConnection.StartAsync(); }
         catch (Exception ex) { Console.Error.WriteLine(ex); }
     }
@@ -1342,6 +1330,11 @@
         };
         StateHasChanged();
     }
+	private async Task SetMyThought(string content)
+	{
+		if (hubConnection?.State == HubConnectionState.Connected)
+			await hubConnection.InvokeAsync("UpdateThought", content);
+	}
 
     private async Task OnImagesSelected(InputFileChangeEventArgs e)
     {
