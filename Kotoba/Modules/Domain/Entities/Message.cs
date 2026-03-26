@@ -1,4 +1,6 @@
-﻿namespace Kotoba.Modules.Domain.Entities
+using Kotoba.Modules.Domain.Enums;
+
+namespace Kotoba.Modules.Domain.Entities
 {
     public class Message
     {
@@ -8,6 +10,10 @@
         public string Content { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public bool IsDeleted { get; set; } = false;
+
+        public bool IsSystemMessage { get; set; } = false;
+        public SystemMessageType? SystemMessageType { get; set; }
+        public string? SystemMessageData { get; set; }
 
         // Navigation properties
         public virtual Conversation Conversation { get; set; } = null!;
