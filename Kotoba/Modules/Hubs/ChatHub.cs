@@ -214,23 +214,6 @@ namespace Kotoba.Modules.Hubs
             if (user.AccountStatus == AccountStatus.Deactivated)
                 throw new HubException("Account is deactivated.");
         }
-
-        public async Task LeaveGroup(string conversationId)
-        {
-            var userId = Context.UserIdentifier!;
-            await Groups.RemoveFromGroupAsync(Context.ConnectionId, conversationId);
-
-            await Clients.Group(conversationId).SendAsync("UserLeftGroup", new { conversationId, userId });
-
-            await Clients.Group(conversationId).SendAsync("ConversationListChanged");
-
-            await _context.ConversationParticipants
-                .Where(p => p.ConversationId == Guid.Parse(conversationId) && p.UserId == userId)
-                .ExecuteUpdateAsync(s => s
-                    .SetProperty(p => p.IsActive, false)
-                    .SetProperty(p => p.LeftAt, DateTime.UtcNow));
-        }
-
         public async Task NotifyGroupCreated(List<string> participantIds)
         {
             foreach (var userId in participantIds)
@@ -238,14 +221,151 @@ namespace Kotoba.Modules.Hubs
                 await Clients.User(userId).SendAsync("ConversationListChanged");
             }
         }
-
-
         public async Task KickMember(string conversationId, string targetUserId)
         {
+            var userId = Context.UserIdentifier!;
+            await AssertUserCanWriteAsync(userId);
+            var convId = Guid.Parse(conversationId);
+
+            var targetUser = await _context.Users.FindAsync(targetUserId);
+            var displayName = targetUser?.DisplayName ?? "User";
+
+            var systemMsg = new Message
+            {
+                Id = Guid.NewGuid(),
+                ConversationId = convId,
+                SenderId = userId,
+                Content = $"{displayName} has been removed",
+                CreatedAt = DateTime.UtcNow,
+                IsSystemMessage = true,
+                SystemMessageType = SystemMessageType.MemberRemoved,
+                SystemMessageData = System.Text.Json.JsonSerializer.Serialize(
+                    new SystemMessageDataDto { UserId = targetUserId, DisplayName = displayName }
+                )
+            };
+            await _context.Messages.AddAsync(systemMsg);
+
+            await _context.ConversationParticipants
+                .Where(p => p.ConversationId == convId && p.UserId == targetUserId)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(p => p.IsActive, false)
+                    .SetProperty(p => p.LeftAt, DateTime.UtcNow));
+
+            await _context.SaveChangesAsync();
+
+            // Notify bị kick
             await Clients.User(targetUserId).SendAsync("RemovedFromGroup", conversationId);
+
+            // Broadcast system message
+            var sysMsgDto = new MessageDto
+            {
+                MessageId = systemMsg.Id,
+                SenderId = userId,
+                Content = systemMsg.Content,
+                ConversationId = convId,
+                CreatedAt = systemMsg.CreatedAt,
+                Status = MessageStatus.Sent,
+                IsSystemMessage = true,
+                SystemMessageType = SystemMessageType.MemberRemoved,
+                SystemMessageData = new SystemMessageDataDto { UserId = targetUserId, DisplayName = displayName }
+            };
+
+            await Clients.Group(conversationId).SendAsync("MessageConfirmed", sysMsgDto, systemMsg.Id.ToString());
             await Clients.Group(conversationId).SendAsync("ConversationListChanged");
+            await Clients.Group(conversationId).SendAsync("MembersUpdated");
         }
 
+        public async Task LeaveGroup(string conversationId)
+        {
+            var userId = Context.UserIdentifier!;
+            await AssertUserCanWriteAsync(userId);
+            var convId = Guid.Parse(conversationId);
+
+            var user = await _context.Users.FindAsync(userId);
+            var displayName = user?.DisplayName ?? "User";
+
+            var systemMsg = new Message
+            {
+                Id = Guid.NewGuid(),
+                ConversationId = convId,
+                SenderId = userId,
+                Content = $"{displayName} has left the chat",
+                CreatedAt = DateTime.UtcNow,
+                IsSystemMessage = true,
+                SystemMessageType = SystemMessageType.UserLeft,
+                SystemMessageData = System.Text.Json.JsonSerializer.Serialize(
+                    new SystemMessageDataDto { UserId = userId, DisplayName = displayName }
+                )
+            };
+            await _context.Messages.AddAsync(systemMsg);
+
+            await _context.ConversationParticipants
+                .Where(p => p.ConversationId == convId && p.UserId == userId)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(p => p.IsActive, false)
+                    .SetProperty(p => p.LeftAt, DateTime.UtcNow));
+
+            await _context.SaveChangesAsync();
+
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, conversationId);
+
+            var sysMsgDto = new MessageDto
+            {
+                MessageId = systemMsg.Id,
+                SenderId = userId,
+                Content = systemMsg.Content,
+                ConversationId = convId,
+                CreatedAt = systemMsg.CreatedAt,
+                Status = MessageStatus.Sent,
+                IsSystemMessage = true,
+                SystemMessageType = SystemMessageType.UserLeft,
+                SystemMessageData = new SystemMessageDataDto { UserId = userId, DisplayName = displayName }
+            };
+
+            await Clients.OthersInGroup(conversationId).SendAsync("MessageConfirmed", sysMsgDto, systemMsg.Id.ToString());
+            await Clients.Group(conversationId).SendAsync("ConversationListChanged");
+            await Clients.OthersInGroup(conversationId).SendAsync("MembersUpdated");
+        }
+
+        public async Task NotifyMemberAdded(string conversationId, string addedUserId, string addedUserName)
+        {
+            var convId = Guid.Parse(conversationId);
+
+            var systemMsg = new Message
+            {
+                Id = Guid.NewGuid(),
+                ConversationId = convId,
+                SenderId = addedUserId,
+                Content = $"{addedUserName} is added to the group",
+                CreatedAt = DateTime.UtcNow,
+                IsSystemMessage = true,
+                SystemMessageType = SystemMessageType.MemberAdded,
+
+                SystemMessageData = System.Text.Json.JsonSerializer.Serialize(
+                    new SystemMessageDataDto { UserId = addedUserId, DisplayName = addedUserName }
+                )
+            };
+            await _context.Messages.AddAsync(systemMsg);
+            await _context.SaveChangesAsync();
+
+            var sysMsgDto = new MessageDto
+            {
+                MessageId = systemMsg.Id,
+                SenderId = addedUserId,
+                Content = systemMsg.Content,
+                ConversationId = convId,
+                CreatedAt = systemMsg.CreatedAt,
+                Status = MessageStatus.Sent,
+                IsSystemMessage = true,
+                SystemMessageType = SystemMessageType.MemberAdded,
+                SystemMessageData = new SystemMessageDataDto { UserId = addedUserId, DisplayName = addedUserName }
+            };
+
+            await Clients.Group(conversationId).SendAsync("MessageConfirmed", sysMsgDto, systemMsg.Id.ToString());
+            await Clients.User(addedUserId).SendAsync("ConversationListChanged");
+            await Clients.Group(conversationId).SendAsync("ConversationListChanged");
+            await Clients.Group(conversationId).SendAsync("MembersUpdated");
+        }
         private string GetContentType(string fileName)
         {
             var ext = Path.GetExtension(fileName).ToLower();
