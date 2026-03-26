@@ -178,6 +178,21 @@ namespace Kotoba.Modules.Hubs
                     .SetProperty(p => p.LeftAt, DateTime.UtcNow));
         }
 
+        public async Task NotifyGroupCreated(List<string> participantIds)
+        {
+            foreach (var userId in participantIds)
+            {
+                await Clients.User(userId).SendAsync("ConversationListChanged");
+            }
+        }
+
+
+        public async Task KickMember(string conversationId, string targetUserId)
+        {
+            await Clients.User(targetUserId).SendAsync("RemovedFromGroup", conversationId);
+            await Clients.Group(conversationId).SendAsync("ConversationListChanged");
+        }
+
         private string GetContentType(string fileName)
         {
             var ext = Path.GetExtension(fileName).ToLower();
