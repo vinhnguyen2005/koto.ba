@@ -4,6 +4,7 @@ using Kotoba.Modules.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Kotoba.Modules.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(KotobaDbContext))]
-    partial class KotobaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260328161953_AddRoleAndOwnerId")]
+    partial class AddRoleAndOwnerId
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -302,47 +305,6 @@ namespace Kotoba.Modules.Infrastructure.Data.Migrations
                     b.ToTable("MessageReceipts", (string)null);
                 });
 
-            modelBuilder.Entity("Kotoba.Modules.Domain.Entities.Notification", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ActorId")
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsRead")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Message")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("RecipientId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("TargetId")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("TargetType")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("Type")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ActorId");
-
-                    b.HasIndex("RecipientId");
-
-                    b.ToTable("Notifications");
-                });
-
             modelBuilder.Entity("Kotoba.Modules.Domain.Entities.Reaction", b =>
                 {
                     b.Property<Guid>("Id")
@@ -444,49 +406,49 @@ namespace Kotoba.Modules.Infrastructure.Data.Migrations
                     b.HasData(
                         new
                         {
-                            Id = new Guid("ab79eef2-9c0b-4e92-a0cd-c05405de5720"),
+                            Id = new Guid("8a4b8cc4-09d7-4faf-9327-099c8238ce19"),
                             DisplayOrder = 1,
                             IsActive = true,
                             Name = "Spam"
                         },
                         new
                         {
-                            Id = new Guid("65713a39-4217-4779-890c-28d286ab0895"),
+                            Id = new Guid("e3110a2e-f503-4585-9262-8ae741ac90d1"),
                             DisplayOrder = 2,
                             IsActive = true,
                             Name = "Hate speech"
                         },
                         new
                         {
-                            Id = new Guid("49350044-188e-4df7-89a8-dc9a56705c33"),
+                            Id = new Guid("1a170318-2f4f-4325-aeea-6073630df0d1"),
                             DisplayOrder = 3,
                             IsActive = true,
                             Name = "Adult content"
                         },
                         new
                         {
-                            Id = new Guid("839838a9-2133-43d7-8872-2eb13187ae0b"),
+                            Id = new Guid("a90e4cc7-b382-40d3-bda1-fdb091a19c66"),
                             DisplayOrder = 4,
                             IsActive = true,
                             Name = "Harassment"
                         },
                         new
                         {
-                            Id = new Guid("165dc0a5-eab1-4d0f-bcd4-39d5cc8fbf06"),
+                            Id = new Guid("4926ed3e-78e1-470a-8a03-28bceebd24ba"),
                             DisplayOrder = 5,
                             IsActive = true,
                             Name = "Misinformation"
                         },
                         new
                         {
-                            Id = new Guid("e9a20003-ebf3-4661-befb-bc4697a08f61"),
+                            Id = new Guid("c81c599a-0de1-4156-aab8-bdd45658f3d3"),
                             DisplayOrder = 6,
                             IsActive = true,
                             Name = "Violence"
                         },
                         new
                         {
-                            Id = new Guid("8850cd92-caa4-4732-acd3-ab9437692142"),
+                            Id = new Guid("9dfff7de-3bd3-4766-91cd-4aa04098ff87"),
                             DisplayOrder = 7,
                             IsActive = true,
                             Name = "Other"
@@ -846,23 +808,6 @@ namespace Kotoba.Modules.Infrastructure.Data.Migrations
                     b.Navigation("Message");
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Kotoba.Modules.Domain.Entities.Notification", b =>
-                {
-                    b.HasOne("Kotoba.Modules.Domain.Entities.User", "Actor")
-                        .WithMany()
-                        .HasForeignKey("ActorId");
-
-                    b.HasOne("Kotoba.Modules.Domain.Entities.User", "Recipient")
-                        .WithMany()
-                        .HasForeignKey("RecipientId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Actor");
-
-                    b.Navigation("Recipient");
                 });
 
             modelBuilder.Entity("Kotoba.Modules.Domain.Entities.Reaction", b =>

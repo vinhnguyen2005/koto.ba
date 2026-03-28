@@ -1,0 +1,69 @@
+@using Microsoft.AspNetCore.SignalR.Client
+@implements IAsyncDisposable
+@inject INotificationService NotificationService
+@inject NavigationManager Navigation
+@inject IHttpContextAccessor HttpContextAccessor
+
+<div style="position:relative;cursor:pointer;" @onclick="GoToNotifications" title="Notifications">
+    <svg width="20" height="20" fill="none" viewBox="0 0 24 24"
+         stroke="currentColor" stroke-width="2">
+        <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+        <path d="M13.73 21a2 2 0 01-3.46 0" />
+    </svg>
+    @if (unreadCount > 0)
+    {
+        <div style="position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;
+                        background:#c0392b;border-radius:50%;font-size:10px;font-weight:700;
+                        color:#fff;display:flex;align-items:center;justify-content:center;
+                        padding:0 3px;line-height:1;">
+            @(unreadCount > 99 ? "99+" : unreadCount.ToString())
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string? UserId { get; set; }
+
+    private int unreadCount = 0;
+    private HubConnection? _hub;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.IsNullOrEmpty(UserId)) return;
+        unreadCount = await NotificationService.GetUnreadCountAsync(UserId);
+        if (_hub == null) await StartHubAsync();
+    }
+
+    private async Task StartHubAsync()
+    {
+        var cookies = HttpContextAccessor.HttpContext?.Request.Cookies;
+        var cookieStr = string.Join("; ", cookies?.Select(c => $"{c.Key}={c.Value}") ?? []);
+
+        _hub = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/chathub"), options =>
+            {
+                options.Headers.Add("Cookie", cookieStr);
+            })
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hub.On<NotificationDto>("ReceiveNotification", async (dto) =>
+        {
+            await InvokeAsync(() =>
+            {
+                unreadCount++;
+                StateHasChanged();
+            });
+        });
+
+        await _hub.StartAsync();
+    }
+
+    private void GoToNotifications()
+        => Navigation.NavigateTo("/notifications");
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hub is not null) await _hub.DisposeAsync();
+    }
+}
