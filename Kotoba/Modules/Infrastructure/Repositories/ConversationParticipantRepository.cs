@@ -64,11 +64,14 @@ namespace Kotoba.Modules.Infrastructure.Repositories
         {
             using var _context = await _dbFactory.CreateDbContextAsync();
             return await _context.ConversationParticipants
-                .Include(p => p.Conversation)
-                    .ThenInclude(c => c.Participants)
-                        .ThenInclude(p => p.User)
-                .Where(p => p.UserId == userId && p.IsActive)
-                .ToListAsync();
+            .Where(cp => cp.UserId == userId && cp.IsActive)
+            .Include(cp => cp.Conversation)
+                .ThenInclude(c => c.Participants)
+                    .ThenInclude(p => p.User)
+            .Include(cp => cp.Conversation)
+                .ThenInclude(c => c.Messages.OrderByDescending(m => m.CreatedAt).Take(1))
+                    .ThenInclude(m => m.Attachments)  // để detect "📎 Attachment"
+            .ToListAsync();
         }
 
         public async Task<List<UserProfile>> GetOtherUsersInConversationAsync(string conversationId, string userId)

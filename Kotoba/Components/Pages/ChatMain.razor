@@ -1549,6 +1549,16 @@
 	}
 	});
 
+        hubConnection.On("MembersUpdated", async () =>
+{
+            await InvokeAsync(async () =>
+            {
+                selectedUsers = await conversationService
+                    .GetOtherUsersInConversationsAsync(ConversationId!, currentUserId!);
+                StateHasChanged();
+            });
+        });
+
         try { await hubConnection.StartAsync(); }
         catch (Exception ex) { Console.Error.WriteLine(ex); }
     }
