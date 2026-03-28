@@ -954,11 +954,14 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
                 return RegistrationResult.Failure(new[] { "Email is already in use." });
             }
 
+            var formattedDisplayName = FormatDisplayName(request.DisplayName);
+            var normalizedHandle = NormalizeUserHandle(formattedDisplayName);
+
             var user = new User
             {
-                UserName = normalizedEmail,
+                UserName = normalizedHandle,
                 Email = normalizedEmail,
-                DisplayName = request.DisplayName.Trim(),
+                DisplayName = formattedDisplayName,
                 IsOnline = false,
                 LastSeenAt = null,
                 CreatedAt = DateTime.UtcNow
@@ -992,7 +995,7 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
                 return AccountOperationResult.Failure(new[] { "User profile not found." });
             }
 
-            user.DisplayName = request.DisplayName.Trim();
+            user.DisplayName = FormatDisplayName(request.DisplayName);
             user.AvatarUrl = string.IsNullOrWhiteSpace(request.AvatarUrl) ? null : request.AvatarUrl.Trim();
 
             var requestedUserName = string.IsNullOrWhiteSpace(request.UserName)
@@ -1205,6 +1208,38 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
             }
         }
 
+
+        private static string FormatDisplayName(string displayName)
+        {
+            if (string.IsNullOrWhiteSpace(displayName))
+                return displayName;
+
+            // Trim leading and trailing whitespace
+            displayName = displayName.Trim();
+
+            // Replace multiple spaces with single space
+            displayName = System.Text.RegularExpressions.Regex.Replace(displayName, @"\s+", " ");
+
+            // Apply title case: capitalize first letter of each word, lowercase the rest
+            var words = displayName.Split(' ');
+            var titleCaseWords = words.Select(word =>
+                char.ToUpper(word[0]) + (word.Length > 1 ? word.Substring(1).ToLower() : string.Empty)
+            ).ToArray();
+
+            return string.Join(" ", titleCaseWords);
+        }
+
+        private static string NormalizeUserHandle(string displayName)
+        {
+            if (string.IsNullOrWhiteSpace(displayName))
+                return string.Empty;
+
+            // Convert to lowercase and replace spaces with dashes
+            var normalized = displayName.Trim().ToLower();
+            normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"\s+", "-");
+
+            return normalized;
+        }
 
         private static AccountOperationResult FromIdentityResult(IdentityResult result)
         {
