@@ -22,6 +22,8 @@ namespace Kotoba.Modules.Infrastructure.Data
         public DbSet<CurrentThought> CurrentThoughts => Set<CurrentThought>();
         public DbSet<AdminAuditLog> AdminAuditLogs => Set<AdminAuditLog>();
         public DbSet<Attachment> Attachment => Set<Attachment>();
+        public DbSet<Report> Reports => Set<Report>();
+        public DbSet<ReportCategory> ReportCategories => Set<ReportCategory>();
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -117,19 +119,15 @@ namespace Kotoba.Modules.Infrastructure.Data
                 entity.HasIndex(r => new { r.MessageId, r.UserId }).IsUnique();
             });
 
-            //modelBuilder.Entity<Attachment>(entity =>
-            //{
-            //    entity.ToTable("Attachments");
-            //    entity.HasKey(a => a.Id);
-            //    entity.Property(a => a.FileName).HasMaxLength(260);
-            //    entity.Property(a => a.FileUrl).HasMaxLength(1000);
-            //    entity.Property(a => a.FileType).HasConversion<string>().HasMaxLength(40);
-
-            //    entity.HasOne(a => a.Message)
-            //        .WithMany(m => m.Attachments)
-            //        .HasForeignKey(a => a.MessageId)
-            //        .OnDelete(DeleteBehavior.Cascade);
-            //});
+            modelBuilder.Entity<ReportCategory>().HasData(
+                new ReportCategory { Id = Guid.NewGuid(), Name = "Spam", DisplayOrder = 1, IsActive = true },
+                new ReportCategory { Id = Guid.NewGuid(), Name = "Hate speech", DisplayOrder = 2, IsActive = true },
+                new ReportCategory { Id = Guid.NewGuid(), Name = "Adult content", DisplayOrder = 3, IsActive = true },
+                new ReportCategory { Id = Guid.NewGuid(), Name = "Harassment", DisplayOrder = 4, IsActive = true },
+                new ReportCategory { Id = Guid.NewGuid(), Name = "Misinformation", DisplayOrder = 5, IsActive = true },
+                new ReportCategory { Id = Guid.NewGuid(), Name = "Violence", DisplayOrder = 6, IsActive = true },
+                new ReportCategory { Id = Guid.NewGuid(), Name = "Other", DisplayOrder = 7, IsActive = true }
+            );
 
             modelBuilder.Entity<Story>(entity =>
             {

@@ -4,6 +4,7 @@ using Kotoba.Modules.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Kotoba.Modules.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(KotobaDbContext))]
-    partial class KotobaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260328141606_AddReportAndReportCategory")]
+    partial class AddReportAndReportCategory
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,65 +24,6 @@ namespace Kotoba.Modules.Infrastructure.Data.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
-
-            modelBuilder.Entity("Kotoba.Modules.Domain.Entities.AdminAuditLog", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("ActionType")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<string>("CorrelationId")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<bool>("IsSuccess")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("MetadataJson")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
-
-                    b.Property<string>("PerformedByAdminId")
-                        .IsRequired()
-                        .HasMaxLength(450)
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("SourceIp")
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<string>("Summary")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("TargetEntityId")
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<string>("TargetEntityType")
-                        .HasMaxLength(80)
-                        .HasColumnType("nvarchar(80)");
-
-                    b.Property<DateTime>("TimestampUtc")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TimestampUtc");
-
-                    b.HasIndex("ActionType", "TimestampUtc");
-
-                    b.HasIndex("PerformedByAdminId", "TimestampUtc");
-
-                    b.ToTable("AdminAuditLogs", (string)null);
-                });
 
             modelBuilder.Entity("Kotoba.Modules.Domain.Entities.Attachment", b =>
                 {
@@ -325,125 +269,6 @@ namespace Kotoba.Modules.Infrastructure.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("Reactions", (string)null);
-                });
-
-            modelBuilder.Entity("Kotoba.Modules.Domain.Entities.Report", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("CategoryId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ReporterId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<DateTime?>("ReviewedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("ReviewerId")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<string>("TargetId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("TargetType")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CategoryId");
-
-                    b.HasIndex("ReporterId");
-
-                    b.ToTable("Reports");
-                });
-
-            modelBuilder.Entity("Kotoba.Modules.Domain.Entities.ReportCategory", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("DisplayOrder")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("ReportCategories");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("2740e535-caca-488c-ab0a-6d67e3e4cd26"),
-                            DisplayOrder = 1,
-                            IsActive = true,
-                            Name = "Spam"
-                        },
-                        new
-                        {
-                            Id = new Guid("ae4b4e91-572e-49ba-bdce-25ae10a60bd8"),
-                            DisplayOrder = 2,
-                            IsActive = true,
-                            Name = "Hate speech"
-                        },
-                        new
-                        {
-                            Id = new Guid("8ed8639b-337f-44d7-8d4c-dc5648a5d58c"),
-                            DisplayOrder = 3,
-                            IsActive = true,
-                            Name = "Adult content"
-                        },
-                        new
-                        {
-                            Id = new Guid("601c0bb0-8e24-4942-b33d-6666c6ea0e5a"),
-                            DisplayOrder = 4,
-                            IsActive = true,
-                            Name = "Harassment"
-                        },
-                        new
-                        {
-                            Id = new Guid("6acc8208-d74f-47ab-abd1-6ac08e420425"),
-                            DisplayOrder = 5,
-                            IsActive = true,
-                            Name = "Misinformation"
-                        },
-                        new
-                        {
-                            Id = new Guid("0276256f-13fb-4548-bcd8-caa1e6f68dbd"),
-                            DisplayOrder = 6,
-                            IsActive = true,
-                            Name = "Violence"
-                        },
-                        new
-                        {
-                            Id = new Guid("26380bd6-c644-4fb0-8e81-33059acdad02"),
-                            DisplayOrder = 7,
-                            IsActive = true,
-                            Name = "Other"
-                        });
                 });
 
             modelBuilder.Entity("Kotoba.Modules.Domain.Entities.Story", b =>
@@ -705,17 +530,6 @@ namespace Kotoba.Modules.Infrastructure.Data.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
-            modelBuilder.Entity("Kotoba.Modules.Domain.Entities.AdminAuditLog", b =>
-                {
-                    b.HasOne("Kotoba.Modules.Domain.Entities.User", "PerformedByAdmin")
-                        .WithMany()
-                        .HasForeignKey("PerformedByAdminId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("PerformedByAdmin");
-                });
-
             modelBuilder.Entity("Kotoba.Modules.Domain.Entities.Attachment", b =>
                 {
                     b.HasOne("Kotoba.Modules.Domain.Entities.Message", "Message")
@@ -820,25 +634,6 @@ namespace Kotoba.Modules.Infrastructure.Data.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Kotoba.Modules.Domain.Entities.Report", b =>
-                {
-                    b.HasOne("Kotoba.Modules.Domain.Entities.ReportCategory", "Category")
-                        .WithMany("Reports")
-                        .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Kotoba.Modules.Domain.Entities.User", "Reporter")
-                        .WithMany()
-                        .HasForeignKey("ReporterId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Category");
-
-                    b.Navigation("Reporter");
-                });
-
             modelBuilder.Entity("Kotoba.Modules.Domain.Entities.Story", b =>
                 {
                     b.HasOne("Kotoba.Modules.Domain.Entities.User", "User")
@@ -915,11 +710,6 @@ namespace Kotoba.Modules.Infrastructure.Data.Migrations
                     b.Navigation("Reactions");
 
                     b.Navigation("Receipts");
-                });
-
-            modelBuilder.Entity("Kotoba.Modules.Domain.Entities.ReportCategory", b =>
-                {
-                    b.Navigation("Reports");
                 });
 
             modelBuilder.Entity("Kotoba.Modules.Domain.Entities.User", b =>
