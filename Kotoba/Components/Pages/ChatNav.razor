@@ -1083,8 +1083,8 @@
 
                 <div class="chat-item" @onclick="() => SelectConversation(conv)">
                     <div class="chat-avatar">
-                        <div class="avatar-img @(NotifState.Contains(conv.ConversationId.ToString().ToLower()) ? "avatar-ring" : "")">
-                            @{string avatarDisplay = string.IsNullOrWhiteSpace(other?.AvatarUrl) ? "🥝" : other.AvatarUrl;}
+                            <div class="avatar-img @(ShouldShowRing(conv) ? "avatar-ring" : "")">
+                                @{string avatarDisplay = string.IsNullOrWhiteSpace(other?.AvatarUrl) ? "🥝" : other.AvatarUrl;}
                             @avatarDisplay
                         </div>
                     </div>
@@ -1100,15 +1100,13 @@
                         </div>
                         @if (!string.IsNullOrEmpty(conv.LastMessage?.Content))
                         {
-                            <div style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;
-                                            text-overflow:ellipsis;max-width:180px;margin-top:2px;">
-                                @conv.LastMessage.Content
+                                <div style="@GetMessageStyle(conv) white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;margin-top:2px;">
+                                    @GetLastMessagePreview(conv)
                             </div>
                         }
                         else if (conv.LastMessage?.Attachments != null)
                         {
-                            <div style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;
-                                                                    text-overflow:ellipsis;max-width:180px;margin-top:2px; font-style: italic;">
+                                <div style="@GetMessageStyle(conv) white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;margin-top:2px;">
                             📎 Attachment
                             </div>
                         }
@@ -1128,7 +1126,7 @@
             {
                 <div class="chat-item" @onclick="() => SelectConversation(conv)">
                     <div class="chat-avatar">
-                        <div class="avatar-img @(NotifState.Contains(conv.ConversationId.ToString()) ? "avatar-ring" : "")">
+                        <div class="avatar-img @(ShouldShowRing(conv) ? "avatar-ring" : "")">
                             🥝
                         </div>
                     </div>
@@ -1144,9 +1142,8 @@
                         </div>
                         @if (!string.IsNullOrEmpty(conv.LastMessage?.Content))
                         {
-                            <div style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;
-                                            text-overflow:ellipsis;max-width:180px;margin-top:2px;">
-                                @conv.LastMessage.Content
+                                <div style="@GetMessageStyle(conv) white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;margin-top:2px;">
+                                    @GetLastMessagePreview(conv)
                             </div>
                         }
                     </div>
@@ -1157,246 +1154,246 @@
 </div>
 
 @code {
-	private List<UserProfile>? users;
-	private List<ConversationDto>? conversations;
-	[Parameter] public string? currentUserId { get; set; } = string.Empty;
-	private string activeFilter = "all";
+    private List<UserProfile>? users;
+    private List<ConversationDto>? conversations;
+    [Parameter] public string? currentUserId { get; set; } = string.Empty;
+    private string activeFilter = "all";
 
-	private string _loadedForUserId = "";
-	private HubConnection? _navHub;
-	private HubConnection? _notifHub;
+    private string _loadedForUserId = "";
+    private HubConnection? _navHub;
+    private HubConnection? _notifHub;
 
-	protected override void OnInitialized()
-	{
-		NotifState.OnChange += HandleStateChange;
-	}
+    protected override void OnInitialized()
+    {
+        NotifState.OnChange += HandleStateChange;
+    }
 
-	private void HandleStateChange()
-	{
-		InvokeAsync(StateHasChanged);
-	}
+    private void HandleStateChange()
+    {
+        InvokeAsync(StateHasChanged);
+    }
 
-	protected override async Task OnParametersSetAsync()
-	{
-		if (string.IsNullOrEmpty(currentUserId)) return;
-		if (_loadedForUserId == currentUserId) return;
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.IsNullOrEmpty(currentUserId)) return;
+        if (_loadedForUserId == currentUserId) return;
 
-		_loadedForUserId = currentUserId;
-		conversations = await conversationService.GetUserConversationsAsync(currentUserId!);
-		currentThought = await CurrentThoughtService.GetThoughtAsync(currentUserId!);
-		if (_navHub == null)
-			await StartNavHubAsync();
+        _loadedForUserId = currentUserId;
+        conversations = await conversationService.GetUserConversationsAsync(currentUserId!);
+        currentThought = await CurrentThoughtService.GetThoughtAsync(currentUserId!);
+        if (_navHub == null)
+            await StartNavHubAsync();
 
-		StateHasChanged();
-	}
+        StateHasChanged();
+    }
 
-	private async Task StartNavHubAsync()
-	{
-		var cookies = HttpContextAccessor.HttpContext?.Request.Cookies;
-		var cookieStr = string.Join("; ", cookies?.Select(c => $"{c.Key}={c.Value}") ?? []);
+    private async Task StartNavHubAsync()
+    {
+        var cookies = HttpContextAccessor.HttpContext?.Request.Cookies;
+        var cookieStr = string.Join("; ", cookies?.Select(c => $"{c.Key}={c.Value}") ?? []);
 
-		_navHub = new HubConnectionBuilder()
-			.WithUrl(Navigation.ToAbsoluteUri("/chathub"), options =>
-			{
-				options.Headers.Add("Cookie", cookieStr);
-			})
-			.WithAutomaticReconnect()
-			.Build();
-		_navHub.On<string>("GroupNameUpdated", async (newName) =>
-		{
-			conversations = await conversationService.GetUserConversationsAsync(currentUserId!);
-			await InvokeAsync(StateHasChanged);
-		});
+        _navHub = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/chathub"), options =>
+            {
+                options.Headers.Add("Cookie", cookieStr);
+            })
+            .WithAutomaticReconnect()
+            .Build();
+        _navHub.On<string>("GroupNameUpdated", async (newName) =>
+        {
+            conversations = await conversationService.GetUserConversationsAsync(currentUserId!);
+            await InvokeAsync(StateHasChanged);
+        });
 
-		_navHub.On("ConversationListChanged", async () =>
-		{
-			conversations = await conversationService.GetUserConversationsAsync(currentUserId!);
-			await InvokeAsync(StateHasChanged);
-		});
-		_navHub.On<string>("RemovedFromGroup", async (conversationId) =>
-		{
-		conversations?.RemoveAll(c => c.ConversationId.ToString() == conversationId);
-		await InvokeAsync(StateHasChanged);
+        _navHub.On("ConversationListChanged", async () =>
+        {
+            conversations = await conversationService.GetUserConversationsAsync(currentUserId!);
+            await InvokeAsync(StateHasChanged);
+        });
+        _navHub.On<string>("RemovedFromGroup", async (conversationId) =>
+        {
+            conversations?.RemoveAll(c => c.ConversationId.ToString() == conversationId);
+            await InvokeAsync(StateHasChanged);
 
-		if (Navigation.Uri.Contains(conversationId))
-			Navigation.NavigateTo("/chat");
-		});
+            if (Navigation.Uri.Contains(conversationId))
+                Navigation.NavigateTo("/chat");
+        });
 
-		await _navHub.StartAsync();
-	}
+        await _navHub.StartAsync();
+    }
 
-	private IEnumerable<ConversationDto> FilteredConversations => activeFilter switch
-	{
-		"groups" => conversations?
-			.Where(c => c.Type == ConversationType.Group)
-			?? Enumerable.Empty<ConversationDto>(),
-		_ => conversations ?? Enumerable.Empty<ConversationDto>()
-	};
+    private IEnumerable<ConversationDto> FilteredConversations => activeFilter switch
+    {
+        "groups" => conversations?
+            .Where(c => c.Type == ConversationType.Group)
+            ?? Enumerable.Empty<ConversationDto>(),
+        _ => conversations ?? Enumerable.Empty<ConversationDto>()
+    };
 
-	private async Task HandleSubmit(ChangeEventArgs e)
-	{
-		var q = e?.Value?.ToString();
-		if (!string.IsNullOrEmpty(q))
-		{
-			conversations = await conversationService.FindGroupConversationsAsync(currentUserId!, q);
-			users = userService.GetUsersByDisplayNameAsync(q).ToList();
-			StateHasChanged();
-		}
-		else
-		{
-			conversations = await conversationService.GetUserConversationsAsync(currentUserId!);
-			users = new();
-		}
-	}
+    private async Task HandleSubmit(ChangeEventArgs e)
+    {
+        var q = e?.Value?.ToString();
+        if (!string.IsNullOrEmpty(q))
+        {
+            conversations = await conversationService.FindGroupConversationsAsync(currentUserId!, q);
+            users = userService.GetUsersByDisplayNameAsync(q).ToList();
+            StateHasChanged();
+        }
+        else
+        {
+            conversations = await conversationService.GetUserConversationsAsync(currentUserId!);
+            users = new();
+        }
+    }
 
-	private async Task SelectConversation(UserProfile user)
-	{
-		var conv = await conversationService.FindDirectConversationsAsync(currentUserId!, user.UserId);
-		NotifState.Remove(conv.ConversationId.ToString().ToLower());
-		if (conv != null)
-			Navigation.NavigateTo($"/chat/{conv.ConversationId}");
-	}
+    private async Task SelectConversation(UserProfile user)
+    {
+        var conv = await conversationService.FindDirectConversationsAsync(currentUserId!, user.UserId);
+        NotifState.Remove(conv.ConversationId.ToString().ToLower());
+        if (conv != null)
+            Navigation.NavigateTo($"/chat/{conv.ConversationId}");
+    }
 
-	private void SelectConversation(ConversationDto conv)
-	{
-		NotifState.Remove(conv.ConversationId.ToString().ToLower());
-		Navigation.NavigateTo($"/chat/{conv.ConversationId}");
-	}
+    private void SelectConversation(ConversationDto conv)
+    {
+        NotifState.Remove(conv.ConversationId.ToString().ToLower());
+        Navigation.NavigateTo($"/chat/{conv.ConversationId}");
+    }
 
-	private bool showGroupModal;
-	private bool isCreatingGroup;
-	private string newGroupName = "";
-	private List<UserProfile> groupSearchUsers = new();
-	private List<string> selectedParticipantIds = new();
-	private Dictionary<string, string> selectedParticipantNames = new();
-	private bool CanCreateGroup =>
-	!string.IsNullOrWhiteSpace(newGroupName)
-	&& selectedParticipantIds.Any()
-	&& !isCreatingGroup;
+    private bool showGroupModal;
+    private bool isCreatingGroup;
+    private string newGroupName = "";
+    private List<UserProfile> groupSearchUsers = new();
+    private List<string> selectedParticipantIds = new();
+    private Dictionary<string, string> selectedParticipantNames = new();
+    private bool CanCreateGroup =>
+    !string.IsNullOrWhiteSpace(newGroupName)
+    && selectedParticipantIds.Any()
+    && !isCreatingGroup;
 
-	public void OpenGroupModal()
-	{
-		showGroupModal = true;
-		isCreatingGroup = false;
-		newGroupName = "";
-		groupSearchUsers.Clear();
-		selectedParticipantIds.Clear();
-		selectedParticipantNames.Clear();
-	}
+    public void OpenGroupModal()
+    {
+        showGroupModal = true;
+        isCreatingGroup = false;
+        newGroupName = "";
+        groupSearchUsers.Clear();
+        selectedParticipantIds.Clear();
+        selectedParticipantNames.Clear();
+    }
 
-	private async Task SearchUsersForGroup(ChangeEventArgs e)
-	{
-		var q = e.Value?.ToString() ?? "";
-		if (string.IsNullOrEmpty(q) || string.IsNullOrEmpty(currentUserId))
-		{
-			groupSearchUsers.Clear();
-			return;
-		}
-		groupSearchUsers = userService
-			.GetUsersByDisplayNameAsync(q)
-			.Where(u => u.AccountStatus == Kotoba.Modules.Domain.Enums.AccountStatus.Active
-					&& u.UserId != currentUserId
-					&& !selectedParticipantIds.Contains(u.UserId!))
-			.Take(7)
-			.ToList();
-		StateHasChanged();
-	}
+    private async Task SearchUsersForGroup(ChangeEventArgs e)
+    {
+        var q = e.Value?.ToString() ?? "";
+        if (string.IsNullOrEmpty(q) || string.IsNullOrEmpty(currentUserId))
+        {
+            groupSearchUsers.Clear();
+            return;
+        }
+        groupSearchUsers = userService
+            .GetUsersByDisplayNameAsync(q)
+            .Where(u => u.AccountStatus == Kotoba.Modules.Domain.Enums.AccountStatus.Active
+                    && u.UserId != currentUserId
+                    && !selectedParticipantIds.Contains(u.UserId!))
+            .Take(7)
+            .ToList();
+        StateHasChanged();
+    }
 
-	public void ToggleParticipant(string userId, string displayName)
-	{
-		if (selectedParticipantIds.Contains(userId))
-		{
-			selectedParticipantIds.Remove(userId);
-			selectedParticipantNames.Remove(userId);
-		}
-		else
-		{
-			selectedParticipantIds.Add(userId);
-			selectedParticipantNames[userId] = displayName;
-		}
-	}
+    public void ToggleParticipant(string userId, string displayName)
+    {
+        if (selectedParticipantIds.Contains(userId))
+        {
+            selectedParticipantIds.Remove(userId);
+            selectedParticipantNames.Remove(userId);
+        }
+        else
+        {
+            selectedParticipantIds.Add(userId);
+            selectedParticipantNames[userId] = displayName;
+        }
+    }
 
-	public async Task CreateGroup()
-	{
-		if (!CanCreateGroup) return;
-		isCreatingGroup = true;
-		StateHasChanged();
-		try
-		{
-			var ids = selectedParticipantIds.ToList();
-			ids.Add(currentUserId);
+    public async Task CreateGroup()
+    {
+        if (!CanCreateGroup) return;
+        isCreatingGroup = true;
+        StateHasChanged();
+        try
+        {
+            var ids = selectedParticipantIds.ToList();
+            ids.Add(currentUserId);
 
-			var conv = await conversationService.CreateGroupConversationAsync(new CreateGroupRequest
+            var conv = await conversationService.CreateGroupConversationAsync(new CreateGroupRequest
 				{
 					GroupName = newGroupName,
 					ParticipantIds = ids,
 					CreatorId = currentUserId
 				});
 
-			if (conv != null)
-			{
-				conversations = await conversationService.GetUserConversationsAsync(currentUserId!);
-				showGroupModal = false;
-				StateHasChanged();
-				if (_navHub?.State == HubConnectionState.Connected) await _navHub.InvokeAsync("NotifyGroupCreated", ids);
-				Navigation.NavigateTo($"/chat/{conv.ConversationId}");
-			}
+            if (conv != null)
+            {
+                conversations = await conversationService.GetUserConversationsAsync(currentUserId!);
+                showGroupModal = false;
+                StateHasChanged();
+                if (_navHub?.State == HubConnectionState.Connected) await _navHub.InvokeAsync("NotifyGroupCreated", ids);
+                Navigation.NavigateTo($"/chat/{conv.ConversationId}");
+            }
 
-		}
-		catch (Exception e)
-		{
-			Console.WriteLine(e.Message);
-		}
-		isCreatingGroup = false;
-		StateHasChanged();
-	}
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e.Message);
+        }
+        isCreatingGroup = false;
+        StateHasChanged();
+    }
 
 
-	private string? currentThought;
-	private string thoughtDraft = "";
-	private bool isEditingThought;
+    private string? currentThought;
+    private string thoughtDraft = "";
+    private bool isEditingThought;
 
-	private void OpenThoughtEditor()
-	{
-		thoughtDraft = currentThought ?? "";
-		isEditingThought = true;
-	}
-	private async Task SaveThought()
-	{
-		if (string.IsNullOrWhiteSpace(thoughtDraft)) return;
-		var trimmed = thoughtDraft.Trim();
+    private void OpenThoughtEditor()
+    {
+        thoughtDraft = currentThought ?? "";
+        isEditingThought = true;
+    }
+    private async Task SaveThought()
+    {
+        if (string.IsNullOrWhiteSpace(thoughtDraft)) return;
+        var trimmed = thoughtDraft.Trim();
 
-		await CurrentThoughtService.SetThoughtAsync(currentUserId!, trimmed);
-		if (_navHub?.State == HubConnectionState.Connected)
-			await _navHub.InvokeAsync("UpdateThought", trimmed);
+        await CurrentThoughtService.SetThoughtAsync(currentUserId!, trimmed);
+        if (_navHub?.State == HubConnectionState.Connected)
+            await _navHub.InvokeAsync("UpdateThought", trimmed);
 
-		currentThought = trimmed;
-		isEditingThought = false;
-		StateHasChanged();
-	}
-	private async Task HandleThoughtKey(KeyboardEventArgs e)
-	{
-		if (e.Key == "Enter") await SaveThought();
-		else if (e.Key == "Escape") isEditingThought = false;
-	}
+        currentThought = trimmed;
+        isEditingThought = false;
+        StateHasChanged();
+    }
+    private async Task HandleThoughtKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SaveThought();
+        else if (e.Key == "Escape") isEditingThought = false;
+    }
 
-	public async Task ReloadConversations()
-	{
-		if (string.IsNullOrEmpty(currentUserId)) return;
-		conversations = await conversationService.GetUserConversationsAsync(currentUserId!);
-		StateHasChanged();
-	}
+    public async Task ReloadConversations()
+    {
+        if (string.IsNullOrEmpty(currentUserId)) return;
+        conversations = await conversationService.GetUserConversationsAsync(currentUserId!);
+        StateHasChanged();
+    }
 
-	public async ValueTask DisposeAsync()
-	{
-		if (_navHub is not null)
-			await _navHub.DisposeAsync();
+    public async ValueTask DisposeAsync()
+    {
+        if (_navHub is not null)
+            await _navHub.DisposeAsync();
 
-		if (_notifHub is not null)
-			await _notifHub.DisposeAsync();
+        if (_notifHub is not null)
+            await _notifHub.DisposeAsync();
 
-		NotifState.OnChange -= StateHasChanged;
-	}
+        NotifState.OnChange -= StateHasChanged;
+    }
     private static string FormatConvTime(DateTime utcTime)
     {
         var local = utcTime.ToLocalTime();
@@ -1410,4 +1407,31 @@
         return local.ToString("dd/MM");
     }
 
+    private bool ShouldShowRing(ConversationDto conv)
+    {
+        var convId = conv.ConversationId.ToString().ToLower();
+
+        return NotifState.Contains(convId)
+            && NotifState.GetSender(convId) != currentUserId
+            && NotifState.ActiveConversationId != convId;
+    }
+
+    private string GetMessageStyle(ConversationDto conv)
+    {
+        return ShouldShowRing(conv)
+            ? "font-size:12px;color:var(--text);font-weight:600;"
+            : "font-size:12px;color:var(--muted);font-weight:400;";
+    }
+
+    private string GetLastMessagePreview(ConversationDto conv)
+    {
+        var msg = conv.LastMessage;
+        if (msg == null) return "";
+
+        var senderName = msg.SenderId == currentUserId
+            ? "You"
+            : conv.Participants?.FirstOrDefault(p => p.UserId == msg.SenderId)?.DisplayName ?? "Unknown";
+
+        return $"{senderName}: {msg.Content}";
+    }
 }

@@ -10,6 +10,7 @@
 @inject IHttpContextAccessor HttpContextAccessor
 @inject ICurrentThoughtService CurrentThoughtService
 @inject GlobalNotificationService GlobalNotificationService
+@inject ChatNotificationState NotifState
 @using Kotoba.Modules.Domain.Interfaces
 @using Kotoba.Modules.Infrastructure.Services.Notifications
 
@@ -1556,6 +1557,10 @@
     protected override async Task OnParametersSetAsync()
     {
         if (string.IsNullOrEmpty(ConversationId) || _loadedConvId == ConversationId) return;
+        if (!string.IsNullOrEmpty(ConversationId))
+    {
+        NotifState.ActiveConversationId = ConversationId.ToLower();
+    }
         await LoadConversationAsync();
     }
 
@@ -2011,6 +2016,7 @@
     public async ValueTask DisposeAsync()
     {
         GlobalNotificationService.PresenceChanged -= HandlePresenceChanged;
+        NotifState.ActiveConversationId = null;
         _typingTimer?.Dispose();
         if (hubConnection is not null)
             await hubConnection.DisposeAsync();

@@ -3,6 +3,8 @@
 @implements IAsyncDisposable
 @inject NavigationManager Navigation
 @inject IHttpContextAccessor HttpContextAccessor
+@inject GlobalNotificationState NotifState
+@using Kotoba.Modules.Infrastructure.Services.Notifications
 
 @foreach (var toast in toasts)
 {
@@ -67,7 +69,7 @@
         var cookieStr = string.Join("; ", cookies?.Select(c => $"{c.Key}={c.Value}") ?? []);
 
         _hub = new HubConnectionBuilder()
-            .WithUrl(Navigation.ToAbsoluteUri("/chathub"), options =>
+            .WithUrl(Navigation.ToAbsoluteUri("/notificationhub"), options =>
             {
                 options.Headers.Add("Cookie", cookieStr);
             })
@@ -76,9 +78,12 @@
 
         _hub.On<NotificationDto>("ReceiveNotification", async (dto) =>
         {
+            NotifState.Increment();
+            Console.WriteLine("[Toast] Received notification");
+
             // Không hiện toast nếu đang ở trang notifications
             if (Navigation.Uri.Contains("/notifications")) return;
-
+            
             await InvokeAsync(async () =>
             {
                 toasts.Add(dto);
@@ -91,6 +96,7 @@
         });
 
         await _hub.StartAsync();
+        await _hub.InvokeAsync("Register", UserId);
     }
 
     private void Dismiss(NotificationDto dto)

@@ -151,7 +151,7 @@
         var cookieStr = string.Join("; ", cookies?.Select(c => $"{c.Key}={c.Value}") ?? []);
 
         _hub = new HubConnectionBuilder()
-            .WithUrl(Navigation.ToAbsoluteUri("/chathub"), options =>
+            .WithUrl(Navigation.ToAbsoluteUri("/notificationhub"), options =>
             {
                 options.Headers.Add("Cookie", cookieStr);
             })
@@ -171,6 +171,7 @@
         Navigation.LocationChanged += OnLocationChanged;
 
         await _hub.StartAsync();
+        await _hub.InvokeAsync("Register", CurrentUserProfile.UserId);
     }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
