@@ -1,4 +1,6 @@
 @using Kotoba.Modules.Domain.Enums
+@using Microsoft.AspNetCore.SignalR.Client
+@implements IAsyncDisposable
 
 <div class="sidebar-shell">
     <div class="brand" title="Kotoba">K</div>
@@ -46,6 +48,25 @@
 						</svg>
 						<span class="sr-only">Story</span>
 					</NavLink>
+                    <NavLink class="nav-btn" href="notifications" title="Notifications">
+                        <div style="position:relative;display:flex;align-items:center;justify-content:center;">
+                            <svg width="20" height="20" fill="none" viewBox="0 0 24 24"
+                                 stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                                <path d="M13.73 21a2 2 0 01-3.46 0" />
+                            </svg>
+                            @if (unreadCount > 0)
+                            {
+                                <div style="position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;
+                                    background:#c0392b;border-radius:50%;font-size:10px;font-weight:700;
+                                    color:#fff;display:flex;align-items:center;justify-content:center;
+                                    padding:0 3px;line-height:1;pointer-events:none;">
+                                    @(unreadCount > 99 ? "99+" : unreadCount.ToString())
+                                </div>
+                            }
+                        </div>
+                        <span class="sr-only">Notifications</span>
+                    </NavLink>
                 </Authorized>
 
                 <NotAuthorized>
@@ -106,9 +127,65 @@
             </AuthorizeView>
         </nav>
     </div>
+</div>
+
 @code {
     [CascadingParameter] public UserProfile? CurrentUserProfile { get; set; }
-}
+    [Inject] INotificationService NotificationService { get; set; } = null!;
+    [Inject] NavigationManager Navigation { get; set; } = null!;
+    [Inject] IHttpContextAccessor HttpContextAccessor { get; set; } = null!;
 
-</div>
+    private int unreadCount = 0;
+    private HubConnection? _hub;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (CurrentUserProfile?.UserId == null) return;
+        unreadCount = await NotificationService.GetUnreadCountAsync(CurrentUserProfile.UserId);
+        if (_hub == null) await StartHubAsync();
+    }
+
+    private async Task StartHubAsync()
+    {
+        var cookies = HttpContextAccessor.HttpContext?.Request.Cookies;
+        var cookieStr = string.Join("; ", cookies?.Select(c => $"{c.Key}={c.Value}") ?? []);
+
+        _hub = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/chathub"), options =>
+            {
+                options.Headers.Add("Cookie", cookieStr);
+            })
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hub.On<NotificationDto>("ReceiveNotification", async (_) =>
+        {
+            await InvokeAsync(() =>
+            {
+                unreadCount++;
+                StateHasChanged();
+            });
+        });
+
+        // Reset badge khi vào trang notifications
+        Navigation.LocationChanged += OnLocationChanged;
+
+        await _hub.StartAsync();
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        if (e.Location.Contains("/notifications"))
+        {
+            unreadCount = 0;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+        if (_hub is not null) await _hub.DisposeAsync();
+    }
+}
 

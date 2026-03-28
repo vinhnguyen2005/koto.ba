@@ -24,6 +24,7 @@ namespace Kotoba.Modules.Infrastructure.Data
         public DbSet<Attachment> Attachment => Set<Attachment>();
         public DbSet<Report> Reports => Set<Report>();
         public DbSet<ReportCategory> ReportCategories => Set<ReportCategory>();
+        public DbSet<Notification> Notifications => Set<Notification>();
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
