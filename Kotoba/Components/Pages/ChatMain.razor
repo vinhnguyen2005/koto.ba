@@ -958,18 +958,15 @@
                                      @onclick="() => StartReply(msg)">
                                     ↩️
                                 </div>
-                                @* Revoke — chỉ hiện với tin của mình *@
-                                @if (msg.SenderId == currentUserId)
-                                {
-                                    <div style="width:26px;height:26px;border-radius:50%;background:var(--surface);
-                                        border:1px solid var(--border);display:flex;align-items:center;
-                                        justify-content:center;font-size:13px;cursor:pointer;"
-                                         title="Revoke"
-                                         @onclick:stopPropagation="true"
-                                         @onclick="() => RevokeMessage(msg.MessageId)">
-                                        🗑️
-                                    </div>
-                                }
+                                @* Revoke — chỉ hiện với tin của mình *@                                
+                                <div style="width:26px;height:26px;border-radius:50%;background:var(--surface);
+                                    border:1px solid var(--border);display:flex;align-items:center;
+                                    justify-content:center;font-size:13px;cursor:pointer;"
+                                        title="Revoke"
+                                        @onclick:stopPropagation="true"
+                                        @onclick="() => RevokeMessage(msg.MessageId)">
+                                    🗑️
+                                </div>                                
                                 @* Reaction picker — giữ nguyên *@
                                 <div style="width:26px;height:26px;border-radius:50%;background:var(--surface);
                                 border:1px solid var(--border);display:flex;align-items:center;
@@ -1076,18 +1073,14 @@
                                      @onclick="() => StartReply(msg)">
                                     ↩️
                                 </div>
-                                @* Revoke — chỉ hiện với tin của mình *@
-                                @if (msg.SenderId == currentUserId)
-                                {
-                                    <div style="width:26px;height:26px;border-radius:50%;background:var(--surface);
-                                                        border:1px solid var(--border);display:flex;align-items:center;
-                                                        justify-content:center;font-size:13px;cursor:pointer;"
-                                         title="Revoke"
-                                         @onclick:stopPropagation="true"
-                                         @onclick="() => RevokeMessage(msg.MessageId)">
-                                        🗑️
-                                    </div>
-                                }
+                                <div style="width:26px;height:26px;border-radius:50%;background:var(--surface);
+                                    border:1px solid var(--border);display:flex;align-items:center;
+                                    justify-content:center;font-size:13px;cursor:pointer;"
+                                     title="Report"
+                                     @onclick:stopPropagation="true"
+                                     @onclick="() => OpenReport(msg.MessageId)">
+                                    🚩
+                                </div>
                                 @* Reaction picker — giữ nguyên *@
                                 <div style="width:26px;height:26px;border-radius:50%;background:var(--surface);
                                             border:1px solid var(--border);display:flex;align-items:center;
@@ -1298,6 +1291,13 @@
         </div>
     </div>
 }
+@if (showReportModal && reportTargetId != null)
+{
+    <ReportModal TargetType="ReportTargetType.Message"
+                 TargetId="@reportTargetId"
+                 ReporterId="@currentUserId"
+                 OnClose="() => { showReportModal = false; reportTargetId = null; }" />
+}
 
 
 <script>
@@ -1348,6 +1348,8 @@
 	private int redirectCountdown = 0;
     private MessageDto? replyingTo;
 
+    private bool showReportModal = false;
+    private string? reportTargetId;
 
 	private string GetUserInitial(string displayName)
 	{
@@ -1965,6 +1967,13 @@
     private void CancelReply()
     {
         replyingTo = null;
+        StateHasChanged();
+    }
+
+    private void OpenReport(Guid messageId)
+    {
+        reportTargetId = messageId.ToString();
+        showReportModal = true;
         StateHasChanged();
     }
 

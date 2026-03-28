@@ -14,6 +14,7 @@ using Kotoba.Modules.Infrastructure.Services.Messages;
 using Kotoba.Modules.Infrastructure.Services.Notifications;
 using Kotoba.Modules.Infrastructure.Services.Reactions;
 using Kotoba.Modules.Infrastructure.Services.Realtime;
+using Kotoba.Modules.Infrastructure.Services.Reports;
 using Kotoba.Modules.Infrastructure.Services.Settings;
 using Kotoba.Modules.Infrastructure.Services.Social;
 using Microsoft.AspNetCore.Authentication;
@@ -94,6 +95,8 @@ namespace Kotoba
             builder.Services.AddSingleton<ChatNotificationState>();
             builder.Services.AddScoped<IMessageRepository, MessageRepository>();
             builder.Services.AddScoped<IMessageService, MessageService>();
+            builder.Services.AddScoped<ReportRepository>();
+            builder.Services.AddScoped<IReportService, ReportService>();
 
 
             var app = builder.Build();

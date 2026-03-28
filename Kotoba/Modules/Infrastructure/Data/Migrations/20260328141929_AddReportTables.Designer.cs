@@ -4,6 +4,7 @@ using Kotoba.Modules.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Kotoba.Modules.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(KotobaDbContext))]
-    partial class KotobaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260328141929_AddReportTables")]
+    partial class AddReportTables
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -334,57 +337,6 @@ namespace Kotoba.Modules.Infrastructure.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("ReportCategories");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("2740e535-caca-488c-ab0a-6d67e3e4cd26"),
-                            DisplayOrder = 1,
-                            IsActive = true,
-                            Name = "Spam"
-                        },
-                        new
-                        {
-                            Id = new Guid("ae4b4e91-572e-49ba-bdce-25ae10a60bd8"),
-                            DisplayOrder = 2,
-                            IsActive = true,
-                            Name = "Hate speech"
-                        },
-                        new
-                        {
-                            Id = new Guid("8ed8639b-337f-44d7-8d4c-dc5648a5d58c"),
-                            DisplayOrder = 3,
-                            IsActive = true,
-                            Name = "Adult content"
-                        },
-                        new
-                        {
-                            Id = new Guid("601c0bb0-8e24-4942-b33d-6666c6ea0e5a"),
-                            DisplayOrder = 4,
-                            IsActive = true,
-                            Name = "Harassment"
-                        },
-                        new
-                        {
-                            Id = new Guid("6acc8208-d74f-47ab-abd1-6ac08e420425"),
-                            DisplayOrder = 5,
-                            IsActive = true,
-                            Name = "Misinformation"
-                        },
-                        new
-                        {
-                            Id = new Guid("0276256f-13fb-4548-bcd8-caa1e6f68dbd"),
-                            DisplayOrder = 6,
-                            IsActive = true,
-                            Name = "Violence"
-                        },
-                        new
-                        {
-                            Id = new Guid("26380bd6-c644-4fb0-8e81-33059acdad02"),
-                            DisplayOrder = 7,
-                            IsActive = true,
-                            Name = "Other"
-                        });
                 });
 
             modelBuilder.Entity("Kotoba.Modules.Domain.Entities.Story", b =>

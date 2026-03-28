@@ -1,0 +1,240 @@
+@using Kotoba.Modules.Domain.Enums
+@implements IDisposable
+@* Dùng: <ReportModal TargetType="ReportTargetType.Message" 
+                       TargetId="@msg.MessageId.ToString()"
+                       ReporterId="@currentUserId"
+                       OnClose="() => showReport = false" /> *@
+
+@if (isVisible)
+{
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;
+                    display:flex;align-items:center;justify-content:center;"
+         @onclick="Close">
+        <div style="background:#fff;border-radius:20px;padding:24px;width:360px;
+                        max-width:92vw;display:flex;flex-direction:column;gap:14px;"
+             @onclick:stopPropagation="true">
+
+            @* Header *@
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+                <span style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;">
+                    Report
+                </span>
+                <div style="cursor:pointer;color:#999;" @onclick="Close">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2.5">
+                        <path d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </div>
+            </div>
+
+            @* Target label *@
+            <div style="font-size:12px;color:#888;background:#f5f5f5;
+                            border-radius:8px;padding:8px 12px;">
+                Reporting:
+                <strong>
+                    @TargetType.ToString().ToLower()
+                </strong>
+            </div>
+
+            @* Categories *@
+            @if (categories.Any())
+            {
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                    <div style="font-size:12px;font-weight:600;color:#555;">
+                        Reason <span style="color:#c0392b;">*</span>
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                        @foreach (var cat in categories)
+                        {
+                            var selected = selectedCategoryId == cat.Id;
+                            <div style="padding:6px 12px;border-radius:20px;font-size:12px;
+                                                    font-weight:600;cursor:pointer;transition:all .15s;
+                                                    background:@(selected ? "var(--lime)" : "#f0f0f0");
+                                                    color:@(selected ? "#1A1F0E" : "#555");"
+                                 @onclick="() => selectedCategoryId = cat.Id">
+                                @cat.Name
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @* Description *@
+            <div style="display:flex;flex-direction:column;gap:6px;">
+                <div style="font-size:12px;font-weight:600;color:#555;">
+                    Additional details
+                    <span style="font-weight:400;color:#aaa;">(optional)</span>
+                </div>
+                <textarea style="padding:10px 12px;border:1.5px solid var(--border);
+                                     border-radius:10px;font-family:'DM Sans',sans-serif;
+                                     font-size:13px;resize:none;outline:none;color:var(--text);
+                                     transition:border .15s;"
+                          rows="3"
+                          maxlength="500"
+                          placeholder="Describe the issue…"
+                          @bind="description"
+                          @onfocus="@(() => { })" />
+                <div style="font-size:11px;color:#aaa;text-align:right;">
+                    @(description?.Length ?? 0)/500
+                </div>
+            </div>
+
+            @* Error *@
+            @if (!string.IsNullOrEmpty(errorMsg))
+            {
+                <div style="font-size:12px;color:#c0392b;background:#fcebeb;
+                                    border-radius:8px;padding:8px 12px;">
+                    @errorMsg
+                </div>
+            }
+
+            @* Success *@
+            @if (submitted)
+            {
+                <div style="display:flex;flex-direction:column;align-items:center;gap:12px;
+                        padding:8px 0 4px;text-align:center;">
+                    <div style="width:56px;height:56px;border-radius:50%;background:#eafaf1;
+                            display:flex;align-items:center;justify-content:center;font-size:28px;">
+                        ✅
+                    </div>
+                    <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;">
+                        Report submitted
+                    </div>
+                    <div style="font-size:13px;color:#888;line-height:1.5;max-width:260px;">
+                        Thank you for helping keep this community safe.
+                        We'll review your report shortly.
+                    </div>
+
+                    @* Undo countdown *@
+                    @if (undoSecondsLeft > 0)
+                    {
+                        <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;
+                                    background:#fff8e1;border:1px solid #ffe082;border-radius:10px;
+                                    font-size:12px;color:#888;">
+                            <span>Changed your mind?</span>
+                            <span style="cursor:pointer;font-weight:700;color:#e67e22;text-decoration:underline;"
+                                  @onclick="UndoReport">
+                                Undo (@undoSecondsLeft s)
+                            </span>
+                        </div>
+                    }
+
+                    <button style="width:100%;padding:10px;background:var(--lime);border:none;
+                               border-radius:12px;font-family:'DM Sans',sans-serif;font-weight:700;
+                               font-size:14px;color:#1A1F0E;cursor:pointer;margin-top:4px;"
+                            @onclick="Close">
+                        Done
+                    </button>
+                </div>
+            }
+            else
+            {
+                <button style="width:100%;padding:11px;background:@(CanSubmit ? "#c0392b" : "#e0e0e0");
+                           border:none;border-radius:12px;font-family:'DM Sans',sans-serif;
+                           font-weight:700;font-size:14px;
+                           color:@(CanSubmit ? "#fff" : "#aaa");
+                           cursor:@(CanSubmit ? "pointer" : "not-allowed");transition:all .15s;"
+                        disabled="@(!CanSubmit)"
+                        @onclick="Submit">
+                    @(isSubmitting ? "Submitting…" : "Submit Report")
+                </button>
+            }
+
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public ReportTargetType TargetType { get; set; }
+    [Parameter] public string TargetId { get; set; } = string.Empty;
+    [Parameter] public string? ReporterId { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    [Inject] IReportService ReportService { get; set; } = null!;
+
+    private bool isVisible = true;
+    private List<ReportCategoryDto> categories = new();
+    private Guid? selectedCategoryId;
+    private string? description;
+    private bool isSubmitting;
+    private bool submitted;
+    private string? errorMsg;
+    private int undoSecondsLeft = 10;
+    private Guid? submittedReportId;
+    private System.Threading.Timer? _undoTimer;
+
+
+    private bool CanSubmit => selectedCategoryId.HasValue && !isSubmitting && !submitted;
+
+    protected override async Task OnInitializedAsync()
+    {
+        categories = await ReportService.GetCategoriesAsync();
+    }
+
+    private async Task Submit()
+    {
+        if (!CanSubmit || string.IsNullOrEmpty(ReporterId)) return;
+
+        isSubmitting = true;
+        errorMsg = null;
+        StateHasChanged();
+
+        var (success, error, reportId) = await ReportService.SubmitReportAsync(new CreateReportRequest
+        {
+            ReporterId = ReporterId,
+            TargetType = TargetType,
+            TargetId = TargetId,
+            CategoryId = selectedCategoryId!.Value,
+            Description = description
+        });
+
+        isSubmitting = false;
+
+        if (success)
+        {
+            submitted = true;
+            submittedReportId = reportId;
+            undoSecondsLeft = 10;
+
+            // Đếm ngược undo
+            _undoTimer = new System.Threading.Timer(async _ =>
+            {
+                undoSecondsLeft--;
+                await InvokeAsync(StateHasChanged);
+                if (undoSecondsLeft <= 0)
+                {
+                    _undoTimer?.Dispose();
+                }
+            }, null, 1000, 1000);
+        }
+        else
+        {
+            errorMsg = error;
+        }
+
+        StateHasChanged();
+    }
+    private async Task UndoReport()
+    {
+        if (submittedReportId == null) return;
+        _undoTimer?.Dispose();
+
+        await ReportService.DeleteReportAsync(submittedReportId.Value);
+
+        submitted = false;
+        submittedReportId = null;
+        undoSecondsLeft = 10;
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        _undoTimer?.Dispose();
+    }
+
+    private async Task Close()
+    {
+        isVisible = false;
+        await OnClose.InvokeAsync();
+    }
+}
