@@ -265,10 +265,6 @@
 
 <AdminActionModal
     @ref="ActionModal"
-    IsVisible="false"
-    ModalType="CurrentModalType"
-    Title="CurrentModalTitle"
-    Message="CurrentModalMessage"
     OnConfirm="OnConfirmAsync"
     OnConfirmWithReason="OnConfirmWithReasonAsync"
     OnClose="OnModalCloseAsync" />
@@ -283,13 +279,8 @@
     }
 
     private AdminActionModal? ActionModal { get; set; }
-    private AdminActionModalType CurrentModalType { get; set; }
-    private string CurrentModalTitle { get; set; } = string.Empty;
-    private string CurrentModalMessage { get; set; } = string.Empty;
     private string? PendingActionUserId { get; set; }
     private UserModerationAction PendingAction { get; set; }
-    private string? ErrorMessage { get; set; }
-    private bool IsWaitingForReason { get; set; }
 
     private List<NormalUserListItem> Users { get; set; } = new();
     private List<NormalUserListItem> BannedUsers { get; set; } = new();
@@ -351,14 +342,12 @@
 
         if (ActionModal == null)
         {
-            // Wait for modal to be ready
             await Task.Delay(100);
             if (ActionModal == null) return;
         }
 
         PendingActionUserId = userId;
         PendingAction = action;
-        ErrorMessage = null;
 
         var (title, message) = action switch
         {
@@ -374,10 +363,6 @@
             return;
         }
 
-        CurrentModalTitle = title;
-        CurrentModalMessage = message;
-        CurrentModalType = AdminActionModalType.Confirmation;
-        IsWaitingForReason = false;
         await ActionModal.OpenAsync(AdminActionModalType.Confirmation, title, message);
     }
 
@@ -388,7 +373,6 @@
             return;
         }
 
-        // Move to reason input step
         var reasonPrompt = PendingAction switch
         {
             UserModerationAction.Deactivate => "Why are you deactivating this user?",
@@ -398,10 +382,6 @@
             _ => "Reason for this action:",
         };
 
-        CurrentModalTitle = "Reason Required";
-        CurrentModalMessage = reasonPrompt;
-        CurrentModalType = AdminActionModalType.Reason;
-        IsWaitingForReason = true;
         await ActionModal.OpenAsync(AdminActionModalType.Reason, "Reason Required", reasonPrompt);
     }
 
@@ -418,8 +398,8 @@
             var performedByAdminId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrWhiteSpace(performedByAdminId))
             {
-                ErrorMessage = "Unable to resolve your admin session.";
-                await ActionModal.OpenAsync(AdminActionModalType.Info, "Error", ErrorMessage);
+                var message = "Unable to resolve your admin session.";
+                await ActionModal.OpenAsync(AdminActionModalType.Info, "Error", message);
                 return;
             }
 
@@ -434,10 +414,10 @@
 
             if (!result.Succeeded)
             {
-                ErrorMessage = result.Errors.Count > 0
+                var errorMessage = result.Errors.Count > 0
                     ? string.Join(" ", result.Errors)
                     : "Unable to apply action. Please try again.";
-                await ActionModal.OpenAsync(AdminActionModalType.Info, "Error", ErrorMessage);
+                await ActionModal.OpenAsync(AdminActionModalType.Info, "Error", errorMessage);
                 return;
             }
 
@@ -456,16 +436,15 @@
         }
         catch (Exception ex)
         {
-            ErrorMessage = $"Unexpected error while applying action: {ex.Message}";
-            await ActionModal.OpenAsync(AdminActionModalType.Info, "Error", ErrorMessage);
+            var errorMessage = $"Unexpected error while applying action: {ex.Message}";
+            await ActionModal.OpenAsync(AdminActionModalType.Info, "Error", errorMessage);
         }
     }
 
-    private async Task OnModalCloseAsync()
+    private Task OnModalCloseAsync()
     {
         PendingActionUserId = null;
-        ErrorMessage = null;
-        await InvokeAsync(StateHasChanged);
+        return Task.CompletedTask;
     }
 
     private string GetLatestModerationReason(string userId)

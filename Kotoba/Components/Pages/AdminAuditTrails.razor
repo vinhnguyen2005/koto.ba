@@ -274,16 +274,10 @@
 
 <AdminActionModal
     @ref="ReasonModal"
-    IsVisible="false"
-    ModalType="AdminActionModalType.Info"
-    Title="CurrentReasonTitle"
-    Message="CurrentReasonMessage"
     OnClose="@(() => Task.CompletedTask)" />
 
 @code {
     private AdminActionModal? ReasonModal { get; set; }
-    private string CurrentReasonTitle { get; set; } = "Moderation Details";
-    private string CurrentReasonMessage { get; set; } = string.Empty;
     private readonly List<AdminAuditViewDto> AllAudits = new();
 
     private bool IsSystemAdmin;
