@@ -1,0 +1,153 @@
+@using System.ComponentModel.DataAnnotations
+
+<div class="modal-overlay @(IsVisible ? "modal-overlay-active" : "")" @onclick="OnOverlayClickAsync">
+    <div class="modal-panel" @onclick:stopPropagation="true">
+        <div class="modal-header">
+            <h2 class="modal-title">@Title</h2>
+            <button class="modal-close" @onclick="CloseAsync" aria-label="Close modal">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <div class="modal-content">
+            @if (ModalType == AdminActionModalType.Confirmation)
+            {
+                <p class="modal-message">@Message</p>
+            }
+            else if (ModalType == AdminActionModalType.Reason)
+            {
+                <p class="modal-message">@Message</p>
+                <input
+                    type="text"
+                    class="modal-input"
+                    autofocus
+                    placeholder="Enter reason..."
+                    @bind="ReasonInput"
+                    @onkeydown="OnKeyDownAsync" />
+                @if (!string.IsNullOrWhiteSpace(ValidationError))
+                {
+                    <p class="modal-error">@ValidationError</p>
+                }
+            }
+            else if (ModalType == AdminActionModalType.Details)
+            {
+                <div class="modal-details">
+                    @foreach (var detail in DetailRows)
+                    {
+                        <div class="modal-detail-row">
+                            <div class="modal-detail-label">@detail.Key</div>
+                            <div class="modal-detail-value">@detail.Value</div>
+                        </div>
+                    }
+                </div>
+            }
+            else if (ModalType == AdminActionModalType.Info)
+            {
+                <p class="modal-message">@Message</p>
+            }
+        </div>
+
+        <div class="modal-footer">
+            @if (ModalType == AdminActionModalType.Confirmation)
+            {
+                <button class="modal-btn modal-btn-cancel" @onclick="CloseAsync">Cancel</button>
+                <button class="modal-btn modal-btn-danger" @onclick="ConfirmAsync">Confirm</button>
+            }
+            else if (ModalType == AdminActionModalType.Reason)
+            {
+                <button class="modal-btn modal-btn-cancel" @onclick="CloseAsync">Cancel</button>
+                <button class="modal-btn modal-btn-primary" @onclick="ConfirmAsync">Submit Reason</button>
+            }
+            else if (ModalType == AdminActionModalType.Details || ModalType == AdminActionModalType.Info)
+            {
+                <button class="modal-btn modal-btn-primary" @onclick="CloseAsync">Close</button>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public AdminActionModalType ModalType { get; set; } = AdminActionModalType.Confirmation;
+    [Parameter] public string Title { get; set; } = "Confirm Action";
+    [Parameter] public string Message { get; set; } = string.Empty;
+    [Parameter] public List<KeyValuePair<string, string>> DetailRows { get; set; } = new();
+    [Parameter] public EventCallback OnConfirm { get; set; }
+    [Parameter] public EventCallback<string> OnConfirmWithReason { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private string ReasonInput { get; set; } = string.Empty;
+    private string ValidationError { get; set; } = string.Empty;
+
+    public async Task OpenAsync(AdminActionModalType type, string title, string message)
+    {
+        ModalType = type;
+        Title = title;
+        Message = message;
+        DetailRows.Clear();
+        ReasonInput = string.Empty;
+        ValidationError = string.Empty;
+        IsVisible = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public async Task OpenDetailsAsync(string title, List<KeyValuePair<string, string>> details)
+    {
+        ModalType = AdminActionModalType.Details;
+        Title = title;
+        Message = string.Empty;
+        DetailRows = details;
+        ReasonInput = string.Empty;
+        ValidationError = string.Empty;
+        IsVisible = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public async Task CloseAsync()
+    {
+        IsVisible = false;
+        ReasonInput = string.Empty;
+        ValidationError = string.Empty;
+        await OnClose.InvokeAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ConfirmAsync()
+    {
+        if (ModalType == AdminActionModalType.Reason)
+        {
+            if (string.IsNullOrWhiteSpace(ReasonInput))
+            {
+                ValidationError = "A reason is required for this action.";
+                return;
+            }
+
+            await OnConfirmWithReason.InvokeAsync(ReasonInput.Trim());
+        }
+        else
+        {
+            await OnConfirm.InvokeAsync();
+        }
+
+        await CloseAsync();
+    }
+
+    private async Task OnKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && ModalType == AdminActionModalType.Reason)
+        {
+            await ConfirmAsync();
+        }
+        else if (e.Key == "Escape")
+        {
+            await CloseAsync();
+        }
+    }
+
+    private async Task OnOverlayClickAsync()
+    {
+        await CloseAsync();
+    }
+}

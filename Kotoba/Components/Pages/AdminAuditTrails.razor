@@ -1,0 +1,489 @@
+@page "/admin/system/audits"
+@page "/admin/business/audits"
+@layout Kotoba.Components.Layout.AdminLayout
+@using Kotoba.Modules.Domain.Constants
+@using Kotoba.Modules.Domain.DTOs
+@using Kotoba.Modules.Domain.Enums
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@attribute [Authorize(Roles = AdminRoles.AnyAdmin)]
+@inject IAdminAuditService AdminAuditService
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Audit Trails</PageTitle>
+
+<div class="admin-console">
+    <aside class="admin-side">
+        <div class="admin-brand">
+            <div class="admin-brand-mark">K</div>
+            <div>
+                <div class="admin-brand-name">koto.ba</div>
+                <div class="admin-brand-sub">@(IsSystemAdmin ? "System Administration" : "Business Operations")</div>
+            </div>
+        </div>
+
+        @if (IsSystemAdmin)
+        {
+            <nav class="admin-nav" aria-label="System admin navigation">
+                <p class="admin-nav-label">Overview</p>
+                <a class="admin-nav-item" href="/admin/system/dashboard">
+                    <span class="admin-nav-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <path d="M3 13h8V3H3z" />
+                            <path d="M13 21h8v-8h-8z" />
+                            <path d="M13 3h8v6h-8z" />
+                            <path d="M3 21h8v-6H3z" />
+                        </svg>
+                    </span>
+                    <span>System Overview</span>
+                </a>
+                <p class="admin-nav-label">Management</p>
+                <a class="admin-nav-item" href="/admin/system/admins/create">
+                    <span class="admin-nav-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                            <circle cx="9" cy="7" r="4" />
+                            <path d="M19 8v6" />
+                            <path d="M16 11h6" />
+                        </svg>
+                    </span>
+                    <span>Admin Accounts</span>
+                </a>
+                <a class="admin-nav-item active" href="/admin/system/audits">
+                    <span class="admin-nav-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <path d="M9 12h6" />
+                            <path d="M9 16h6" />
+                            <path d="M9 8h6" />
+                            <path d="M4 5h16v14H4z" />
+                        </svg>
+                    </span>
+                    <span>Audit Trails</span>
+                </a>
+                <a class="admin-nav-item" href="#">
+                    <span class="admin-nav-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <path d="M12 2l9 4.5V12c0 5-3.4 9.6-9 10-5.6-.4-9-5-9-10V6.5z" />
+                            <path d="M9 12l2 2 4-4" />
+                        </svg>
+                    </span>
+                    <span>Security Alerts</span>
+                </a>
+            </nav>
+        }
+        else
+        {
+            <nav class="admin-nav" aria-label="Business admin navigation">
+                <p class="admin-nav-label">Overview</p>
+                <a class="admin-nav-item" href="/admin/business/dashboard">
+                    <span class="admin-nav-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <path d="M3 13h8V3H3z" />
+                            <path d="M13 21h8v-8h-8z" />
+                            <path d="M13 3h8v6h-8z" />
+                            <path d="M3 21h8v-6H3z" />
+                        </svg>
+                    </span>
+                    <span>Business Overview</span>
+                </a>
+                <p class="admin-nav-label">Operations</p>
+                <a class="admin-nav-item" href="/admin/business/users">
+                    <span class="admin-nav-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                            <circle cx="9" cy="7" r="4" />
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                        </svg>
+                    </span>
+                    <span>Users</span>
+                </a>
+                <a class="admin-nav-item active" href="/admin/business/audits">
+                    <span class="admin-nav-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <path d="M9 12h6" />
+                            <path d="M9 16h6" />
+                            <path d="M9 8h6" />
+                            <path d="M4 5h16v14H4z" />
+                        </svg>
+                    </span>
+                    <span>Audit Trails</span>
+                </a>
+                <a class="admin-nav-item" href="#">
+                    <span class="admin-nav-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <path d="M12 9v2" />
+                            <path d="M12 17h.01" />
+                            <path d="M10.29 3.86l-8.2 14.2A2 2 0 0 0 3.8 21h16.4a2 2 0 0 0 1.73-2.94l-8.2-14.2a2 2 0 0 0-3.44 0z" />
+                        </svg>
+                    </span>
+                    <span>Reports</span>
+                </a>
+            </nav>
+        }
+
+        <div class="admin-side-footer">
+            <a class="admin-nav-item admin-side-logout" href="/auth/admin/logout">
+                <span class="admin-nav-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                        <path d="M16 17l5-5-5-5" />
+                        <path d="M21 12H9" />
+                    </svg>
+                </span>
+                <span>Log out</span>
+            </a>
+        </div>
+    </aside>
+
+    <main class="admin-main">
+        <header class="admin-topbar">
+            <div>
+                <p class="admin-eyebrow">Traceability</p>
+                <h1 class="admin-title">Audit Trails</h1>
+            </div>
+            <div class="admin-pill">@(IsSystemAdmin ? "System Admin" : "Business Admin")</div>
+        </header>
+
+        <section class="admin-stats" aria-label="Audit metrics">
+            <article class="admin-stat-card">
+                <p class="admin-stat-label">Visible Events</p>
+                <p class="admin-stat-value">@FilteredAudits.Count</p>
+                <p class="admin-stat-meta">Based on current filters</p>
+            </article>
+            <article class="admin-stat-card">
+                <p class="admin-stat-label">Failed Events</p>
+                <p class="admin-stat-value">@FilteredAudits.Count(a => !a.IsSuccess)</p>
+                <p class="admin-stat-meta">Needs review</p>
+            </article>
+            <article class="admin-stat-card">
+                <p class="admin-stat-label">Success Rate</p>
+                <p class="admin-stat-value">@SuccessRateText</p>
+                <p class="admin-stat-meta">Across visible events</p>
+            </article>
+            <article class="admin-stat-card">
+                <p class="admin-stat-label">Scope</p>
+                <p class="admin-stat-value">@(IsSystemAdmin ? "Global" : "My Actions")</p>
+                <p class="admin-stat-meta">@ScopeDescription</p>
+            </article>
+        </section>
+
+        <section class="admin-panels">
+            <article class="admin-panel" style="grid-column: 1 / -1;">
+                <div class="admin-panel-header">
+                    <h2 class="admin-panel-title">Filters</h2>
+                    <span class="admin-panel-badge">Search</span>
+                </div>
+
+                <div class="admin-filter-grid">
+                    <div>
+                        <label class="admin-create-label" for="audit-search">Search</label>
+                        <input id="audit-search" class="admin-create-input" @bind="SearchTerm" placeholder="Actor, target, summary, action" />
+                    </div>
+                    <div>
+                        <label class="admin-create-label" for="audit-action">Action</label>
+                        <select id="audit-action" class="admin-create-input" @bind="SelectedActionValue">
+                            <option value="">All actions</option>
+                            @foreach (var action in ActionOptions)
+                            {
+                                <option value="@action.ToString()">@action</option>
+                            }
+                        </select>
+                    </div>
+                    <div>
+                        <label class="admin-create-label" for="audit-status">Status</label>
+                        <select id="audit-status" class="admin-create-input" @bind="SelectedStatus">
+                            <option value="all">All</option>
+                            <option value="success">Success</option>
+                            <option value="failed">Failed</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="admin-create-label" for="audit-range">Range</label>
+                        <select id="audit-range" class="admin-create-input" @bind="SelectedRange">
+                            <option value="24h">Last 24 hours</option>
+                            <option value="7d">Last 7 days</option>
+                            <option value="30d">Last 30 days</option>
+                            <option value="all">All loaded</option>
+                        </select>
+                    </div>
+                </div>
+            </article>
+
+            <article class="admin-panel" style="grid-column: 1 / -1;">
+                <div class="admin-panel-header">
+                    <h2 class="admin-panel-title">Audit Events</h2>
+                    <span class="admin-panel-badge">Timeline</span>
+                </div>
+
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Time (UTC)</th>
+                                <th>Actor</th>
+                                <th>Action</th>
+                                <th>Target</th>
+                                <th>Status</th>
+                                <th>Summary</th>
+                                <th>Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (FilteredAudits.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="7">No audit events match the selected filters.</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var audit in FilteredAudits)
+                                {
+                                    <tr>
+                                        <td>@audit.TimestampUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                                        <td>@FormatActor(audit)</td>
+                                        <td>@audit.ActionType</td>
+                                        <td>@FormatTarget(audit)</td>
+                                        <td>
+                                            <span class="admin-tag @(audit.IsSuccess ? string.Empty : "admin-tag-warning")">
+                                                @(audit.IsSuccess ? "Success" : "Failed")
+                                            </span>
+                                        </td>
+                                        <td>@(string.IsNullOrWhiteSpace(audit.Summary) ? "-" : audit.Summary)</td>
+                                        <td>
+                                            @if (HasReason(audit))
+                                            {
+                                                <button class="admin-action-btn" @onclick="() => ViewReasonAsync(audit)">View Reason</button>
+                                            }
+                                            else
+                                            {
+                                                <button class="admin-action-btn" disabled>No Reason</button>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+        </section>
+    </main>
+</div>
+
+<AdminActionModal
+    @ref="ReasonModal"
+    IsVisible="false"
+    ModalType="AdminActionModalType.Info"
+    Title="CurrentReasonTitle"
+    Message="CurrentReasonMessage"
+    OnClose="@(() => Task.CompletedTask)" />
+
+@code {
+    private AdminActionModal? ReasonModal { get; set; }
+    private string CurrentReasonTitle { get; set; } = "Moderation Details";
+    private string CurrentReasonMessage { get; set; } = string.Empty;
+    private readonly List<AdminAuditViewDto> AllAudits = new();
+
+    private bool IsSystemAdmin;
+    private string SearchTerm { get; set; } = string.Empty;
+    private string SelectedStatus { get; set; } = "all";
+    private string SelectedRange { get; set; } = "24h";
+    private string SelectedActionValue { get; set; } = string.Empty;
+
+    private IReadOnlyList<AdminActionType> ActionOptions => Enum.GetValues<AdminActionType>()
+        .Where(action => action != AdminActionType.Unknown)
+        .OrderBy(action => action.ToString())
+        .ToList();
+
+    private List<AdminAuditViewDto> FilteredAudits => ApplyFilters();
+
+    private string ScopeDescription => IsSystemAdmin
+        ? "All admin events are visible."
+        : "Only events performed by your admin account are visible.";
+
+    private string SuccessRateText
+    {
+        get
+        {
+            if (FilteredAudits.Count == 0)
+            {
+                return "0%";
+            }
+
+            var successCount = FilteredAudits.Count(audit => audit.IsSuccess);
+            var percent = (int)Math.Round((double)successCount * 100 / FilteredAudits.Count, MidpointRounding.AwayFromZero);
+            return $"{percent}%";
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        var adminId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(adminId))
+        {
+            return;
+        }
+
+        IsSystemAdmin = user.IsInRole(AdminRoles.SystemAdmin);
+        var scopeAdminId = IsSystemAdmin ? null : adminId;
+
+        var audits = await AdminAuditService.GetRecentAuditsAsync(scopeAdminId, 500);
+        AllAudits.Clear();
+        AllAudits.AddRange(audits.OrderByDescending(audit => audit.TimestampUtc));
+    }
+
+    private List<AdminAuditViewDto> ApplyFilters()
+    {
+        IEnumerable<AdminAuditViewDto> query = AllAudits;
+
+        if (!string.IsNullOrWhiteSpace(SelectedActionValue)
+            && Enum.TryParse<AdminActionType>(SelectedActionValue, out var selectedAction))
+        {
+            query = query.Where(audit => audit.ActionType == selectedAction);
+        }
+
+        query = SelectedStatus switch
+        {
+            "success" => query.Where(audit => audit.IsSuccess),
+            "failed" => query.Where(audit => !audit.IsSuccess),
+            _ => query,
+        };
+
+        var sinceUtc = SelectedRange switch
+        {
+            "24h" => DateTime.UtcNow.AddHours(-24),
+            "7d" => DateTime.UtcNow.AddDays(-7),
+            "30d" => DateTime.UtcNow.AddDays(-30),
+            _ => (DateTime?)null,
+        };
+
+        if (sinceUtc.HasValue)
+        {
+            query = query.Where(audit => audit.TimestampUtc >= sinceUtc.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(SearchTerm))
+        {
+            var term = SearchTerm.Trim();
+            query = query.Where(audit =>
+                ContainsIgnoreCase(FormatActor(audit), term)
+                || ContainsIgnoreCase(audit.ActionType.ToString(), term)
+                || ContainsIgnoreCase(FormatTarget(audit), term)
+                || ContainsIgnoreCase(audit.Summary, term));
+        }
+
+        return query
+            .OrderByDescending(audit => audit.TimestampUtc)
+            .ToList();
+    }
+
+    private static bool ContainsIgnoreCase(string? text, string search)
+    {
+        return !string.IsNullOrWhiteSpace(text)
+            && text.Contains(search, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string FormatActor(AdminAuditViewDto audit)
+    {
+        if (!string.IsNullOrWhiteSpace(audit.PerformedByAdminDisplayName))
+        {
+            return audit.PerformedByAdminDisplayName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(audit.PerformedByAdminEmail))
+        {
+            return audit.PerformedByAdminEmail;
+        }
+
+        return audit.PerformedByAdminId;
+    }
+
+    private static string FormatTarget(AdminAuditViewDto audit)
+    {
+        if (string.IsNullOrWhiteSpace(audit.TargetEntityType) && string.IsNullOrWhiteSpace(audit.TargetEntityId))
+        {
+            return "-";
+        }
+
+        if (string.Equals(audit.TargetEntityType, "User", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(audit.TargetEntityId))
+        {
+            if (!string.IsNullOrWhiteSpace(audit.TargetDisplayName))
+            {
+                return $"User:{audit.TargetDisplayName} ({audit.TargetEntityId})";
+            }
+
+            if (!string.IsNullOrWhiteSpace(audit.TargetEmail))
+            {
+                return $"User:{audit.TargetEmail} ({audit.TargetEntityId})";
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(audit.TargetEntityType))
+        {
+            return audit.TargetEntityId ?? "-";
+        }
+
+        if (string.IsNullOrWhiteSpace(audit.TargetEntityId))
+        {
+            return audit.TargetEntityType;
+        }
+
+        return $"{audit.TargetEntityType}:{audit.TargetEntityId}";
+    }
+
+    private static bool HasReason(AdminAuditViewDto audit)
+    {
+        return !string.IsNullOrWhiteSpace(ExtractReason(audit.MetadataJson));
+    }
+
+    private async Task ViewReasonAsync(AdminAuditViewDto audit)
+    {
+        var reason = ExtractReason(audit.MetadataJson);
+        if (string.IsNullOrWhiteSpace(reason) || ReasonModal == null)
+        {
+            return;
+        }
+
+        var actionDisplay = audit.ActionType.ToString()
+            .Replace("User", "")
+            .Trim();
+        if (string.IsNullOrWhiteSpace(actionDisplay))
+            actionDisplay = audit.ActionType.ToString();
+
+        var details = new List<KeyValuePair<string, string>>
+        {
+            new("Action", actionDisplay),
+            new("Date & Time", audit.TimestampUtc.ToString("MMMM dd, yyyy HH:mm UTC")),
+            new("Actor", FormatActor(audit)),
+            new("Target User", FormatTarget(audit)),
+            new("Status", audit.IsSuccess ? "Success" : "Failed"),
+            new("Reason", reason),
+        };
+
+        await ReasonModal.OpenDetailsAsync("Moderation Details", details);
+    }
+
+    private static string? ExtractReason(string? metadataJson)
+    {
+        if (string.IsNullOrWhiteSpace(metadataJson))
+        {
+            return null;
+        }
+
+        const string prefix = "Reason:";
+        var index = metadataJson.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
+        if (index < 0)
+        {
+            return null;
+        }
+
+        var reason = metadataJson[(index + prefix.Length)..].Trim();
+        return string.IsNullOrWhiteSpace(reason) ? null : reason;
+    }
+}

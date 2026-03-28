@@ -8,7 +8,7 @@
 @attribute [Authorize(Roles = AdminRoles.BusinessAdmin)]
 @inject IUserService UserService
 @inject IPresenceService PresenceService
-@inject IJSRuntime JsRuntime
+@inject IAdminAuditService AdminAuditService
 @inject AuthenticationStateProvider AuthStateProvider
 
 <PageTitle>Users</PageTitle>
@@ -47,6 +47,17 @@
                     </svg>
                 </span>
                 <span>Users</span>
+            </a>
+            <a class="admin-nav-item" href="/admin/business/audits">
+                <span class="admin-nav-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <path d="M9 12h6" />
+                        <path d="M9 16h6" />
+                        <path d="M9 8h6" />
+                        <path d="M4 5h16v14H4z" />
+                    </svg>
+                </span>
+                <span>Audit Trails</span>
             </a>
             <a class="admin-nav-item" href="#">
                 <span class="admin-nav-icon" aria-hidden="true">
@@ -149,6 +160,7 @@
                                 <th>Online</th>
                                 <th>Created (UTC)</th>
                                 <th>Last Seen (UTC)</th>
+                                <th>Latest Reason</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -156,7 +168,7 @@
                             @if (Users.Count == 0)
                             {
                                 <tr>
-                                    <td colspan="7">No users found yet.</td>
+                                    <td colspan="8">No users found yet.</td>
                                 </tr>
                             }
                             else
@@ -174,6 +186,7 @@
                                         <td>@(IsCurrentlyOnline(user.UserId) ? "Online" : "Offline")</td>
                                         <td>@user.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
                                         <td>@(user.LastSeenAt.HasValue ? user.LastSeenAt.Value.ToString("yyyy-MM-dd HH:mm") : "-")</td>
+                                        <td>@GetLatestModerationReason(user.UserId)</td>
                                         <td>
                                             @if (user.AccountStatus == AccountStatus.Active)
                                             {
@@ -215,6 +228,7 @@
                                 <th>Email</th>
                                 <th>Status</th>
                                 <th>Last Seen (UTC)</th>
+                                <th>Latest Reason</th>
                                 <th>Action</th>
                             </tr>
                         </thead>
@@ -222,7 +236,7 @@
                             @if (BannedUsers.Count == 0)
                             {
                                 <tr>
-                                    <td colspan="5">No banned users.</td>
+                                    <td colspan="6">No banned users.</td>
                                 </tr>
                             }
                             else
@@ -234,6 +248,7 @@
                                         <td>@user.Email</td>
                                         <td><span class="admin-tag admin-tag-warning">@user.AccountStatus</span></td>
                                         <td>@(user.LastSeenAt.HasValue ? user.LastSeenAt.Value.ToString("yyyy-MM-dd HH:mm") : "-")</td>
+                                        <td>@GetLatestModerationReason(user.UserId)</td>
                                         <td>
                                             <button class="admin-action-btn" @onclick="() => ChangeUserStatusAsync(user.UserId, UserModerationAction.Unban)">Unban</button>
                                         </td>
@@ -248,6 +263,16 @@
     </main>
 </div>
 
+<AdminActionModal
+    @ref="ActionModal"
+    IsVisible="false"
+    ModalType="CurrentModalType"
+    Title="CurrentModalTitle"
+    Message="CurrentModalMessage"
+    OnConfirm="OnConfirmAsync"
+    OnConfirmWithReason="OnConfirmWithReasonAsync"
+    OnClose="OnModalCloseAsync" />
+
 @code {
     private enum UserModerationAction
     {
@@ -257,9 +282,19 @@
         Unban,
     }
 
+    private AdminActionModal? ActionModal { get; set; }
+    private AdminActionModalType CurrentModalType { get; set; }
+    private string CurrentModalTitle { get; set; } = string.Empty;
+    private string CurrentModalMessage { get; set; } = string.Empty;
+    private string? PendingActionUserId { get; set; }
+    private UserModerationAction PendingAction { get; set; }
+    private string? ErrorMessage { get; set; }
+    private bool IsWaitingForReason { get; set; }
+
     private List<NormalUserListItem> Users { get; set; } = new();
     private List<NormalUserListItem> BannedUsers { get; set; } = new();
     private HashSet<string> OnlineUserIds { get; set; } = new(StringComparer.Ordinal);
+    private Dictionary<string, string> LatestModerationReasonByUserId { get; set; } = new(StringComparer.Ordinal);
 
     private int TotalUserCount => Users.Count + BannedUsers.Count;
     private int OnlineUserCount => Users.Count(user => OnlineUserIds.Contains(user.UserId));
@@ -288,6 +323,23 @@
             .OrderByDescending(user => user.LastSeenAt ?? user.CreatedAt)
             .ToList();
         OnlineUserIds = (await PresenceService.GetAllOnlineUsersAsync()).ToHashSet(StringComparer.Ordinal);
+
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var adminId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var recentAudits = await AdminAuditService.GetRecentAuditsAsync(adminId, 500);
+
+        LatestModerationReasonByUserId = recentAudits
+            .Where(audit => !string.IsNullOrWhiteSpace(audit.TargetEntityId)
+                && (audit.ActionType == AdminActionType.UserDeactivated
+                    || audit.ActionType == AdminActionType.UserReactivated
+                    || audit.ActionType == AdminActionType.UserBanned
+                    || audit.ActionType == AdminActionType.UserUnbanned))
+            .OrderByDescending(audit => audit.TimestampUtc)
+            .GroupBy(audit => audit.TargetEntityId!, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => ExtractReason(group.First().MetadataJson),
+                StringComparer.Ordinal);
     }
 
     private async Task ChangeUserStatusAsync(string userId, UserModerationAction action)
@@ -297,21 +349,65 @@
             return;
         }
 
-        var (path, prompt, successMessage) = action switch
+        if (ActionModal == null)
         {
-            UserModerationAction.Deactivate => ($"/admin/business/users/{Uri.EscapeDataString(userId)}/deactivate", "Deactivate this user account?", "User deactivated."),
-            UserModerationAction.Reactivate => ($"/admin/business/users/{Uri.EscapeDataString(userId)}/reactivate", "Reactivate this user account?", "User reactivated."),
-            UserModerationAction.Ban => ($"/admin/business/users/{Uri.EscapeDataString(userId)}/ban", "Ban this user from logging in?", "User banned."),
-            UserModerationAction.Unban => ($"/admin/business/users/{Uri.EscapeDataString(userId)}/unban", "Unban this user account?", "User unbanned."),
-            _ => (string.Empty, string.Empty, string.Empty),
+            // Wait for modal to be ready
+            await Task.Delay(100);
+            if (ActionModal == null) return;
+        }
+
+        PendingActionUserId = userId;
+        PendingAction = action;
+        ErrorMessage = null;
+
+        var (title, message) = action switch
+        {
+            UserModerationAction.Deactivate => ("Deactivate User", "Deactivate this user account?"),
+            UserModerationAction.Reactivate => ("Reactivate User", "Reactivate this user account?"),
+            UserModerationAction.Ban => ("Ban User", "Ban this user from logging in?"),
+            UserModerationAction.Unban => ("Unban User", "Unban this user account?"),
+            _ => (string.Empty, string.Empty),
         };
 
-        if (string.IsNullOrWhiteSpace(path))
+        if (string.IsNullOrWhiteSpace(title))
         {
             return;
         }
 
-        if (!await JsRuntime.InvokeAsync<bool>("confirm", prompt))
+        CurrentModalTitle = title;
+        CurrentModalMessage = message;
+        CurrentModalType = AdminActionModalType.Confirmation;
+        IsWaitingForReason = false;
+        await ActionModal.OpenAsync(AdminActionModalType.Confirmation, title, message);
+    }
+
+    private async Task OnConfirmAsync()
+    {
+        if (string.IsNullOrWhiteSpace(PendingActionUserId) || ActionModal == null)
+        {
+            return;
+        }
+
+        // Move to reason input step
+        var reasonPrompt = PendingAction switch
+        {
+            UserModerationAction.Deactivate => "Why are you deactivating this user?",
+            UserModerationAction.Reactivate => "Why are you reactivating this user?",
+            UserModerationAction.Ban => "Why are you banning this user?",
+            UserModerationAction.Unban => "Why are you unbanning this user?",
+            _ => "Reason for this action:",
+        };
+
+        CurrentModalTitle = "Reason Required";
+        CurrentModalMessage = reasonPrompt;
+        CurrentModalType = AdminActionModalType.Reason;
+        IsWaitingForReason = true;
+        await ActionModal.OpenAsync(AdminActionModalType.Reason, "Reason Required", reasonPrompt);
+    }
+
+    private async Task OnConfirmWithReasonAsync(string reason)
+    {
+        if (string.IsNullOrWhiteSpace(PendingActionUserId) || ActionModal == null)
         {
             return;
         }
@@ -322,34 +418,83 @@
             var performedByAdminId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrWhiteSpace(performedByAdminId))
             {
-                await JsRuntime.InvokeVoidAsync("alert", "Unable to resolve your admin session.");
+                ErrorMessage = "Unable to resolve your admin session.";
+                await ActionModal.OpenAsync(AdminActionModalType.Info, "Error", ErrorMessage);
                 return;
             }
 
-            var result = action switch
+            var result = PendingAction switch
             {
-                UserModerationAction.Deactivate => await UserService.DeactivateUserByAdminAsync(userId, performedByAdminId),
-                UserModerationAction.Reactivate => await UserService.ReactivateUserByAdminAsync(userId, performedByAdminId),
-                UserModerationAction.Ban => await UserService.BanUserByAdminAsync(userId, performedByAdminId),
-                UserModerationAction.Unban => await UserService.UnbanUserByAdminAsync(userId, performedByAdminId),
+                UserModerationAction.Deactivate => await UserService.DeactivateUserByAdminAsync(PendingActionUserId, performedByAdminId, reason),
+                UserModerationAction.Reactivate => await UserService.ReactivateUserByAdminAsync(PendingActionUserId, performedByAdminId, reason),
+                UserModerationAction.Ban => await UserService.BanUserByAdminAsync(PendingActionUserId, performedByAdminId, reason),
+                UserModerationAction.Unban => await UserService.UnbanUserByAdminAsync(PendingActionUserId, performedByAdminId, reason),
                 _ => AccountOperationResult.Failure(new[] { "Unsupported moderation action." }),
             };
 
             if (!result.Succeeded)
             {
-                var errorMessage = result.Errors.Count > 0
-                    ? string.Join("\n", result.Errors)
+                ErrorMessage = result.Errors.Count > 0
+                    ? string.Join(" ", result.Errors)
                     : "Unable to apply action. Please try again.";
-                await JsRuntime.InvokeVoidAsync("alert", errorMessage);
+                await ActionModal.OpenAsync(AdminActionModalType.Info, "Error", ErrorMessage);
                 return;
             }
 
+            var successMessage = PendingAction switch
+            {
+                UserModerationAction.Deactivate => "User deactivated successfully.",
+                UserModerationAction.Reactivate => "User reactivated successfully.",
+                UserModerationAction.Ban => "User banned successfully.",
+                UserModerationAction.Unban => "User unbanned successfully.",
+                _ => "Action completed successfully.",
+            };
+
             await ReloadUsersAsync();
-            await JsRuntime.InvokeVoidAsync("alert", successMessage);
+            await ActionModal.OpenAsync(AdminActionModalType.Info, "Success", successMessage);
+            PendingActionUserId = null;
         }
         catch (Exception ex)
         {
-            await JsRuntime.InvokeVoidAsync("alert", $"Unexpected error while applying action: {ex.Message}");
+            ErrorMessage = $"Unexpected error while applying action: {ex.Message}";
+            await ActionModal.OpenAsync(AdminActionModalType.Info, "Error", ErrorMessage);
         }
+    }
+
+    private async Task OnModalCloseAsync()
+    {
+        PendingActionUserId = null;
+        ErrorMessage = null;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private string GetLatestModerationReason(string userId)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return "-";
+        }
+
+        return LatestModerationReasonByUserId.TryGetValue(userId, out var reason)
+            ? reason
+            : "-";
+    }
+
+    private static string ExtractReason(string? metadata)
+    {
+        if (string.IsNullOrWhiteSpace(metadata))
+        {
+            return "-";
+        }
+
+        const string prefix = "Reason:";
+        var index = metadata.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
+        if (index < 0)
+        {
+            return metadata;
+        }
+
+        var reason = metadata[(index + prefix.Length)..].Trim();
+        return string.IsNullOrWhiteSpace(reason) ? "-" : reason;
     }
 }
