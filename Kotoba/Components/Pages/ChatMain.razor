@@ -963,7 +963,9 @@
 						<div class="msg-row @(isOwn ? "own" : "")">
 							@if (!isOwn)
 							{
-								<div class="msg-avatar-sm">🌿</div>
+								var sender = selectedUsers?.FirstOrDefault(u => u.UserId == msg.SenderId);
+								var avatarEmoji = string.IsNullOrWhiteSpace(sender?.AvatarUrl) ? "🥝" : sender?.AvatarUrl ?? "🥝";
+								<div class="msg-avatar-sm">@avatarEmoji</div>
 							}
 
                         @if (hoveredMessageId == msg.MessageId && !msg.IsRevoked && isOwn)
@@ -1167,7 +1169,7 @@
             @if (isTyping)
             {
                 <div class="typing-indicator">
-                    <div class="msg-avatar-sm">🌿</div>
+                    <div class="msg-avatar-sm">🥝</div>
                     <div style="display:flex;flex-direction:column;gap:2px;">
                         @if (selectedConv!.Type == ConversationType.Group && !string.IsNullOrEmpty(typingUserName))
                         {

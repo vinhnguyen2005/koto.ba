@@ -195,6 +195,40 @@
     left: 30%;
 }
 
+.home-art-lemon {
+    position: absolute;
+    font-size: 1.8rem;
+    opacity: 0.35;
+    animation: float 6s infinite ease-in-out;
+}
+
+.home-art-lemon-1 {
+    top: 12%;
+    right: 15%;
+    animation-delay: 0s;
+}
+
+.home-art-lemon-2 {
+    top: 55%;
+    right: 8%;
+    animation-delay: 1s;
+}
+
+.home-art-lemon-3 {
+    bottom: 15%;
+    right: 20%;
+    animation-delay: 2s;
+}
+
+@keyframes float {
+    0%, 100% {
+        transform: translateY(0px);
+    }
+    50% {
+        transform: translateY(-12px);
+    }
+}
+
 .home-metrics {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -270,11 +304,22 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
+    position: relative;
+}
+
+.home-cta-lemon {
+    font-size: 4rem;
+    opacity: 0.12;
+    position: absolute;
+    left: -1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 0;
 }
 
 .home-cta-eyebrow {
     margin: 0;
-    color: #bdd66d;
+    color: #C8E63A;
     font-size: 0.78rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -285,18 +330,29 @@
     margin: 0.35rem 0 0;
     font-size: 1.45rem;
     line-height: 1.2;
+    position: relative;
+    z-index: 1;
 }
 
 .home-cta p {
     margin: 0.65rem 0 0;
     color: rgba(243, 247, 234, 0.82);
     line-height: 1.6;
+    position: relative;
+    z-index: 1;
 }
 
 .home-cta .home-btn-secondary {
     background: rgba(255, 255, 255, 0.12);
     color: #f3f7ea;
     border-color: rgba(255, 255, 255, 0.3);
+    position: relative;
+    z-index: 1;
+}
+
+.home-actions-compact {
+    position: relative;
+    z-index: 1;
 }
 
 .home-cta .home-btn-secondary:hover {

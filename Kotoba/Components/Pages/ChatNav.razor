@@ -1084,7 +1084,8 @@
                 <div class="chat-item" @onclick="() => SelectConversation(conv)">
                     <div class="chat-avatar">
                         <div class="avatar-img @(NotifState.Contains(conv.ConversationId.ToString().ToLower()) ? "avatar-ring" : "")">
-                            🥝
+                            @{string avatarDisplay = string.IsNullOrWhiteSpace(other?.AvatarUrl) ? "🥝" : other.AvatarUrl;}
+                            @avatarDisplay
                         </div>
                     </div>
                     <div class="chat-info">
@@ -1128,7 +1129,7 @@
                 <div class="chat-item" @onclick="() => SelectConversation(conv)">
                     <div class="chat-avatar">
                         <div class="avatar-img @(NotifState.Contains(conv.ConversationId.ToString()) ? "avatar-ring" : "")">
-                            🌿
+                            🥝
                         </div>
                     </div>
                     <div class="chat-info">
@@ -1183,7 +1184,7 @@
 		_loadedForUserId = currentUserId;
 		conversations = await conversationService.GetUserConversationsAsync(currentUserId!);
 		currentThought = await CurrentThoughtService.GetThoughtAsync(currentUserId!);
-		if (_navHub == null)          
+		if (_navHub == null)
 			await StartNavHubAsync();
 
 		StateHasChanged();
@@ -1221,7 +1222,7 @@
 			Navigation.NavigateTo("/chat");
 		});
 
-		await _navHub.StartAsync(); 
+		await _navHub.StartAsync();
 	}
 
 	private IEnumerable<ConversationDto> FilteredConversations => activeFilter switch
@@ -1329,7 +1330,7 @@
 				{
 					GroupName = newGroupName,
 					ParticipantIds = ids,
-					CreatorId = currentUserId  
+					CreatorId = currentUserId
 				});
 
 			if (conv != null)

@@ -188,7 +188,7 @@
     private AccountStatus currentAccountStatus = AccountStatus.Active;
 
     private string DisplayNameOrFallback => string.IsNullOrWhiteSpace(profileForm.DisplayName) ? "Your Profile" : profileForm.DisplayName;
-    private string AvatarLabel => string.IsNullOrWhiteSpace(profileForm.DisplayName) ? "U" : profileForm.DisplayName.Trim()[0].ToString().ToUpperInvariant();
+    private string AvatarLabel => string.IsNullOrWhiteSpace(profileForm.AvatarUrl) ? "🥝" : profileForm.AvatarUrl;
     private string UserHandle => string.IsNullOrWhiteSpace(profileForm.UserName) ? "@account" : $"@{profileForm.UserName.Trim().TrimStart('@')}";
     private string ProfileBioOrFallback => string.IsNullOrWhiteSpace(profileForm.Bio)
         ? "Add a short bio so others know who you are."

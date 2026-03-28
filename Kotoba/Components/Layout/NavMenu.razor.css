@@ -23,8 +23,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--sidebar-accent);
-    color: #1f3527;
+    background: #2d4a1f;
+    color: #ffffff;
     font-size: 1rem;
     font-weight: 700;
     letter-spacing: 0.02em;

@@ -145,8 +145,8 @@ h1:focus {
     align-items: center;
     justify-content: center;
     border-radius: 0.95rem;
-    background: #bdd66d;
-    color: #1f3527;
+    background: #2d4a1f;
+    color: #ffffff;
     font-size: 1.05rem;
     font-weight: 700;
 }
@@ -306,8 +306,8 @@ h1:focus {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: #bdd66d;
-    color: #1f3527;
+    background: #2d4a1f;
+    color: #ffffff;
     font-weight: 700;
 }
 
@@ -715,7 +715,7 @@ h1:focus {
 .nav-logo {
     width: 40px;
     height: 40px;
-    background: var(--lime-light);
+    background: #4a6a3a;
     border-radius: 12px;
     display: flex;
     align-items: center;
@@ -723,10 +723,10 @@ h1:focus {
     font-family: 'Syne',sans-serif;
     font-weight: 800;
     font-size: 18px;
-    color: #1A1F0E;
+    color: #ffffff;
     margin-bottom: 14px;
     cursor: pointer;
-    box-shadow: 0 4px 12px rgba(200,230,58,0.4);
+    box-shadow: 0 4px 12px rgba(122,184,0,0.4);
 }
 
 .nav-divider {
