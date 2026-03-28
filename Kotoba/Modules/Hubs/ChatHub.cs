@@ -18,12 +18,14 @@ namespace Kotoba.Modules.Hubs
         private readonly IHubContext<NotificationHub> _notifHub;
         private readonly IGroupAdminService _adminService;
         private readonly IMessageService _messageService;
+        private readonly INotificationService _notificationService;
         public ChatHub(KotobaDbContext context,
             IReactionService reactionService,
             ICurrentThoughtService thoughtService,
             IGroupAdminService adminService,
             IHubContext<NotificationHub> notifHub,
-            IMessageService messageService)
+            IMessageService messageService,
+            INotificationService notificationService)
         {
             _context = context;
             _reactionService = reactionService;
@@ -31,6 +33,7 @@ namespace Kotoba.Modules.Hubs
             _notifHub = notifHub;
             _adminService = adminService;
             _messageService = messageService;
+            _notificationService = notificationService;
         }
 
         public async Task JoinConversation(string conversationId)
@@ -640,6 +643,20 @@ namespace Kotoba.Modules.Hubs
                     ? null
                     : System.Text.Json.JsonSerializer.Deserialize<SystemMessageDataDto>(systemMsg.SystemMessageData)
             };
+        }
+
+        // Gọi từ bất kỳ service nào cần push notification
+        public async Task PushNotification(string recipientId, NotificationDto dto)
+        {
+            await Clients.User(recipientId).SendAsync("ReceiveNotification", dto);
+        }
+
+        // Helper dùng nội bộ trong các Hub method khác
+        private async Task NotifyAsync(CreateNotificationRequest request)
+        {
+            var dto = await _notificationService.CreateAsync(request);
+            await Clients.User(request.RecipientId)
+                .SendAsync("ReceiveNotification", dto);
         }
     }
 }

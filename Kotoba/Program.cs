@@ -94,8 +94,9 @@ namespace Kotoba
             builder.Services.AddScoped<IStoryService, StoryService>();
             builder.Services.AddScoped<ICurrentThoughtRepository, CurrentThoughtRepository>();
             builder.Services.AddScoped<ICurrentThoughtService, CurrentThoughtService>();
-            builder.Services.AddScoped<INotificationSettingsService, NotificationSettingsService>();
-            builder.Services.AddScoped<NotificationService>();
+            builder.Services.AddScoped<INotificationSettingsService, NotificationSettingsService>();           
+            builder.Services.AddScoped<NotificationRepository>();
+            builder.Services.AddScoped<INotificationService, Modules.Infrastructure.Services.Notifications.NotificationService>();
             builder.Services.AddScoped<GlobalNotificationService>();
             builder.Services.AddScoped<CircuitCookieService>();
             builder.Services.AddSingleton<ChatNotificationState>();
