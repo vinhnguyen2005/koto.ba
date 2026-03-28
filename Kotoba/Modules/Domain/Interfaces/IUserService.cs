@@ -29,24 +29,28 @@ public interface IUserService
     Task<AccountOperationResult> DeactivateUserByAdminAsync(
         string userId,
         string performedByAdminId,
+        string? reason = null,
         string? sourceIp = null,
         string? correlationId = null,
         CancellationToken cancellationToken = default);
     Task<AccountOperationResult> ReactivateUserByAdminAsync(
         string userId,
         string performedByAdminId,
+        string? reason = null,
         string? sourceIp = null,
         string? correlationId = null,
         CancellationToken cancellationToken = default);
     Task<AccountOperationResult> BanUserByAdminAsync(
         string userId,
         string performedByAdminId,
+        string? reason = null,
         string? sourceIp = null,
         string? correlationId = null,
         CancellationToken cancellationToken = default);
     Task<AccountOperationResult> UnbanUserByAdminAsync(
         string userId,
         string performedByAdminId,
+        string? reason = null,
         string? sourceIp = null,
         string? correlationId = null,
         CancellationToken cancellationToken = default);

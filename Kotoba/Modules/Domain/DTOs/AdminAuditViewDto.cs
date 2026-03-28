@@ -13,5 +13,8 @@ public class AdminAuditViewDto
     public bool IsSuccess { get; set; }
     public string? TargetEntityType { get; set; }
     public string? TargetEntityId { get; set; }
+    public string? TargetDisplayName { get; set; }
+    public string? TargetEmail { get; set; }
+    public string? MetadataJson { get; set; }
     public string? Summary { get; set; }
 }

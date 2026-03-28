@@ -53,7 +53,7 @@ public class AdminAuditService : IAdminAuditService
             query = query.Where(a => a.PerformedByAdminId == performedByAdminId);
         }
 
-        return await query
+        var audits = await query
             .OrderByDescending(a => a.TimestampUtc)
             .Take(safeLimit)
             .Select(a => new AdminAuditViewDto
@@ -67,9 +67,52 @@ public class AdminAuditService : IAdminAuditService
                 IsSuccess = a.IsSuccess,
                 TargetEntityType = a.TargetEntityType,
                 TargetEntityId = a.TargetEntityId,
+                MetadataJson = a.MetadataJson,
                 Summary = a.Summary,
             })
             .ToListAsync(cancellationToken);
+
+        var targetUserIds = audits
+            .Where(audit => string.Equals(audit.TargetEntityType, "User", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(audit.TargetEntityId))
+            .Select(audit => audit.TargetEntityId!)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        if (targetUserIds.Count == 0)
+        {
+            return audits;
+        }
+
+        var targetUsers = await _dbContext.Users
+            .AsNoTracking()
+            .Where(user => targetUserIds.Contains(user.Id))
+            .Select(user => new
+            {
+                user.Id,
+                user.DisplayName,
+                user.Email,
+            })
+            .ToDictionaryAsync(user => user.Id, cancellationToken);
+
+        foreach (var audit in audits)
+        {
+            if (!string.Equals(audit.TargetEntityType, "User", StringComparison.OrdinalIgnoreCase)
+                || string.IsNullOrWhiteSpace(audit.TargetEntityId))
+            {
+                continue;
+            }
+
+            if (!targetUsers.TryGetValue(audit.TargetEntityId, out var targetUser))
+            {
+                continue;
+            }
+
+            audit.TargetDisplayName = targetUser.DisplayName;
+            audit.TargetEmail = targetUser.Email;
+        }
+
+        return audits;
     }
 
     public async Task<int> CountAuditsSinceAsync(

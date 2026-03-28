@@ -355,17 +355,27 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
         public async Task<AccountOperationResult> DeactivateUserByAdminAsync(
             string userId,
             string performedByAdminId,
+            string? reason = null,
             string? sourceIp = null,
             string? correlationId = null,
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            var normalizedReason = NormalizeModerationReason(reason);
+
             if (string.IsNullOrWhiteSpace(performedByAdminId))
             {
                 var actorFailure = AccountOperationResult.Failure(new[] { "Unable to resolve acting admin account." });
                 await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserDeactivated, actorFailure, sourceIp, correlationId, cancellationToken);
                 return actorFailure;
+            }
+
+            if (string.IsNullOrWhiteSpace(normalizedReason))
+            {
+                var reasonFailure = AccountOperationResult.Failure(new[] { "A reason is required to deactivate a user." });
+                await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserDeactivated, reasonFailure, sourceIp, correlationId, cancellationToken);
+                return reasonFailure;
             }
 
             if (string.IsNullOrWhiteSpace(userId))
@@ -398,24 +408,42 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
             }
 
             var result = await DeactivateAccountAsync(userId);
-            await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserDeactivated, result, sourceIp, correlationId, cancellationToken);
+            await TraceUserAccountActionAsync(
+                performedByAdminId,
+                userId,
+                AdminActionType.UserDeactivated,
+                result,
+                sourceIp,
+                correlationId,
+                cancellationToken,
+                $"Reason: {normalizedReason}");
             return result;
         }
 
         public async Task<AccountOperationResult> ReactivateUserByAdminAsync(
             string userId,
             string performedByAdminId,
+            string? reason = null,
             string? sourceIp = null,
             string? correlationId = null,
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            var normalizedReason = NormalizeModerationReason(reason);
+
             if (string.IsNullOrWhiteSpace(performedByAdminId))
             {
                 var actorFailure = AccountOperationResult.Failure(new[] { "Unable to resolve acting admin account." });
                 await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserReactivated, actorFailure, sourceIp, correlationId, cancellationToken);
                 return actorFailure;
+            }
+
+            if (string.IsNullOrWhiteSpace(normalizedReason))
+            {
+                var reasonFailure = AccountOperationResult.Failure(new[] { "A reason is required to reactivate a user." });
+                await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserReactivated, reasonFailure, sourceIp, correlationId, cancellationToken);
+                return reasonFailure;
             }
 
             if (string.IsNullOrWhiteSpace(userId))
@@ -448,24 +476,42 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
             }
 
             var result = await ReactivateAccountAsync(userId);
-            await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserReactivated, result, sourceIp, correlationId, cancellationToken);
+            await TraceUserAccountActionAsync(
+                performedByAdminId,
+                userId,
+                AdminActionType.UserReactivated,
+                result,
+                sourceIp,
+                correlationId,
+                cancellationToken,
+                $"Reason: {normalizedReason}");
             return result;
         }
 
         public async Task<AccountOperationResult> BanUserByAdminAsync(
             string userId,
             string performedByAdminId,
+            string? reason = null,
             string? sourceIp = null,
             string? correlationId = null,
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            var normalizedReason = NormalizeModerationReason(reason);
+
             if (string.IsNullOrWhiteSpace(performedByAdminId))
             {
                 var actorFailure = AccountOperationResult.Failure(new[] { "Unable to resolve acting admin account." });
                 await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserBanned, actorFailure, sourceIp, correlationId, cancellationToken);
                 return actorFailure;
+            }
+
+            if (string.IsNullOrWhiteSpace(normalizedReason))
+            {
+                var reasonFailure = AccountOperationResult.Failure(new[] { "A reason is required to ban a user." });
+                await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserBanned, reasonFailure, sourceIp, correlationId, cancellationToken);
+                return reasonFailure;
             }
 
             if (string.IsNullOrWhiteSpace(userId))
@@ -515,24 +561,42 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
                 ? AccountOperationResult.Success()
                 : FromIdentityResult(updateResult);
 
-            await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserBanned, result, sourceIp, correlationId, cancellationToken);
+            await TraceUserAccountActionAsync(
+                performedByAdminId,
+                userId,
+                AdminActionType.UserBanned,
+                result,
+                sourceIp,
+                correlationId,
+                cancellationToken,
+                $"Reason: {normalizedReason}");
             return result;
         }
 
         public async Task<AccountOperationResult> UnbanUserByAdminAsync(
             string userId,
             string performedByAdminId,
+            string? reason = null,
             string? sourceIp = null,
             string? correlationId = null,
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            var normalizedReason = NormalizeModerationReason(reason);
+
             if (string.IsNullOrWhiteSpace(performedByAdminId))
             {
                 var actorFailure = AccountOperationResult.Failure(new[] { "Unable to resolve acting admin account." });
                 await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserUnbanned, actorFailure, sourceIp, correlationId, cancellationToken);
                 return actorFailure;
+            }
+
+            if (string.IsNullOrWhiteSpace(normalizedReason))
+            {
+                var reasonFailure = AccountOperationResult.Failure(new[] { "A reason is required to unban a user." });
+                await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserUnbanned, reasonFailure, sourceIp, correlationId, cancellationToken);
+                return reasonFailure;
             }
 
             if (string.IsNullOrWhiteSpace(userId))
@@ -573,7 +637,15 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
                 ? AccountOperationResult.Success()
                 : FromIdentityResult(updateResult);
 
-            await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserUnbanned, result, sourceIp, correlationId, cancellationToken);
+            await TraceUserAccountActionAsync(
+                performedByAdminId,
+                userId,
+                AdminActionType.UserUnbanned,
+                result,
+                sourceIp,
+                correlationId,
+                cancellationToken,
+                $"Reason: {normalizedReason}");
             return result;
         }
 
@@ -800,6 +872,19 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
         {
             return await _userManager.IsInRoleAsync(user, AdminRoles.SystemAdmin)
                 || await _userManager.IsInRoleAsync(user, AdminRoles.BusinessAdmin);
+        }
+
+        private static string? NormalizeModerationReason(string? reason)
+        {
+            if (string.IsNullOrWhiteSpace(reason))
+            {
+                return null;
+            }
+
+            var normalized = reason.Trim();
+            return normalized.Length <= 500
+                ? normalized
+                : normalized[..500];
         }
 
         private static string EnsureBannedTag(string? displayName)
