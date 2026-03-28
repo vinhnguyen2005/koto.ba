@@ -1,4 +1,6 @@
-﻿namespace Kotoba.Modules.Domain.Entities
+using Kotoba.Modules.Domain.Enums;
+
+namespace Kotoba.Modules.Domain.Entities
 {
     public class ConversationParticipant
     {
@@ -8,6 +10,8 @@
         public DateTime JoinedAt { get; set; } = DateTime.UtcNow;
         public DateTime? LeftAt { get; set; }
         public bool IsActive { get; set; } = true;
+
+        public GroupRole Role { get; set; } = GroupRole.Member;
 
         // Navigation properties
         public virtual Conversation Conversation { get; set; } = null!;
