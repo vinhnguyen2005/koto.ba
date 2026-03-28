@@ -5,6 +5,7 @@
 @inject IUserService UserService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager NavigationManager
+@using Kotoba.Modules.Domain.Enums
 
 <PageTitle>Profile</PageTitle>
 
@@ -136,10 +137,19 @@
                     <div class="profile-danger-list">
                         <article class="profile-danger-card">
                             <div>
-                                <h3>Deactivate Account</h3>
-                                <p>Temporarily disable your account and reactivate later.</p>
+                                <h3>@(IsAccountDeactivated ? "Reactivate Account" : "Deactivate Account")</h3>
+                                <p>@(IsAccountDeactivated
+                                        ? "Restore full access to your account."
+                                        : "Temporarily disable your account and reactivate later.")</p>
                             </div>
-                            <button type="button" class="profile-btn profile-btn-warning" @onclick="DeactivateAccountAsync">Deactivate</button>
+                            <button type="button"
+                                    class="profile-btn @(IsAccountDeactivated ? "profile-btn-primary" : "profile-btn-warning")"
+                                    @onclick="ToggleAccountActivationAsync"
+                                    disabled="@isAccountActionSubmitting">
+                                @(isAccountActionSubmitting
+                                    ? (IsAccountDeactivated ? "Reactivating..." : "Deactivating...")
+                                    : (IsAccountDeactivated ? "Reactivate" : "Deactivate"))
+                            </button>
                         </article>
 
                         <article class="profile-danger-card">
@@ -174,6 +184,8 @@
     private string? dangerMessage;
     private string? securityMessage;
     private DateTime? profileUpdatedAt;
+    private bool isAccountActionSubmitting;
+    private AccountStatus currentAccountStatus = AccountStatus.Active;
 
     private string DisplayNameOrFallback => string.IsNullOrWhiteSpace(profileForm.DisplayName) ? "Your Profile" : profileForm.DisplayName;
     private string AvatarLabel => string.IsNullOrWhiteSpace(profileForm.DisplayName) ? "U" : profileForm.DisplayName.Trim()[0].ToString().ToUpperInvariant();
@@ -184,6 +196,7 @@
     private string LastUpdatedText => profileUpdatedAt is null
         ? "Last updated: not saved in this session"
         : $"Last updated: {profileUpdatedAt.Value.ToLocalTime():MMM d, yyyy h:mm tt}";
+    private bool IsAccountDeactivated => currentAccountStatus == AccountStatus.Deactivated;
 
     private enum ProfileTab
     {
@@ -233,6 +246,7 @@
         profileForm.UserName = profile.UserName;
         profileForm.Email = profile.Email;
         profileForm.Bio = profile.Bio;
+        currentAccountStatus = profile.AccountStatus;
         isLoading = false;
     }
 
@@ -317,9 +331,10 @@
         securityMessage = "Password changed successfully.";
     }
 
-    private async Task DeactivateAccountAsync()
+    private async Task ToggleAccountActivationAsync()
     {
         dangerMessage = null;
+        successMessage = null;
 
         if (string.IsNullOrWhiteSpace(userId))
         {
@@ -327,14 +342,41 @@
             return;
         }
 
-        var deactivateResult = await UserService.DeactivateAccountAsync(userId);
-        if (!deactivateResult.Succeeded)
-        {
-            dangerMessage = deactivateResult.Errors.FirstOrDefault() ?? "Unable to deactivate account.";
-            return;
-        }
+        isAccountActionSubmitting = true;
 
-        NavigationManager.NavigateTo("/login", forceLoad: true);
+        try
+        {
+            if (IsAccountDeactivated)
+            {
+                var reactivateResult = await UserService.ReactivateAccountAsync(userId);
+                if (!reactivateResult.Succeeded)
+                {
+                    dangerMessage = reactivateResult.Errors.FirstOrDefault() ?? "Unable to reactivate account.";
+                    return;
+                }
+
+                currentAccountStatus = AccountStatus.Active;
+                successMessage = "Account reactivated successfully.";
+
+                // Force refresh so MainLayout re-reads user status and removes read-only restrictions.
+                NavigationManager.NavigateTo("/profile", forceLoad: true);
+                return;
+            }
+
+            var deactivateResult = await UserService.DeactivateAccountAsync(userId);
+            if (!deactivateResult.Succeeded)
+            {
+                dangerMessage = deactivateResult.Errors.FirstOrDefault() ?? "Unable to deactivate account.";
+                return;
+            }
+
+            currentAccountStatus = AccountStatus.Deactivated;
+            NavigationManager.NavigateTo("/login", forceLoad: true);
+        }
+        finally
+        {
+            isAccountActionSubmitting = false;
+        }
     }
 
     private async Task DeleteAccountAsync()
