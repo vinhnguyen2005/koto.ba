@@ -1,4 +1,5 @@
 using Kotoba.Modules.Domain.DTOs;
+using Kotoba.Modules.Domain.Enums;
 
 namespace Kotoba.Modules.Domain.Interfaces;
 
@@ -9,6 +10,46 @@ public interface IUserService
 {
     Task<RegistrationResult> RegisterAsync(RegisterRequest request);
     Task<bool> LoginAsync(LoginRequest request);
+    Task<string?> LoginAdminAsync(LoginRequest request);
+    Task<AccountStatus?> GetAccountStatusByEmailAsync(string? email, CancellationToken cancellationToken = default);
+    Task<AdminCreationResult> CreateBusinessAdminAsync(
+        CreateBusinessAdminRequest request,
+        string performedByAdminId,
+        string? sourceIp = null,
+        string? correlationId = null,
+        CancellationToken cancellationToken = default);
+    Task<AccountOperationResult> DisableAdminAsync(
+        string adminIdToDisable,
+        string performedByAdminId,
+        string? sourceIp = null,
+        string? correlationId = null,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<BusinessAdminListItem>> GetBusinessAdminsAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<NormalUserListItem>> GetNormalUsersAsync(CancellationToken cancellationToken = default);
+    Task<AccountOperationResult> DeactivateUserByAdminAsync(
+        string userId,
+        string performedByAdminId,
+        string? sourceIp = null,
+        string? correlationId = null,
+        CancellationToken cancellationToken = default);
+    Task<AccountOperationResult> ReactivateUserByAdminAsync(
+        string userId,
+        string performedByAdminId,
+        string? sourceIp = null,
+        string? correlationId = null,
+        CancellationToken cancellationToken = default);
+    Task<AccountOperationResult> BanUserByAdminAsync(
+        string userId,
+        string performedByAdminId,
+        string? sourceIp = null,
+        string? correlationId = null,
+        CancellationToken cancellationToken = default);
+    Task<AccountOperationResult> UnbanUserByAdminAsync(
+        string userId,
+        string performedByAdminId,
+        string? sourceIp = null,
+        string? correlationId = null,
+        CancellationToken cancellationToken = default);
     Task<UserProfile?> GetUserProfileAsync(string userId);
     IQueryable<UserProfile> GetUsersByDisplayNameAsync(string searchValue);
     Task<AccountOperationResult> UpdateUserProfileAsync(string userId, UpdateProfileRequest request);

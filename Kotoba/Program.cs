@@ -1,8 +1,10 @@
 using AutoMapper;
 using Kotoba.Components;
 using Kotoba.Modules.Application.Mappings;
+using Kotoba.Modules.Domain.Constants;
 using Kotoba.Modules.Domain.DTOs;
 using Kotoba.Modules.Domain.Entities;
+using Kotoba.Modules.Domain.Enums;
 using Kotoba.Modules.Domain.Interfaces;
 using Kotoba.Modules.Hubs;
 using Kotoba.Modules.Infrastructure.Data;
@@ -16,10 +18,12 @@ using Kotoba.Modules.Infrastructure.Services.Reactions;
 using Kotoba.Modules.Infrastructure.Services.Realtime;
 using Kotoba.Modules.Infrastructure.Services.Settings;
 using Kotoba.Modules.Infrastructure.Services.Social;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace Kotoba
 {
@@ -60,6 +64,7 @@ namespace Kotoba
                     options.Password.RequireNonAlphanumeric = false;
                     options.Password.RequiredUniqueChars = 1;
                 })
+                .AddRoles<IdentityRole>()
                 .AddSignInManager()
                 .AddEntityFrameworkStores<KotobaDbContext>()
                 .AddDefaultTokenProviders();
@@ -76,6 +81,7 @@ namespace Kotoba
             builder.Services.AddScoped<IReactionService, ReactionService>();
             builder.Services.AddScoped<IAttachmentService, AttachmentService>();
             builder.Services.AddScoped<IUserService, UserService>();
+            builder.Services.AddScoped<IAdminAuditService, AdminAuditService>();
             builder.Services.AddSingleton<IPresenceService, PresenceService>();
             builder.Services.AddScoped<IPresenceBroadcastService, PresenceBroadcastService>();
             builder.Services.AddScoped<IConversationService, ConversationService>();
@@ -101,6 +107,9 @@ namespace Kotoba
                 var dbContext = scope.ServiceProvider.GetRequiredService<KotobaDbContext>();
                 dbContext.Database.Migrate();
             }
+
+            SeedRootAdminAsync(app.Services, app.Configuration).GetAwaiter().GetResult();
+            ClearStaleOnlinePresenceAsync(app.Services).GetAwaiter().GetResult();
 
             // Configure the HTTP request pipeline.
             if (!app.Environment.IsDevelopment())
@@ -158,6 +167,12 @@ namespace Kotoba
 
             app.MapPost("/auth/login", async ([FromForm] LoginRequest request, IUserService userService) =>
             {
+                var accountStatus = await userService.GetAccountStatusByEmailAsync(request.Email);
+                if (accountStatus == AccountStatus.Banned)
+                {
+                    return Results.LocalRedirect("/login?banned=1");
+                }
+
                 var isLoggedIn = await userService.LoginAsync(request);
                 return isLoggedIn
                     ? Results.LocalRedirect("/")
@@ -166,11 +181,182 @@ namespace Kotoba
             .AllowAnonymous()
             .DisableAntiforgery();
 
+            app.MapPost("/auth/admin/login", async ([FromForm] LoginRequest request, IUserService userService) =>
+            {
+                var redirectPath = await userService.LoginAdminAsync(request);
+                return !string.IsNullOrWhiteSpace(redirectPath)
+                    ? Results.LocalRedirect(redirectPath)
+                    : Results.LocalRedirect("/admin/login?error=1");
+            })
+            .AllowAnonymous()
+            .DisableAntiforgery();
+
+            app.MapPost("/admin/system/admins/create", async (
+                [FromForm] CreateBusinessAdminRequest request,
+                IUserService userService,
+                HttpContext httpContext) =>
+            {
+                var performedByAdminId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrWhiteSpace(performedByAdminId))
+                {
+                    return Results.Forbid();
+                }
+
+                var createResult = await userService.CreateBusinessAdminAsync(
+                    request,
+                    performedByAdminId,
+                    httpContext.Connection.RemoteIpAddress?.ToString(),
+                    httpContext.TraceIdentifier,
+                    httpContext.RequestAborted);
+
+                if (createResult.Succeeded)
+                {
+                    return Results.LocalRedirect("/admin/system/admins/create?created=1");
+                }
+
+                var encodedErrors = Uri.EscapeDataString(string.Join("||", createResult.Errors));
+                return Results.LocalRedirect($"/admin/system/admins/create?errors={encodedErrors}");
+            })
+            .RequireAuthorization(new AuthorizeAttribute { Roles = AdminRoles.SystemAdmin })
+            .DisableAntiforgery();
+
+            app.MapPost("/admin/system/admins/{adminId}/disable", async (
+                string adminId,
+                IUserService userService,
+                HttpContext httpContext) =>
+            {
+                var performedByAdminId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrWhiteSpace(performedByAdminId))
+                {
+                    return Results.Forbid();
+                }
+
+                var disableResult = await userService.DisableAdminAsync(
+                    adminId,
+                    performedByAdminId,
+                    httpContext.Connection.RemoteIpAddress?.ToString(),
+                    httpContext.TraceIdentifier,
+                    httpContext.RequestAborted);
+
+                if (disableResult.Succeeded)
+                {
+                    return Results.Json(new { success = true });
+                }
+
+                return Results.Json(new { success = false, errors = disableResult.Errors }, statusCode: 400);
+            })
+            .RequireAuthorization(new AuthorizeAttribute { Roles = AdminRoles.SystemAdmin })
+            .WithName("DisableAdmin");
+
+            app.MapPost("/admin/business/users/{userId}/deactivate", async (
+                string userId,
+                IUserService userService,
+                HttpContext httpContext) =>
+            {
+                var performedByAdminId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrWhiteSpace(performedByAdminId))
+                {
+                    return Results.Forbid();
+                }
+
+                var result = await userService.DeactivateUserByAdminAsync(
+                    userId,
+                    performedByAdminId,
+                    httpContext.Connection.RemoteIpAddress?.ToString(),
+                    httpContext.TraceIdentifier,
+                    httpContext.RequestAborted);
+
+                return result.Succeeded
+                    ? Results.Json(new { success = true })
+                    : Results.Json(new { success = false, errors = result.Errors }, statusCode: 400);
+            })
+            .RequireAuthorization(new AuthorizeAttribute { Roles = AdminRoles.BusinessAdmin });
+
+            app.MapPost("/admin/business/users/{userId}/reactivate", async (
+                string userId,
+                IUserService userService,
+                HttpContext httpContext) =>
+            {
+                var performedByAdminId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrWhiteSpace(performedByAdminId))
+                {
+                    return Results.Forbid();
+                }
+
+                var result = await userService.ReactivateUserByAdminAsync(
+                    userId,
+                    performedByAdminId,
+                    httpContext.Connection.RemoteIpAddress?.ToString(),
+                    httpContext.TraceIdentifier,
+                    httpContext.RequestAborted);
+
+                return result.Succeeded
+                    ? Results.Json(new { success = true })
+                    : Results.Json(new { success = false, errors = result.Errors }, statusCode: 400);
+            })
+            .RequireAuthorization(new AuthorizeAttribute { Roles = AdminRoles.BusinessAdmin });
+
+            app.MapPost("/admin/business/users/{userId}/ban", async (
+                string userId,
+                IUserService userService,
+                HttpContext httpContext) =>
+            {
+                var performedByAdminId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrWhiteSpace(performedByAdminId))
+                {
+                    return Results.Forbid();
+                }
+
+                var result = await userService.BanUserByAdminAsync(
+                    userId,
+                    performedByAdminId,
+                    httpContext.Connection.RemoteIpAddress?.ToString(),
+                    httpContext.TraceIdentifier,
+                    httpContext.RequestAborted);
+
+                return result.Succeeded
+                    ? Results.Json(new { success = true })
+                    : Results.Json(new { success = false, errors = result.Errors }, statusCode: 400);
+            })
+            .RequireAuthorization(new AuthorizeAttribute { Roles = AdminRoles.BusinessAdmin });
+
+            app.MapPost("/admin/business/users/{userId}/unban", async (
+                string userId,
+                IUserService userService,
+                HttpContext httpContext) =>
+            {
+                var performedByAdminId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrWhiteSpace(performedByAdminId))
+                {
+                    return Results.Forbid();
+                }
+
+                var result = await userService.UnbanUserByAdminAsync(
+                    userId,
+                    performedByAdminId,
+                    httpContext.Connection.RemoteIpAddress?.ToString(),
+                    httpContext.TraceIdentifier,
+                    httpContext.RequestAborted);
+
+                return result.Succeeded
+                    ? Results.Json(new { success = true })
+                    : Results.Json(new { success = false, errors = result.Errors }, statusCode: 400);
+            })
+            .RequireAuthorization(new AuthorizeAttribute { Roles = AdminRoles.BusinessAdmin });
+
             app.MapPost("/auth/logout", async (HttpContext httpContext) =>
             {
                 await httpContext.SignOutAsync(IdentityConstants.ApplicationScheme);
                 return Results.LocalRedirect("/");
             })
+            .DisableAntiforgery();
+
+            app.MapPost("/auth/admin/logout", async (HttpContext httpContext) =>
+            {
+                await httpContext.SignOutAsync(IdentityConstants.ApplicationScheme);
+                return Results.LocalRedirect("/admin/login");
+            })
+            .RequireAuthorization(new AuthorizeAttribute { Roles = AdminRoles.AnyAdmin })
             .DisableAntiforgery();
 
             app.MapGet("/auth/logout", async (HttpContext httpContext, [FromQuery] string? returnUrl) =>
@@ -180,6 +366,13 @@ namespace Kotoba
                 return Results.LocalRedirect(target);
             });
 
+            app.MapGet("/auth/admin/logout", async (HttpContext httpContext) =>
+            {
+                await httpContext.SignOutAsync(IdentityConstants.ApplicationScheme);
+                return Results.LocalRedirect("/admin/login");
+            })
+            .RequireAuthorization(new AuthorizeAttribute { Roles = AdminRoles.AnyAdmin });
+
             app.MapRazorComponents<App>()
                 .AddInteractiveServerRenderMode();
 
@@ -187,6 +380,125 @@ namespace Kotoba
             app.MapHub<NotificationHub>("/notificationhub");
 
             app.Run();
+        }
+
+        private static async Task SeedRootAdminAsync(IServiceProvider services, IConfiguration configuration)
+        {
+            using var scope = services.CreateScope();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+
+            var rootSection = configuration.GetSection("RootAdmin");
+            if (!rootSection.Exists())
+            {
+                logger.LogInformation("RootAdmin section is missing. Root admin seeding skipped.");
+                return;
+            }
+
+            var email = rootSection["Email"]?.Trim();
+            var password = rootSection["Password"];
+            var displayName = rootSection["DisplayName"]?.Trim();
+
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+            {
+                logger.LogWarning("RootAdmin.Email or RootAdmin.Password is missing. Root admin seeding skipped.");
+                return;
+            }
+
+            if (!await roleManager.RoleExistsAsync(AdminRoles.SystemAdmin))
+            {
+                var createRoleResult = await roleManager.CreateAsync(new IdentityRole(AdminRoles.SystemAdmin));
+                if (!createRoleResult.Succeeded)
+                {
+                    logger.LogError("Failed to create {Role}: {Errors}",
+                        AdminRoles.SystemAdmin,
+                        string.Join("; ", createRoleResult.Errors.Select(e => e.Description)));
+                    return;
+                }
+            }
+
+            if (!await roleManager.RoleExistsAsync(AdminRoles.BusinessAdmin))
+            {
+                var createBusinessRoleResult = await roleManager.CreateAsync(new IdentityRole(AdminRoles.BusinessAdmin));
+                if (!createBusinessRoleResult.Succeeded)
+                {
+                    logger.LogError("Failed to create {Role}: {Errors}",
+                        AdminRoles.BusinessAdmin,
+                        string.Join("; ", createBusinessRoleResult.Errors.Select(e => e.Description)));
+                    return;
+                }
+            }
+
+            var rootUser = await userManager.FindByEmailAsync(email);
+            if (rootUser is null)
+            {
+                rootUser = new User
+                {
+                    UserName = email,
+                    Email = email,
+                    DisplayName = string.IsNullOrWhiteSpace(displayName) ? "System Root" : displayName,
+                    AccountStatus = AccountStatus.Active,
+                    CreatedAt = DateTime.UtcNow,
+                    IsOnline = false,
+                };
+
+                var createUserResult = await userManager.CreateAsync(rootUser, password);
+                if (!createUserResult.Succeeded)
+                {
+                    logger.LogError("Failed to create root admin user {Email}: {Errors}",
+                        email,
+                        string.Join("; ", createUserResult.Errors.Select(e => e.Description)));
+                    return;
+                }
+            }
+
+            if (!await userManager.IsInRoleAsync(rootUser, AdminRoles.SystemAdmin))
+            {
+                var addToRoleResult = await userManager.AddToRoleAsync(rootUser, AdminRoles.SystemAdmin);
+                if (!addToRoleResult.Succeeded)
+                {
+                    logger.LogError("Failed to assign {Role} to {Email}: {Errors}",
+                        AdminRoles.SystemAdmin,
+                        email,
+                        string.Join("; ", addToRoleResult.Errors.Select(e => e.Description)));
+                    return;
+                }
+            }
+
+            var systemAdmins = await userManager.GetUsersInRoleAsync(AdminRoles.SystemAdmin);
+            if (systemAdmins.Count > 1)
+            {
+                logger.LogWarning("Multiple SystemAdmin accounts detected ({Count}). Root account is expected to be singular.", systemAdmins.Count);
+            }
+
+            logger.LogInformation("Root admin is ready: {Email}", email);
+        }
+
+        private static async Task ClearStaleOnlinePresenceAsync(IServiceProvider services)
+        {
+            using var scope = services.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<KotobaDbContext>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+            var usersMarkedOnline = await dbContext.Users
+                .Where(user => user.IsOnline)
+                .ToListAsync();
+
+            if (usersMarkedOnline.Count == 0)
+            {
+                return;
+            }
+
+            var now = DateTime.UtcNow;
+            foreach (var user in usersMarkedOnline)
+            {
+                user.IsOnline = false;
+                user.LastSeenAt ??= now;
+            }
+
+            await dbContext.SaveChangesAsync();
+            logger.LogInformation("Presence startup reconciliation marked {Count} users offline.", usersMarkedOnline.Count);
         }
     }
 }

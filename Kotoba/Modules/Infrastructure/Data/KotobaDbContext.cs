@@ -20,6 +20,7 @@ namespace Kotoba.Modules.Infrastructure.Data
         public DbSet<Attachment> Attachments => Set<Attachment>();
         public DbSet<Story> Stories => Set<Story>();
         public DbSet<CurrentThought> CurrentThoughts => Set<CurrentThought>();
+        public DbSet<AdminAuditLog> AdminAuditLogs => Set<AdminAuditLog>();
         public DbSet<Attachment> Attachment => Set<Attachment>();
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -155,6 +156,35 @@ namespace Kotoba.Modules.Infrastructure.Data
                     .OnDelete(DeleteBehavior.Cascade);
 
                 entity.HasIndex(ct => ct.UserId).IsUnique();
+            });
+
+            modelBuilder.Entity<AdminAuditLog>(entity =>
+            {
+                entity.ToTable("AdminAuditLogs");
+                entity.HasKey(a => a.Id);
+
+                entity.Property(a => a.PerformedByAdminId)
+                    .HasMaxLength(450)
+                    .IsRequired();
+                entity.Property(a => a.ActionType)
+                    .HasConversion<string>()
+                    .HasMaxLength(64)
+                    .IsRequired();
+                entity.Property(a => a.TargetEntityType).HasMaxLength(80);
+                entity.Property(a => a.TargetEntityId).HasMaxLength(128);
+                entity.Property(a => a.Summary).HasMaxLength(500);
+                entity.Property(a => a.MetadataJson).HasMaxLength(4000);
+                entity.Property(a => a.CorrelationId).HasMaxLength(100);
+                entity.Property(a => a.SourceIp).HasMaxLength(64);
+
+                entity.HasOne(a => a.PerformedByAdmin)
+                    .WithMany()
+                    .HasForeignKey(a => a.PerformedByAdminId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(a => a.TimestampUtc);
+                entity.HasIndex(a => new { a.PerformedByAdminId, a.TimestampUtc });
+                entity.HasIndex(a => new { a.ActionType, a.TimestampUtc });
             });
         }
     }

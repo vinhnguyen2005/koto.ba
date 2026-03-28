@@ -2,8 +2,10 @@ using Kotoba.Modules.Domain.DTOs;
 using Kotoba.Modules.Domain.Entities;
 using Kotoba.Modules.Domain.Enums;
 using Kotoba.Modules.Domain.Interfaces;
+using Kotoba.Modules.Domain.Constants;
 using Kotoba.Modules.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using System.Threading;
 
 namespace Kotoba.Modules.Infrastructure.Services.Identity
@@ -12,16 +14,26 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
     {
         private const string ProfileTokenProvider = "Kotoba.Profile";
         private const string ProfileBioTokenName = "Bio";
+        private const string BannedDisplayTag = " [Banned]";
 
         private readonly UserManager<User> _userManager;
         private readonly SignInManager<User> _signInManager;
+        private readonly RoleManager<IdentityRole> _roleManager;
+        private readonly IAdminAuditService _adminAuditService;
         private readonly UserProfileRepository _userProfileRepository;
         private readonly SemaphoreSlim _userProfileLock = new(1, 1);
 
-        public UserService(UserManager<User> userManager, SignInManager<User> signInManager, UserProfileRepository userProfileRepository)
+        public UserService(
+            UserManager<User> userManager,
+            SignInManager<User> signInManager,
+            RoleManager<IdentityRole> roleManager,
+            IAdminAuditService adminAuditService,
+            UserProfileRepository userProfileRepository)
         {
             _userManager = userManager;
             _signInManager = signInManager;
+            _roleManager = roleManager;
+            _adminAuditService = adminAuditService;
             _userProfileRepository = userProfileRepository;
         }
 
@@ -55,6 +67,11 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
                 return false;
             }
 
+            if (user.AccountStatus == AccountStatus.Banned)
+            {
+                return false;
+            }
+
             var result = await _signInManager.PasswordSignInAsync(
                 user,
                 request.Password,
@@ -62,6 +79,764 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
                 lockoutOnFailure: false);
 
             return result.Succeeded;
+        }
+
+        public async Task<string?> LoginAdminAsync(LoginRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+            {
+                return null;
+            }
+
+            var normalizedEmail = request.Email.Trim();
+            var user = await _userManager.FindByEmailAsync(normalizedEmail);
+            if (user is null)
+            {
+                return null;
+            }
+
+            if (user.AccountStatus == AccountStatus.Deleted
+                || user.AccountStatus == AccountStatus.Deactivated
+                || user.AccountStatus == AccountStatus.Banned)
+            {
+                return null;
+            }
+
+            var result = await _signInManager.PasswordSignInAsync(
+                user,
+                request.Password,
+                isPersistent: true,
+                lockoutOnFailure: false);
+
+            if (!result.Succeeded)
+            {
+                return null;
+            }
+
+            var isSystemAdmin = await _userManager.IsInRoleAsync(user, AdminRoles.SystemAdmin);
+            var isBusinessAdmin = await _userManager.IsInRoleAsync(user, AdminRoles.BusinessAdmin);
+            if (isSystemAdmin)
+            {
+                return "/admin/system/dashboard";
+            }
+
+            if (isBusinessAdmin)
+            {
+                return "/admin/business/dashboard";
+            }
+
+            await _signInManager.SignOutAsync();
+            return null;
+        }
+
+        public async Task<AccountStatus?> GetAccountStatusByEmailAsync(string? email, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return null;
+            }
+
+            var normalizedEmail = email.Trim();
+            var user = await _userManager.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Email == normalizedEmail, cancellationToken);
+
+            return user?.AccountStatus;
+        }
+
+        public async Task<AdminCreationResult> CreateBusinessAdminAsync(
+            CreateBusinessAdminRequest request,
+            string performedByAdminId,
+            string? sourceIp = null,
+            string? correlationId = null,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (string.IsNullOrWhiteSpace(performedByAdminId))
+            {
+                return AdminCreationResult.Failure(new[] { "Unable to resolve acting admin account." });
+            }
+
+            var errors = new List<string>();
+            if (string.IsNullOrWhiteSpace(request.DisplayName))
+            {
+                errors.Add("Display name is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Email))
+            {
+                errors.Add("Email is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Password))
+            {
+                errors.Add("Password is required.");
+            }
+
+            if (errors.Count > 0)
+            {
+                var validationFailure = AdminCreationResult.Failure(errors);
+                await TraceAdminCreateAsync(
+                    performedByAdminId,
+                    request.Email,
+                    validationFailure,
+                    sourceIp,
+                    correlationId,
+                    cancellationToken);
+                return validationFailure;
+            }
+
+            var normalizedEmail = request.Email.Trim();
+            var existingUser = await _userManager.FindByEmailAsync(normalizedEmail);
+            if (existingUser is not null)
+            {
+                var duplicateFailure = AdminCreationResult.Failure(new[] { "Email is already in use." });
+                await TraceAdminCreateAsync(
+                    performedByAdminId,
+                    normalizedEmail,
+                    duplicateFailure,
+                    sourceIp,
+                    correlationId,
+                    cancellationToken);
+                return duplicateFailure;
+            }
+
+            try
+            {
+                var user = new User
+                {
+                    UserName = normalizedEmail,
+                    Email = normalizedEmail,
+                    DisplayName = request.DisplayName.Trim(),
+                    AccountStatus = AccountStatus.Active,
+                    CreatedAt = DateTime.UtcNow,
+                    IsOnline = false,
+                };
+
+                var createResult = await _userManager.CreateAsync(user, request.Password);
+                if (!createResult.Succeeded)
+                {
+                    var createFailure = AdminCreationResult.Failure(createResult.Errors.Select(error => error.Description));
+                    await TraceAdminCreateAsync(
+                        performedByAdminId,
+                        normalizedEmail,
+                        createFailure,
+                        sourceIp,
+                        correlationId,
+                        cancellationToken);
+                    return createFailure;
+                }
+
+                if (!await _roleManager.RoleExistsAsync(AdminRoles.BusinessAdmin))
+                {
+                    var createRoleResult = await _roleManager.CreateAsync(new IdentityRole(AdminRoles.BusinessAdmin));
+                    if (!createRoleResult.Succeeded)
+                    {
+                        await _userManager.DeleteAsync(user);
+                        var roleFailure = AdminCreationResult.Failure(createRoleResult.Errors.Select(error => error.Description));
+                        await TraceAdminCreateAsync(
+                            performedByAdminId,
+                            normalizedEmail,
+                            roleFailure,
+                            sourceIp,
+                            correlationId,
+                            cancellationToken);
+                        return roleFailure;
+                    }
+                }
+
+                var addRoleResult = await _userManager.AddToRoleAsync(user, AdminRoles.BusinessAdmin);
+                if (!addRoleResult.Succeeded)
+                {
+                    await _userManager.DeleteAsync(user);
+                    var addRoleFailure = AdminCreationResult.Failure(addRoleResult.Errors.Select(error => error.Description));
+                    await TraceAdminCreateAsync(
+                        performedByAdminId,
+                        normalizedEmail,
+                        addRoleFailure,
+                        sourceIp,
+                        correlationId,
+                        cancellationToken);
+                    return addRoleFailure;
+                }
+
+                var success = AdminCreationResult.Success(user.Id);
+                await TraceAdminCreateAsync(
+                    performedByAdminId,
+                    normalizedEmail,
+                    success,
+                    sourceIp,
+                    correlationId,
+                    cancellationToken);
+                return success;
+            }
+            catch (Exception ex)
+            {
+                var exceptionFailure = AdminCreationResult.Failure(new[] { "Unexpected error while creating admin account." });
+                await TraceAdminCreateAsync(
+                    performedByAdminId,
+                    normalizedEmail,
+                    exceptionFailure,
+                    sourceIp,
+                    correlationId,
+                    cancellationToken,
+                    ex.Message);
+                return exceptionFailure;
+            }
+        }
+
+        public async Task<IReadOnlyList<BusinessAdminListItem>> GetBusinessAdminsAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var users = await _userManager.Users
+                .AsNoTracking()
+                .Where(user => user.AccountStatus != AccountStatus.Deleted)
+                .OrderByDescending(user => user.CreatedAt)
+                .ToListAsync(cancellationToken);
+
+            var list = new List<BusinessAdminListItem>();
+            foreach (var user in users)
+            {
+                if (await _userManager.IsInRoleAsync(user, AdminRoles.BusinessAdmin))
+                {
+                    list.Add(new BusinessAdminListItem
+                    {
+                        UserId = user.Id,
+                        DisplayName = user.DisplayName,
+                        Email = user.Email ?? string.Empty,
+                        AccountStatus = user.AccountStatus,
+                        CreatedAt = user.CreatedAt,
+                    });
+                }
+            }
+
+            return list;
+        }
+
+        public async Task<IReadOnlyList<NormalUserListItem>> GetNormalUsersAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var users = await _userManager.Users
+                .AsNoTracking()
+                .Where(user => user.AccountStatus != AccountStatus.Deleted)
+                .OrderByDescending(user => user.CreatedAt)
+                .ToListAsync(cancellationToken);
+
+            var systemAdmins = await _userManager.GetUsersInRoleAsync(AdminRoles.SystemAdmin);
+            var businessAdmins = await _userManager.GetUsersInRoleAsync(AdminRoles.BusinessAdmin);
+
+            var adminIds = systemAdmins
+                .Concat(businessAdmins)
+                .Select(admin => admin.Id)
+                .ToHashSet(StringComparer.Ordinal);
+
+            var list = users
+                .Where(user => !adminIds.Contains(user.Id))
+                .Select(user => new NormalUserListItem
+                {
+                    UserId = user.Id,
+                    DisplayName = user.DisplayName,
+                    Email = user.Email ?? string.Empty,
+                    AccountStatus = user.AccountStatus,
+                    IsOnline = user.IsOnline,
+                    CreatedAt = user.CreatedAt,
+                    LastSeenAt = user.LastSeenAt,
+                })
+                .ToList();
+
+            return list;
+        }
+
+        public async Task<AccountOperationResult> DeactivateUserByAdminAsync(
+            string userId,
+            string performedByAdminId,
+            string? sourceIp = null,
+            string? correlationId = null,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (string.IsNullOrWhiteSpace(performedByAdminId))
+            {
+                var actorFailure = AccountOperationResult.Failure(new[] { "Unable to resolve acting admin account." });
+                await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserDeactivated, actorFailure, sourceIp, correlationId, cancellationToken);
+                return actorFailure;
+            }
+
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                var idFailure = AccountOperationResult.Failure(new[] { "User ID is required." });
+                await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserDeactivated, idFailure, sourceIp, correlationId, cancellationToken);
+                return idFailure;
+            }
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user is null)
+            {
+                var notFound = AccountOperationResult.Failure(new[] { "User profile not found." });
+                await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserDeactivated, notFound, sourceIp, correlationId, cancellationToken);
+                return notFound;
+            }
+
+            if (await IsAnyAdminAsync(user))
+            {
+                var adminTargetFailure = AccountOperationResult.Failure(new[] { "This action is only available for normal users." });
+                await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserDeactivated, adminTargetFailure, sourceIp, correlationId, cancellationToken);
+                return adminTargetFailure;
+            }
+
+            if (user.AccountStatus == AccountStatus.Banned)
+            {
+                var bannedFailure = AccountOperationResult.Failure(new[] { "Banned users cannot be deactivated." });
+                await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserDeactivated, bannedFailure, sourceIp, correlationId, cancellationToken);
+                return bannedFailure;
+            }
+
+            var result = await DeactivateAccountAsync(userId);
+            await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserDeactivated, result, sourceIp, correlationId, cancellationToken);
+            return result;
+        }
+
+        public async Task<AccountOperationResult> ReactivateUserByAdminAsync(
+            string userId,
+            string performedByAdminId,
+            string? sourceIp = null,
+            string? correlationId = null,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (string.IsNullOrWhiteSpace(performedByAdminId))
+            {
+                var actorFailure = AccountOperationResult.Failure(new[] { "Unable to resolve acting admin account." });
+                await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserReactivated, actorFailure, sourceIp, correlationId, cancellationToken);
+                return actorFailure;
+            }
+
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                var idFailure = AccountOperationResult.Failure(new[] { "User ID is required." });
+                await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserReactivated, idFailure, sourceIp, correlationId, cancellationToken);
+                return idFailure;
+            }
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user is null)
+            {
+                var notFound = AccountOperationResult.Failure(new[] { "User profile not found." });
+                await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserReactivated, notFound, sourceIp, correlationId, cancellationToken);
+                return notFound;
+            }
+
+            if (await IsAnyAdminAsync(user))
+            {
+                var adminTargetFailure = AccountOperationResult.Failure(new[] { "This action is only available for normal users." });
+                await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserReactivated, adminTargetFailure, sourceIp, correlationId, cancellationToken);
+                return adminTargetFailure;
+            }
+
+            if (user.AccountStatus == AccountStatus.Banned)
+            {
+                var bannedFailure = AccountOperationResult.Failure(new[] { "Banned users must be unbanned before reactivation." });
+                await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserReactivated, bannedFailure, sourceIp, correlationId, cancellationToken);
+                return bannedFailure;
+            }
+
+            var result = await ReactivateAccountAsync(userId);
+            await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserReactivated, result, sourceIp, correlationId, cancellationToken);
+            return result;
+        }
+
+        public async Task<AccountOperationResult> BanUserByAdminAsync(
+            string userId,
+            string performedByAdminId,
+            string? sourceIp = null,
+            string? correlationId = null,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (string.IsNullOrWhiteSpace(performedByAdminId))
+            {
+                var actorFailure = AccountOperationResult.Failure(new[] { "Unable to resolve acting admin account." });
+                await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserBanned, actorFailure, sourceIp, correlationId, cancellationToken);
+                return actorFailure;
+            }
+
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                var idFailure = AccountOperationResult.Failure(new[] { "User ID is required." });
+                await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserBanned, idFailure, sourceIp, correlationId, cancellationToken);
+                return idFailure;
+            }
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user is null)
+            {
+                var notFound = AccountOperationResult.Failure(new[] { "User profile not found." });
+                await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserBanned, notFound, sourceIp, correlationId, cancellationToken);
+                return notFound;
+            }
+
+            if (await IsAnyAdminAsync(user))
+            {
+                var adminTargetFailure = AccountOperationResult.Failure(new[] { "This action is only available for normal users." });
+                await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserBanned, adminTargetFailure, sourceIp, correlationId, cancellationToken);
+                return adminTargetFailure;
+            }
+
+            if (user.AccountStatus == AccountStatus.Deleted)
+            {
+                var deletedFailure = AccountOperationResult.Failure(new[] { "Deleted accounts cannot be banned." });
+                await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserBanned, deletedFailure, sourceIp, correlationId, cancellationToken);
+                return deletedFailure;
+            }
+
+            if (user.AccountStatus == AccountStatus.Banned)
+            {
+                var alreadyFailure = AccountOperationResult.Failure(new[] { "User is already banned." });
+                await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserBanned, alreadyFailure, sourceIp, correlationId, cancellationToken);
+                return alreadyFailure;
+            }
+
+            user.IsOnline = false;
+            user.LastSeenAt = DateTime.UtcNow;
+            user.AccountStatus = AccountStatus.Banned;
+            user.DeactivatedAt = DateTime.UtcNow;
+            user.DisplayName = EnsureBannedTag(user.DisplayName);
+
+            var updateResult = await _userManager.UpdateAsync(user);
+            var result = updateResult.Succeeded
+                ? AccountOperationResult.Success()
+                : FromIdentityResult(updateResult);
+
+            await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserBanned, result, sourceIp, correlationId, cancellationToken);
+            return result;
+        }
+
+        public async Task<AccountOperationResult> UnbanUserByAdminAsync(
+            string userId,
+            string performedByAdminId,
+            string? sourceIp = null,
+            string? correlationId = null,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (string.IsNullOrWhiteSpace(performedByAdminId))
+            {
+                var actorFailure = AccountOperationResult.Failure(new[] { "Unable to resolve acting admin account." });
+                await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserUnbanned, actorFailure, sourceIp, correlationId, cancellationToken);
+                return actorFailure;
+            }
+
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                var idFailure = AccountOperationResult.Failure(new[] { "User ID is required." });
+                await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserUnbanned, idFailure, sourceIp, correlationId, cancellationToken);
+                return idFailure;
+            }
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user is null)
+            {
+                var notFound = AccountOperationResult.Failure(new[] { "User profile not found." });
+                await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserUnbanned, notFound, sourceIp, correlationId, cancellationToken);
+                return notFound;
+            }
+
+            if (await IsAnyAdminAsync(user))
+            {
+                var adminTargetFailure = AccountOperationResult.Failure(new[] { "This action is only available for normal users." });
+                await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserUnbanned, adminTargetFailure, sourceIp, correlationId, cancellationToken);
+                return adminTargetFailure;
+            }
+
+            if (user.AccountStatus != AccountStatus.Banned)
+            {
+                var notBannedFailure = AccountOperationResult.Failure(new[] { "User is not banned." });
+                await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserUnbanned, notBannedFailure, sourceIp, correlationId, cancellationToken);
+                return notBannedFailure;
+            }
+
+            user.AccountStatus = AccountStatus.Active;
+            user.DeactivatedAt = null;
+            user.DisplayName = RemoveBannedTag(user.DisplayName);
+
+            var updateResult = await _userManager.UpdateAsync(user);
+            var result = updateResult.Succeeded
+                ? AccountOperationResult.Success()
+                : FromIdentityResult(updateResult);
+
+            await TraceUserAccountActionAsync(performedByAdminId, userId, AdminActionType.UserUnbanned, result, sourceIp, correlationId, cancellationToken);
+            return result;
+        }
+
+        public async Task<AccountOperationResult> DisableAdminAsync(
+            string adminIdToDisable,
+            string performedByAdminId,
+            string? sourceIp = null,
+            string? correlationId = null,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (string.IsNullOrWhiteSpace(performedByAdminId))
+            {
+                var noActorFailure = AccountOperationResult.Failure(new[] { "Unable to resolve acting admin account." });
+                await TraceAdminDisableAsync(
+                    performedByAdminId,
+                    adminIdToDisable,
+                    noActorFailure,
+                    sourceIp,
+                    correlationId,
+                    cancellationToken);
+                return noActorFailure;
+            }
+
+            if (string.IsNullOrWhiteSpace(adminIdToDisable))
+            {
+                return AccountOperationResult.Failure(new[] { "Admin ID is required." });
+            }
+
+            if (performedByAdminId == adminIdToDisable)
+            {
+                var selfDisableFailure = AccountOperationResult.Failure(new[] { "Cannot disable your own account." });
+                await TraceAdminDisableAsync(
+                    performedByAdminId,
+                    adminIdToDisable,
+                    selfDisableFailure,
+                    sourceIp,
+                    correlationId,
+                    cancellationToken);
+                return selfDisableFailure;
+            }
+
+            var user = await _userManager.FindByIdAsync(adminIdToDisable);
+            if (user is null)
+            {
+                var notFoundFailure = AccountOperationResult.Failure(new[] { "Admin account not found." });
+                await TraceAdminDisableAsync(
+                    performedByAdminId,
+                    adminIdToDisable,
+                    notFoundFailure,
+                    sourceIp,
+                    correlationId,
+                    cancellationToken);
+                return notFoundFailure;
+            }
+
+            if (user.AccountStatus == AccountStatus.Deactivated)
+            {
+                var alreadyDisabledFailure = AccountOperationResult.Failure(new[] { "Admin account is already disabled." });
+                await TraceAdminDisableAsync(
+                    performedByAdminId,
+                    adminIdToDisable,
+                    alreadyDisabledFailure,
+                    sourceIp,
+                    correlationId,
+                    cancellationToken);
+                return alreadyDisabledFailure;
+            }
+
+            try
+            {
+                user.AccountStatus = AccountStatus.Deactivated;
+                var updateResult = await _userManager.UpdateAsync(user);
+
+                if (!updateResult.Succeeded)
+                {
+                    var updateFailure = AccountOperationResult.Failure(updateResult.Errors.Select(error => error.Description));
+                    await TraceAdminDisableAsync(
+                        performedByAdminId,
+                        adminIdToDisable,
+                        updateFailure,
+                        sourceIp,
+                        correlationId,
+                        cancellationToken);
+                    return updateFailure;
+                }
+
+                var success = AccountOperationResult.Success();
+                await TraceAdminDisableAsync(
+                    performedByAdminId,
+                    adminIdToDisable,
+                    success,
+                    sourceIp,
+                    correlationId,
+                    cancellationToken);
+                return success;
+            }
+            catch (Exception ex)
+            {
+                var exceptionFailure = AccountOperationResult.Failure(new[] { "Unexpected error while disabling admin account." });
+                await TraceAdminDisableAsync(
+                    performedByAdminId,
+                    adminIdToDisable,
+                    exceptionFailure,
+                    sourceIp,
+                    correlationId,
+                    cancellationToken,
+                    ex.Message);
+                return exceptionFailure;
+            }
+        }
+
+        private async Task TraceAdminCreateAsync(
+            string performedByAdminId,
+            string? targetEmail,
+            AdminCreationResult result,
+            string? sourceIp,
+            string? correlationId,
+            CancellationToken cancellationToken,
+            string? extraMetadata = null)
+        {
+            var metadata = result.Succeeded
+                ? null
+                : string.Join(" | ", result.Errors);
+
+            if (!string.IsNullOrWhiteSpace(extraMetadata))
+            {
+                metadata = string.IsNullOrWhiteSpace(metadata)
+                    ? extraMetadata
+                    : $"{metadata} | {extraMetadata}";
+            }
+
+            await _adminAuditService.TraceAsync(new AdminAuditEntryRequest
+            {
+                PerformedByAdminId = performedByAdminId,
+                ActionType = AdminActionType.AdminCreated,
+                IsSuccess = result.Succeeded,
+                TargetEntityType = "User",
+                TargetEntityId = result.Succeeded ? result.CreatedAdminId : targetEmail,
+                Summary = result.Succeeded
+                    ? $"Created business admin {targetEmail}"
+                    : $"Failed to create business admin {targetEmail}",
+                MetadataJson = metadata,
+                CorrelationId = correlationId,
+                SourceIp = sourceIp,
+            }, cancellationToken);
+        }
+
+        private async Task TraceAdminDisableAsync(
+            string performedByAdminId,
+            string targetAdminId,
+            AccountOperationResult result,
+            string? sourceIp,
+            string? correlationId,
+            CancellationToken cancellationToken,
+            string? extraMetadata = null)
+        {
+            var metadata = result.Succeeded
+                ? null
+                : string.Join(" | ", result.Errors);
+
+            if (!string.IsNullOrWhiteSpace(extraMetadata))
+            {
+                metadata = string.IsNullOrWhiteSpace(metadata)
+                    ? extraMetadata
+                    : $"{metadata} | {extraMetadata}";
+            }
+
+            await _adminAuditService.TraceAsync(new AdminAuditEntryRequest
+            {
+                PerformedByAdminId = performedByAdminId,
+                ActionType = AdminActionType.AdminDisabled,
+                IsSuccess = result.Succeeded,
+                TargetEntityType = "User",
+                TargetEntityId = targetAdminId,
+                Summary = result.Succeeded
+                    ? $"Disabled admin account {targetAdminId}"
+                    : $"Failed to disable admin account {targetAdminId}",
+                MetadataJson = metadata,
+                CorrelationId = correlationId,
+                SourceIp = sourceIp,
+            }, cancellationToken);
+        }
+
+        private async Task TraceUserAccountActionAsync(
+            string performedByAdminId,
+            string targetUserId,
+            AdminActionType actionType,
+            AccountOperationResult result,
+            string? sourceIp,
+            string? correlationId,
+            CancellationToken cancellationToken,
+            string? extraMetadata = null)
+        {
+            var metadata = result.Succeeded
+                ? null
+                : string.Join(" | ", result.Errors);
+
+            if (!string.IsNullOrWhiteSpace(extraMetadata))
+            {
+                metadata = string.IsNullOrWhiteSpace(metadata)
+                    ? extraMetadata
+                    : $"{metadata} | {extraMetadata}";
+            }
+
+            await _adminAuditService.TraceAsync(new AdminAuditEntryRequest
+            {
+                PerformedByAdminId = performedByAdminId,
+                ActionType = actionType,
+                IsSuccess = result.Succeeded,
+                TargetEntityType = "User",
+                TargetEntityId = targetUserId,
+                Summary = result.Succeeded
+                    ? $"{actionType} applied to user {targetUserId}"
+                    : $"{actionType} failed for user {targetUserId}",
+                MetadataJson = metadata,
+                CorrelationId = correlationId,
+                SourceIp = sourceIp,
+            }, cancellationToken);
+        }
+
+        private async Task<bool> IsAnyAdminAsync(User user)
+        {
+            return await _userManager.IsInRoleAsync(user, AdminRoles.SystemAdmin)
+                || await _userManager.IsInRoleAsync(user, AdminRoles.BusinessAdmin);
+        }
+
+        private static string EnsureBannedTag(string? displayName)
+        {
+            var baseName = string.IsNullOrWhiteSpace(displayName)
+                ? "User"
+                : RemoveBannedTag(displayName).Trim();
+
+            return baseName.EndsWith(BannedDisplayTag, StringComparison.Ordinal)
+                ? baseName
+                : baseName + BannedDisplayTag;
+        }
+
+        private static string RemoveBannedTag(string? displayName)
+        {
+            if (string.IsNullOrWhiteSpace(displayName))
+            {
+                return "User";
+            }
+
+            var current = displayName.Trim();
+
+            while (current.EndsWith(BannedDisplayTag, StringComparison.Ordinal)
+                || current.EndsWith("[Banned]", StringComparison.Ordinal))
+            {
+                if (current.EndsWith(BannedDisplayTag, StringComparison.Ordinal))
+                {
+                    current = current[..^BannedDisplayTag.Length].TrimEnd();
+                    continue;
+                }
+
+                current = current[..^"[Banned]".Length].TrimEnd();
+            }
+
+            return string.IsNullOrWhiteSpace(current)
+                ? "User"
+                : current;
         }
 
         public async Task<RegistrationResult> RegisterAsync(RegisterRequest request)
