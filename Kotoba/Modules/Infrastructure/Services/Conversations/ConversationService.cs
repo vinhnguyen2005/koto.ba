@@ -136,19 +136,38 @@ namespace Kotoba.Modules.Infrastructure.Services.Conversations
                 || request.ParticipantIds.Count >= 3
                 ? ConversationType.Group
                 : ConversationType.Direct;
+
             Conversation newConversation = new Conversation
             {
                 Type = type,
-                GroupName = request.GroupName
+                GroupName = request.GroupName,
+                OwnerId = request.CreatorId
             };
             await _conversationRepository.AddAsync(newConversation);
 
+            var adminIds = request.AdminIds ?? new List<string>();
+
             foreach (string participantId in request.ParticipantIds)
             {
+                GroupRole role;
+                if (participantId == request.CreatorId)
+                {
+                    role = GroupRole.Owner; 
+                }
+                else if (adminIds.Contains(participantId))
+                {
+                    role = GroupRole.Admin;  
+                }
+                else
+                {
+                    role = GroupRole.Member; 
+                }
+
                 await _conversationParticipantRepository.AddAsync(new ConversationParticipant
                 {
                     ConversationId = newConversation.Id,
-                    UserId = participantId
+                    UserId = participantId,
+                    Role = role
                 });
             }
 
@@ -265,14 +284,5 @@ namespace Kotoba.Modules.Infrastructure.Services.Conversations
         {
             return _conversationParticipantRepository.GetAllUsersInConversationAsync(conversationId);
         }
-
-        public Task AddMemberAsync(string conversationId, string userId)
-    => _conversationParticipantRepository.AddMemberAsync(conversationId, userId);
-
-        public Task RemoveMemberAsync(string conversationId, string userId)
-            => _conversationParticipantRepository.RemoveMemberAsync(conversationId, userId);
-
-        public Task LeaveConversationAsync(string conversationId, string userId)
-    => _conversationParticipantRepository.LeaveConversationAsync(conversationId, userId);
     }
 }

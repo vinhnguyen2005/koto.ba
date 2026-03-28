@@ -14,4 +14,5 @@ public class UserProfile
     public DateTime? LastSeenAt { get; set; }
     public string? CurrentThought { get; set; }
     public AccountStatus AccountStatus { get; set; }
+    public string? Role { get; set; }
 }

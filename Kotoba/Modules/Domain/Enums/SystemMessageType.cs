@@ -2,8 +2,14 @@ namespace Kotoba.Modules.Domain.Enums
 {
     public enum SystemMessageType
     {
-        MemberAdded = 0,
-        MemberRemoved = 1,
-        UserLeft = 2
+        UserJoined = 0,
+        UserLeft = 1,
+        MemberAdded = 2,
+        MemberRemoved = 3,
+        MemberPromoted = 4,     
+        MemberDemoted = 5,      
+        OwnershipTransferred = 6, 
+        GroupNameChanged = 7,  
+        OwnerLeft = 8
     }
 }

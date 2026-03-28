@@ -16,10 +16,12 @@ namespace Kotoba.Modules.Hubs
         private readonly IReactionService _reactionService;
         private readonly ICurrentThoughtService _thoughtService;
         private readonly IHubContext<NotificationHub> _notifHub;
+        private readonly IGroupAdminService _adminService;
         private readonly IMessageService _messageService;
         public ChatHub(KotobaDbContext context,
             IReactionService reactionService,
             ICurrentThoughtService thoughtService,
+            IGroupAdminService adminService,
             IHubContext<NotificationHub> notifHub,
             IMessageService messageService)
         {
@@ -27,6 +29,7 @@ namespace Kotoba.Modules.Hubs
             _reactionService = reactionService;
             _thoughtService = thoughtService;
             _notifHub = notifHub;
+            _adminService = adminService;
             _messageService = messageService;
         }
 
@@ -241,6 +244,21 @@ namespace Kotoba.Modules.Hubs
             await AssertUserCanWriteAsync(userId);
             var convId = Guid.Parse(conversationId);
 
+            var conversation = await _context.Conversations.FindAsync(convId);
+
+            if (conversation?.Type != ConversationType.Group)
+                throw new HubException("Can only kick members from groups.");
+            var isOwnerOrAdmin = await _adminService.IsOwnerOrAdminAsync(convId, userId);
+            if (!isOwnerOrAdmin)
+                throw new HubException("Only owner/admin can kick members.");
+
+            var targetRole = await _adminService.GetUserRoleAsync(convId, targetUserId);
+            if (targetRole == GroupRole.Owner)
+                throw new HubException("Cannot kick owner.");
+
+            if (userId == targetUserId)
+                throw new HubException("Cannot kick yourself.");
+
             var targetUser = await _context.Users.FindAsync(targetUserId);
             var displayName = targetUser?.DisplayName ?? "User";
 
@@ -258,33 +276,12 @@ namespace Kotoba.Modules.Hubs
                 )
             };
             await _context.Messages.AddAsync(systemMsg);
-
-            await _context.ConversationParticipants
-                .Where(p => p.ConversationId == convId && p.UserId == targetUserId)
-                .ExecuteUpdateAsync(s => s
-                    .SetProperty(p => p.IsActive, false)
-                    .SetProperty(p => p.LeftAt, DateTime.UtcNow));
+            await _adminService.RemoveMemberAsync(convId, targetUserId);
 
             await _context.SaveChangesAsync();
 
-            // Notify bị kick
             await Clients.User(targetUserId).SendAsync("RemovedFromGroup", conversationId);
-
-            // Broadcast system message
-            var sysMsgDto = new MessageDto
-            {
-                MessageId = systemMsg.Id,
-                SenderId = userId,
-                Content = systemMsg.Content,
-                ConversationId = convId,
-                CreatedAt = systemMsg.CreatedAt,
-                Status = MessageStatus.Sent,
-                IsSystemMessage = true,
-                SystemMessageType = SystemMessageType.MemberRemoved,
-                SystemMessageData = new SystemMessageDataDto { UserId = targetUserId, DisplayName = displayName }
-            };
-
-            await Clients.Group(conversationId).SendAsync("MessageConfirmed", sysMsgDto, systemMsg.Id.ToString());
+            await Clients.Group(conversationId).SendAsync("MessageConfirmed", MapSystemMessageToDto(systemMsg), systemMsg.Id.ToString());
             await Clients.Group(conversationId).SendAsync("ConversationListChanged");
             await Clients.Group(conversationId).SendAsync("MembersUpdated");
         }
@@ -295,6 +292,7 @@ namespace Kotoba.Modules.Hubs
             await AssertUserCanWriteAsync(userId);
             var convId = Guid.Parse(conversationId);
 
+            var userRole = await _adminService.GetUserRoleAsync(convId, userId);
             var user = await _context.Users.FindAsync(userId);
             var displayName = user?.DisplayName ?? "User";
 
@@ -303,40 +301,39 @@ namespace Kotoba.Modules.Hubs
                 Id = Guid.NewGuid(),
                 ConversationId = convId,
                 SenderId = userId,
-                Content = $"{displayName} has left the chat",
+                Content = userRole == GroupRole.Owner
+                    ? $"Owner {displayName} left the group"
+                    : $"{displayName} left the group",
                 CreatedAt = DateTime.UtcNow,
                 IsSystemMessage = true,
-                SystemMessageType = SystemMessageType.UserLeft,
+                SystemMessageType = userRole == GroupRole.Owner ? SystemMessageType.OwnerLeft : SystemMessageType.UserLeft,
                 SystemMessageData = System.Text.Json.JsonSerializer.Serialize(
                     new SystemMessageDataDto { UserId = userId, DisplayName = displayName }
                 )
             };
             await _context.Messages.AddAsync(systemMsg);
-
-            await _context.ConversationParticipants
-                .Where(p => p.ConversationId == convId && p.UserId == userId)
-                .ExecuteUpdateAsync(s => s
-                    .SetProperty(p => p.IsActive, false)
-                    .SetProperty(p => p.LeftAt, DateTime.UtcNow));
+            await _adminService.LeaveConversationAsync(convId, userId);
+            string? newOwnerId = null;
+            if (userRole == GroupRole.Owner)
+            {
+                newOwnerId = await _adminService.AutoTransferOwnershipOnLeaveAsync(convId);
+                if (newOwnerId != null)
+                {
+                    var newOwner = await _context.Users.FindAsync(newOwnerId);
+                    systemMsg.Content = $"Ownership transferred to {newOwner?.DisplayName}";
+                }
+            }
 
             await _context.SaveChangesAsync();
-
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, conversationId);
 
-            var sysMsgDto = new MessageDto
-            {
-                MessageId = systemMsg.Id,
-                SenderId = userId,
-                Content = systemMsg.Content,
-                ConversationId = convId,
-                CreatedAt = systemMsg.CreatedAt,
-                Status = MessageStatus.Sent,
-                IsSystemMessage = true,
-                SystemMessageType = SystemMessageType.UserLeft,
-                SystemMessageData = new SystemMessageDataDto { UserId = userId, DisplayName = displayName }
-            };
+            await Clients.OthersInGroup(conversationId).SendAsync("MessageConfirmed", MapSystemMessageToDto(systemMsg), systemMsg.Id.ToString());
 
-            await Clients.OthersInGroup(conversationId).SendAsync("MessageConfirmed", sysMsgDto, systemMsg.Id.ToString());
+            if (newOwnerId != null)
+            {
+                await Clients.Group(conversationId).SendAsync("OwnershipTransferred", newOwnerId);
+            }
+
             await Clients.Group(conversationId).SendAsync("ConversationListChanged");
             await Clients.OthersInGroup(conversationId).SendAsync("MembersUpdated");
         }
@@ -381,6 +378,216 @@ namespace Kotoba.Modules.Hubs
             await Clients.Group(conversationId).SendAsync("MembersUpdated");
         }
 
+        public async Task PromoteToAdmin(Guid conversationId, string targetUserId)
+        {
+            var userId = Context.UserIdentifier!;
+            await AssertUserCanWriteAsync(userId);
+            var isOwner = await _adminService.IsOwnerAsync(conversationId, userId);
+            if (!isOwner)
+                throw new HubException("Only owner can promote members.");
+
+            var success = await _adminService.PromoteToAdminAsync(conversationId, targetUserId);
+            if (!success)
+                throw new HubException("Promote failed - user not found or already admin.");
+
+            var targetUser = await _context.Users.FindAsync(targetUserId);
+            var systemMsg = new Message
+            {
+                Id = Guid.NewGuid(),
+                ConversationId = conversationId,
+                SenderId = userId,
+                Content = $"{targetUser?.DisplayName} is now an admin",
+                CreatedAt = DateTime.UtcNow,
+                IsSystemMessage = true,
+                SystemMessageType = SystemMessageType.MemberPromoted,
+                SystemMessageData = System.Text.Json.JsonSerializer.Serialize(
+                    new SystemMessageDataDto { UserId = targetUserId, DisplayName = targetUser?.DisplayName }
+                )
+            };
+            await _context.Messages.AddAsync(systemMsg);
+            await _context.SaveChangesAsync();
+
+            await Clients.Group(conversationId.ToString())
+                .SendAsync("MessageConfirmed", MapSystemMessageToDto(systemMsg), systemMsg.Id.ToString());
+            await Clients.Group(conversationId.ToString())
+                .SendAsync("MembersUpdated");
+        }
+        public async Task DemoteFromAdmin(Guid conversationId, string targetUserId)
+        {
+            var userId = Context.UserIdentifier!;
+            await AssertUserCanWriteAsync(userId);
+            var isOwner = await _adminService.IsOwnerAsync(conversationId, userId);
+            if (!isOwner)
+                throw new HubException("Only owner can demote admins.");
+
+            var success = await _adminService.DemoteFromAdminAsync(conversationId, targetUserId);
+            if (!success)
+                throw new HubException("Demote failed - user not found or not admin.");
+
+            var targetUser = await _context.Users.FindAsync(targetUserId);
+            var systemMsg = new Message
+            {
+                Id = Guid.NewGuid(),
+                ConversationId = conversationId,
+                SenderId = userId,
+                Content = $"{targetUser?.DisplayName} is no longer an admin",
+                CreatedAt = DateTime.UtcNow,
+                IsSystemMessage = true,
+                SystemMessageType = SystemMessageType.MemberDemoted,
+                SystemMessageData = System.Text.Json.JsonSerializer.Serialize(
+                    new SystemMessageDataDto { UserId = targetUserId, DisplayName = targetUser?.DisplayName }
+                )
+            };
+            await _context.Messages.AddAsync(systemMsg);
+            await _context.SaveChangesAsync();
+
+            await Clients.Group(conversationId.ToString())
+                .SendAsync("MessageConfirmed", MapSystemMessageToDto(systemMsg), systemMsg.Id.ToString());
+            await Clients.Group(conversationId.ToString())
+                .SendAsync("MembersUpdated");
+        }
+
+        public async Task TransferOwnership(Guid conversationId, string newOwnerId)
+        {
+            var userId = Context.UserIdentifier!;
+            await AssertUserCanWriteAsync(userId);
+
+            var isOwner = await _adminService.IsOwnerAsync(conversationId, userId);
+            if (!isOwner)
+                throw new HubException("Only owner can transfer ownership.");
+
+            var success = await _adminService.TransferOwnershipAsync(conversationId, userId, newOwnerId);
+            if (!success)
+                throw new HubException("Transfer failed.");
+
+            var newOwnerUser = await _context.Users.FindAsync(newOwnerId);
+            var systemMsg = new Message
+            {
+                Id = Guid.NewGuid(),
+                ConversationId = conversationId,
+                SenderId = userId,
+                Content = $"Ownership transferred to {newOwnerUser?.DisplayName}",
+                CreatedAt = DateTime.UtcNow,
+                IsSystemMessage = true,
+                SystemMessageType = SystemMessageType.OwnershipTransferred,
+                SystemMessageData = System.Text.Json.JsonSerializer.Serialize(
+                    new SystemMessageDataDto { UserId = newOwnerId, DisplayName = newOwnerUser?.DisplayName }
+                )
+            };
+            await _context.Messages.AddAsync(systemMsg);
+            await _context.SaveChangesAsync();
+
+            await Clients.Group(conversationId.ToString())
+                .SendAsync("MessageConfirmed", MapSystemMessageToDto(systemMsg), systemMsg.Id.ToString());
+            await Clients.Group(conversationId.ToString())
+                .SendAsync("MembersUpdated");
+        }
+
+        public async Task EditGroupName(Guid conversationId, string newName)
+        {
+            var userId = Context.UserIdentifier!;
+            await AssertUserCanWriteAsync(userId);
+            var isOwnerOrAdmin = await _adminService.IsOwnerOrAdminAsync(conversationId, userId);
+            if (!isOwnerOrAdmin)
+                throw new HubException("Only owner/admin can edit group name.");
+
+            var success = await _adminService.UpdateGroupNameAsync(conversationId, newName);
+            if (!success)
+                throw new HubException("Update failed.");
+            var updatedConv = await _context.Conversations.FindAsync(conversationId);
+
+            var systemMsg = new Message
+            {
+                Id = Guid.NewGuid(),
+                ConversationId = conversationId,
+                SenderId = userId,
+                Content = $"Group name changed to '{newName}'",
+                CreatedAt = DateTime.UtcNow,
+                IsSystemMessage = true,
+                SystemMessageType = SystemMessageType.GroupNameChanged,
+                SystemMessageData = System.Text.Json.JsonSerializer.Serialize(
+                    new { GroupName = newName }
+                )
+            };
+            await _context.Messages.AddAsync(systemMsg);
+            await _context.SaveChangesAsync();
+
+            await Clients.Group(conversationId.ToString())
+                .SendAsync("MessageConfirmed", MapSystemMessageToDto(systemMsg), systemMsg.Id.ToString());
+            await Clients.Group(conversationId.ToString())
+                .SendAsync("GroupNameUpdated", newName);
+            var participantIds = await _context.ConversationParticipants
+    .Where(p => p.ConversationId == conversationId && p.IsActive)
+    .Select(p => p.UserId)
+    .ToListAsync();
+
+            await Clients.Users(participantIds).SendAsync("ConversationListChanged");
+        }
+
+        public async Task AddMember(Guid conversationId, string targetUserId)
+        {
+            var userId = Context.UserIdentifier!;
+            await AssertUserCanWriteAsync(userId);
+
+            var conversation = await _context.Conversations.FindAsync(conversationId);
+            if (conversation?.Type != ConversationType.Group)
+                throw new HubException("Can only add members to groups.");
+            var requestorRole = await _adminService.GetUserRoleAsync(conversationId, userId);
+            if (requestorRole != GroupRole.Owner && requestorRole != GroupRole.Admin)
+                throw new HubException("Only owner/admin can add members.");
+            var targetUser = await _context.Users.FindAsync(targetUserId);
+            if (targetUser == null || targetUser.AccountStatus != AccountStatus.Active)
+                throw new HubException("User not found or inactive.");
+
+            var existing = await _context.ConversationParticipants
+                .FirstOrDefaultAsync(p => p.ConversationId == conversationId && p.UserId == targetUserId);
+
+            if (existing?.IsActive == true)
+                throw new HubException("User already in group.");
+            var success = await _adminService.AddMemberAsync(conversationId, targetUserId);
+            if (!success)
+                throw new HubException("Add member failed.");
+
+            var displayName = targetUser.DisplayName ?? "User";
+            var systemMsg = new Message
+            {
+                Id = Guid.NewGuid(),
+                ConversationId = conversationId,
+                SenderId = userId,
+                Content = $"{displayName} is added to the group",
+                CreatedAt = DateTime.UtcNow,
+                IsSystemMessage = true,
+                SystemMessageType = SystemMessageType.MemberAdded,
+                SystemMessageData = System.Text.Json.JsonSerializer.Serialize(
+                    new SystemMessageDataDto { UserId = targetUserId, DisplayName = displayName }
+                )
+            };
+            await _context.Messages.AddAsync(systemMsg);
+            await _context.SaveChangesAsync();
+
+            var sysMsgDto = new MessageDto
+            {
+                MessageId = systemMsg.Id,
+                SenderId = userId,
+                Content = systemMsg.Content,
+                ConversationId = conversationId,
+                CreatedAt = systemMsg.CreatedAt,
+                Status = MessageStatus.Sent,
+                IsSystemMessage = true,
+                SystemMessageType = SystemMessageType.MemberAdded,
+                SystemMessageData = new SystemMessageDataDto { UserId = targetUserId, DisplayName = displayName }
+            };
+
+            await Clients.Group(conversationId.ToString())
+                .SendAsync("MessageConfirmed", sysMsgDto, systemMsg.Id.ToString());
+
+            await Clients.User(targetUserId).SendAsync("ConversationListChanged");
+            await Clients.Group(conversationId.ToString())
+                .SendAsync("MembersUpdated");
+        }
+
+
+
         // Revoke message
         public async Task RevokeMessage(Guid conversationId, Guid messageId)
         {
@@ -415,6 +622,24 @@ namespace Kotoba.Modules.Hubs
 
             await Clients.Group(conversationId)
                 .SendAsync("ConversationListChanged");
+        }
+
+        private MessageDto MapSystemMessageToDto(Message systemMsg)
+        {
+            return new MessageDto
+            {
+                MessageId = systemMsg.Id,
+                SenderId = systemMsg.SenderId,
+                Content = systemMsg.Content,
+                ConversationId = systemMsg.ConversationId,
+                CreatedAt = systemMsg.CreatedAt,
+                Status = MessageStatus.Sent,
+                IsSystemMessage = true,
+                SystemMessageType = systemMsg.SystemMessageType,
+                SystemMessageData = string.IsNullOrEmpty(systemMsg.SystemMessageData)
+                    ? null
+                    : System.Text.Json.JsonSerializer.Deserialize<SystemMessageDataDto>(systemMsg.SystemMessageData)
+            };
         }
     }
 }

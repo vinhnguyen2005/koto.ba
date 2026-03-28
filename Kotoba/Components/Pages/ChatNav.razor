@@ -1201,6 +1201,11 @@
 			})
 			.WithAutomaticReconnect()
 			.Build();
+		_navHub.On<string>("GroupNameUpdated", async (newName) =>
+		{
+			conversations = await conversationService.GetUserConversationsAsync(currentUserId!);
+			await InvokeAsync(StateHasChanged);
+		});
 
 		_navHub.On("ConversationListChanged", async () =>
 		{
@@ -1319,10 +1324,12 @@
 		{
 			var ids = selectedParticipantIds.ToList();
 			ids.Add(currentUserId);
+
 			var conv = await conversationService.CreateGroupConversationAsync(new CreateGroupRequest
 				{
 					GroupName = newGroupName,
-					ParticipantIds = ids
+					ParticipantIds = ids,
+					CreatorId = currentUserId  
 				});
 
 			if (conv != null)

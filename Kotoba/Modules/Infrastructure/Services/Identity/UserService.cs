@@ -42,7 +42,7 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
             return GetUserProfileInternalAsync(userId);
         }
 
-        public IQueryable<UserProfile> GetUsersByDisplayNameAsync(string searchValue)
+        public List<UserProfile> GetUsersByDisplayNameAsync(string searchValue)
         {
             return _userProfileRepository.GetUsersByDisplayNameAsync(searchValue);
         }

@@ -15,9 +15,6 @@ public interface IConversationService
     Task<ConversationDto?> FindDirectConversationsAsync(string userAId, string userBId);
     Task<List<UserProfile>> GetOtherUsersInConversationsAsync(string conversationId, string userId);
     Task<List<MessageDto>> GetMessagesAsync(string conversationId);
-    Task LeaveConversationAsync(string conversationId, string userId);
-
     Task<List<UserProfile>> GetAllUsersInConversationAsync(string conversationId);
-    Task AddMemberAsync(string conversationId, string userId);
-    Task RemoveMemberAsync(string conversationId, string userId);
+
 }

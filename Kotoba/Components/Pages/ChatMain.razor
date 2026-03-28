@@ -909,7 +909,7 @@
 				@if (msg.IsSystemMessage)
 				{
 					<div style="display:flex;align-items:center;justify-content:center;margin:12px 0;">
-                        <div style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:rgba(122,184,0,0.08);border:1px solid rgba(122,184,0,0.2);border-radius:20px;font-size:12px;color: #faffeb;">
+						<div style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:rgba(122,184,0,0.08);border:1px solid rgba(122,184,0,0.2);border-radius:20px;font-size:12px;color: var(--text2);">
 							<span>
 								@{
 									var userName = msg.SystemMessageData?.DisplayName ?? "User";
@@ -925,6 +925,26 @@
 								else if (msg.SystemMessageType == SystemMessageType.MemberAdded)
 								{
 									@($"👤 {userName} is added to the group")
+								}
+								else if (msg.SystemMessageType == SystemMessageType.MemberPromoted)
+								{
+									@($"👤 {userName} is now an admin")
+								}
+								else if (msg.SystemMessageType == SystemMessageType.MemberDemoted)
+								{
+									@($"👤 {userName} is no longer an admin")
+								}
+								else if (msg.SystemMessageType == SystemMessageType.OwnershipTransferred)
+								{
+									@($"👤 Ownership transferred to {userName}")
+								}
+								else if (msg.SystemMessageType == SystemMessageType.GroupNameChanged)
+								{
+									@($"Group name changed")
+								}
+								else if (msg.SystemMessageType == SystemMessageType.OwnerLeft)
+								{
+									@($"👤 Owner {userName} left the group")
 								}
 							</span>
 						</div>
@@ -981,7 +1001,7 @@
 								@if (selectedConv!.Type == ConversationType.Group && !isOwn)
 								{
 									var senderName = selectedUsers?.FirstOrDefault(u => u.UserId == msg.SenderId)?.DisplayName ?? "Unknown";
-                                <span style="font-size:11px;color:#faffeb;padding-left:2px;margin-bottom:2px;">@senderName</span>
+									<span style="font-size:11px;color:var(--muted);padding-left:2px;margin-bottom:2px;">@senderName</span>
 								}
 
                             <div class="msg-bubble @(msg.Status == MessageStatus.Pending ? "sending" : "")
@@ -1151,7 +1171,8 @@
                     <div style="display:flex;flex-direction:column;gap:2px;">
                         @if (selectedConv!.Type == ConversationType.Group && !string.IsNullOrEmpty(typingUserName))
                         {
-                        <span style="font-size:11px;color:#faffeb;padding-left:2px;">@typingUserName</span>
+							<span style="font-size:11px;color:var(--muted);padding-left:2px;">@typingUserName</span>
+
                         }
                         <div class="typing-dots">
                             <div class="dot"></div><div class="dot"></div><div class="dot"></div>
@@ -1177,7 +1198,7 @@
 			@if (IsReadOnly || isUserRemoved)
 			{
 				<div class="input-toolbar" style="justify-content:center;">
-                <span style="font-size:13px;color:#faffeb;">
+					<span style="font-size:13px;color:var(--muted);">
 						@if (isUserRemoved)
 						{
 							<span>You cannot send messages - removed from group</span>
@@ -1209,7 +1230,7 @@
                             @(replyingTo.IsRevoked ? "Message has been revoked" : replyingTo.Content)
                         </div>
                     </div>
-                    <div style="cursor:pointer;padding:4px;color:#faffeb;"
+						<div style="cursor:pointer;padding:4px;color:var(--muted);"
                          @onclick="CancelReply">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="2.5">
@@ -1594,11 +1615,17 @@
                 {
                     messages.Add(msg);
                 }
+				if (msg.IsSystemMessage && IsSystemMessageAboutMembers(msg.SystemMessageType))
+				{
+					selectedUsers = await conversationService
+					.GetOtherUsersInConversationsAsync(ConversationId!, currentUserId!);
+				}
 
                 StateHasChanged();
                 await ScrollToBottom();
             });
         });
+
 
         hubConnection.On<ReactionDto>("ReactionUpdated", async (reaction) =>
         {
@@ -1641,7 +1668,19 @@
                 StateHasChanged();
             });
         });
-
+		hubConnection.On<string>("GroupNameUpdated", async (newName) =>
+	{
+		await InvokeAsync(() =>
+		{
+			if (selectedConv != null)
+			{
+				selectedConv.GroupName = newName; 
+				groupName = newName;  
+				Console.WriteLine($"GroupName updated to: {newName}");
+			}
+			StateHasChanged();
+		});
+	});
 		hubConnection.On<string>("RemovedFromGroup", async (conversationId) =>
 		{
 			await InvokeAsync(async () =>
@@ -1699,16 +1738,16 @@
 		await InvokeAsync(StateHasChanged);
 	}
 	});
-
-        hubConnection.On("MembersUpdated", async () =>
-{
-            await InvokeAsync(async () =>
-            {
-                selectedUsers = await conversationService
-                    .GetOtherUsersInConversationsAsync(ConversationId!, currentUserId!);
-                StateHasChanged();
-            });
-        });
+		hubConnection.On("MembersUpdated", async () =>
+		{
+			await InvokeAsync(async () =>
+			{
+				selectedUsers = await conversationService
+					.GetOtherUsersInConversationsAsync(ConversationId!, currentUserId!);
+				Console.WriteLine($"✅ MembersUpdated - selectedUsers reloaded, count: {selectedUsers?.Count}");
+				StateHasChanged();
+			});
+		});
 
         hubConnection.On<Guid>("MessageRevoked", async (messageId) =>
 {
@@ -1957,6 +1996,15 @@
         if (hubConnection is not null)
             await hubConnection.DisposeAsync();
     }
+
+	private bool IsSystemMessageAboutMembers(SystemMessageType? type)
+	{
+		return type == SystemMessageType.MemberAdded
+			|| type == SystemMessageType.MemberRemoved
+			|| type == SystemMessageType.MemberPromoted
+			|| type == SystemMessageType.MemberDemoted
+			|| type == SystemMessageType.OwnershipTransferred;
+	}
 
     private void StartReply(MessageDto msg)
     {
