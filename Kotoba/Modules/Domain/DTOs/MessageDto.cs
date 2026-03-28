@@ -16,6 +16,10 @@ namespace Kotoba.Modules.Domain.DTOs
         public bool IsSystemMessage { get; set; } = false;
         public SystemMessageType? SystemMessageType { get; set; }
         public SystemMessageDataDto? SystemMessageData { get; set; }
+        
+        public bool IsRevoked { get; set; } = false;        
+        public Guid? ReplyToMessageId { get; set; }
+        public ReplyPreviewDto? ReplyTo { get; set; }
     }
 
     public class SystemMessageDataDto

@@ -3,8 +3,10 @@ using Kotoba.Modules.Domain.Entities;
 using Kotoba.Modules.Domain.Enums;
 using Kotoba.Modules.Domain.Interfaces;
 using Kotoba.Modules.Infrastructure.Data;
+using Kotoba.Modules.Infrastructure.Services.Messages;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using static Kotoba.Modules.Domain.Interfaces.IMessageService;
 
 namespace Kotoba.Modules.Hubs
 {
@@ -14,15 +16,18 @@ namespace Kotoba.Modules.Hubs
         private readonly IReactionService _reactionService;
         private readonly ICurrentThoughtService _thoughtService;
         private readonly IHubContext<NotificationHub> _notifHub;
+        private readonly IMessageService _messageService;
         public ChatHub(KotobaDbContext context,
             IReactionService reactionService,
             ICurrentThoughtService thoughtService,
-            IHubContext<NotificationHub> notifHub)
+            IHubContext<NotificationHub> notifHub,
+            IMessageService messageService)
         {
             _context = context;
             _reactionService = reactionService;
             _thoughtService = thoughtService;
             _notifHub = notifHub;
+            _messageService = messageService;
         }
 
         public async Task JoinConversation(string conversationId)
@@ -375,19 +380,41 @@ namespace Kotoba.Modules.Hubs
             await Clients.Group(conversationId).SendAsync("ConversationListChanged");
             await Clients.Group(conversationId).SendAsync("MembersUpdated");
         }
-        private string GetContentType(string fileName)
+
+        // Revoke message
+        public async Task RevokeMessage(Guid conversationId, Guid messageId)
         {
-            var ext = Path.GetExtension(fileName).ToLower();
-            return ext switch
+            var userId = Context.UserIdentifier;
+            var message = await _messageService.GetMessageByIdAsync(messageId);
+
+            if (message == null || message.SenderId != userId) return;
+
+            await _messageService.RevokeMessageAsync(messageId);
+
+            await Clients.Group(conversationId.ToString())
+                .SendAsync("MessageRevoked", messageId);
+        }
+
+        // Reply to message
+        public async Task SendReplyMessage(string tempId, string conversationId,
+            string senderId, string content, Guid replyToMessageId,
+            List<AttachmentDto> attachments)
+        {
+            var dto = await _messageService.SendReplyAsync(new SendReplyRequest
             {
-                ".jpg" or ".jpeg" => "image/jpeg",
-                ".png" => "image/png",
-                ".gif" => "image/gif",
-                ".webp" => "image/webp",
-                ".pdf" => "application/pdf",
-                ".zip" => "application/zip",
-                _ => "application/octet-stream"
-            };
+                TempId = tempId,
+                ConversationId = Guid.Parse(conversationId),
+                SenderId = senderId,
+                Content = content,
+                ReplyToMessageId = replyToMessageId,
+                Attachments = attachments
+            });
+
+            await Clients.Group(conversationId)
+                .SendAsync("MessageConfirmed", dto, tempId);
+
+            await Clients.Group(conversationId)
+                .SendAsync("ConversationListChanged");
         }
     }
 }

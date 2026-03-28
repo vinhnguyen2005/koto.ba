@@ -86,5 +86,16 @@ namespace Kotoba.Modules.Infrastructure.Repositories
                 })
                 .FirstOrDefaultAsync();
         }
+
+        public async Task TouchUpdatedAtAsync(Guid conversationId)
+        {
+            await using var ctx = await _dbFactory.CreateDbContextAsync();
+            var conversation = await ctx.Conversations
+                .FirstOrDefaultAsync(c => c.Id == conversationId);
+            if (conversation == null) return;
+
+            conversation.UpdatedAt = DateTime.UtcNow;
+            await ctx.SaveChangesAsync();
+        }
     }
 }

@@ -1067,58 +1067,91 @@
 			}
 		}
 
-		@* Direct Messages *@
-		@{
-			var directs = FilteredConversations.Where(c => c.Type == ConversationType.Direct).ToList();
-		}
-		@if (directs.Any())
-		{
-			<div class="section-label">Direct Messages</div>
-			@foreach (var conv in directs)
-			{
-				var other = conv.Participants?.FirstOrDefault(p => p.UserId != currentUserId);
-				var displayName = other?.DisplayName ?? "Direct Message";
+        @* Direct Messages *@
+        @{
+            var directs = FilteredConversations
+            .Where(c => c.Type == ConversationType.Direct && c.LastMessage != null)
+            .ToList();
+        }
+        @if (directs.Any())
+        {
+            <div class="section-label">Direct Messages</div>
+            @foreach (var conv in directs)
+            {
+                var other = conv.Participants?.FirstOrDefault(p => p.UserId != currentUserId);
+                var displayName = other?.DisplayName ?? "Direct Message";
 
-				<div class="chat-item" @onclick="() => SelectConversation(conv)">
-
-                        <div class="chat-avatar">
-						<div class="avatar-img @(NotifState.Contains(conv.ConversationId.ToString().ToLower()) ? "avatar-ring" : "")">
-                                🥝
-                            </div>
+                <div class="chat-item" @onclick="() => SelectConversation(conv)">
+                    <div class="chat-avatar">
+                        <div class="avatar-img @(NotifState.Contains(conv.ConversationId.ToString().ToLower()) ? "avatar-ring" : "")">
+                            🥝
                         </div>
-					<div class="chat-info">
-						<div class="chat-name-row">
-							<div class="chat-name">@displayName</div>
-						</div>
-					</div>
-				</div>
-			}
-		}
+                    </div>
+                    <div class="chat-info">
+                        <div class="chat-name-row">
+                            <div class="chat-name">@displayName</div>
+                            @if (conv.LastMessage != null)
+                            {
+                                <span style="font-size:11px;color:var(--muted);flex-shrink:0;margin-left:6px;white-space:nowrap;">
+                                    @FormatConvTime(conv.LastMessage.CreatedAt)
+                                </span>
+                            }
+                        </div>
+                        @if (!string.IsNullOrEmpty(conv.LastMessage?.Content))
+                        {
+                            <div style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;
+                                            text-overflow:ellipsis;max-width:180px;margin-top:2px;">
+                                @conv.LastMessage.Content
+                            </div>
+                        }
+                        else if (conv.LastMessage?.Attachments != null)
+                        {
+                            <div style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;
+                                                                    text-overflow:ellipsis;max-width:180px;margin-top:2px; font-style: italic;">
+                            📎 Attachment
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        }
 
-		@* Groups *@
-		@{
-			var groups = FilteredConversations.Where(c => c.Type == ConversationType.Group).ToList();
-		}
-		@if (groups.Any())
-		{
-			<div class="section-label">Groups</div>
-			@foreach (var conv in groups)
-			{
-				<div class="chat-item" @onclick="() => SelectConversation(conv)">
-					<div class="chat-avatar">
-						<div class="avatar-img @(NotifState.Contains(conv.ConversationId.ToString()) ? "avatar-ring" : "")">
-							🌿
-						</div>
-						</div>
-					<div class="chat-info">
-						<div class="chat-name-row">
-							<div class="chat-name">@conv.GroupName</div>
-						</div>
-					</div>
-				</div>
-			}
-		}
-
+        @* Groups *@
+        @{
+            var groups = FilteredConversations.Where(c => c.Type == ConversationType.Group).ToList();
+        }
+        @if (groups.Any())
+        {
+            <div class="section-label">Groups</div>
+            @foreach (var conv in groups)
+            {
+                <div class="chat-item" @onclick="() => SelectConversation(conv)">
+                    <div class="chat-avatar">
+                        <div class="avatar-img @(NotifState.Contains(conv.ConversationId.ToString()) ? "avatar-ring" : "")">
+                            🌿
+                        </div>
+                    </div>
+                    <div class="chat-info">
+                        <div class="chat-name-row">
+                            <div class="chat-name">@conv.GroupName</div>
+                            @if (conv.LastMessage != null)
+                            {
+                                <span style="font-size:11px;color:var(--muted);flex-shrink:0;margin-left:6px;white-space:nowrap;">
+                                    @FormatConvTime(conv.LastMessage.CreatedAt)
+                                </span>
+                            }
+                        </div>
+                        @if (!string.IsNullOrEmpty(conv.LastMessage?.Content))
+                        {
+                            <div style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;
+                                            text-overflow:ellipsis;max-width:180px;margin-top:2px;">
+                                @conv.LastMessage.Content
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        }
 	</div>
 </div>
 
@@ -1356,5 +1389,17 @@
 
 		NotifState.OnChange -= StateHasChanged;
 	}
+    private static string FormatConvTime(DateTime utcTime)
+    {
+        var local = utcTime.ToLocalTime();
+        var now = DateTime.Now;
+        var delta = now - local;
+
+        if (delta.TotalMinutes < 1) return "just now";
+        if (delta.TotalHours < 1) return $"{(int)delta.TotalMinutes}m";
+        if (delta.TotalDays < 1) return local.ToString("hh:mm tt");
+        if (delta.TotalDays < 7) return local.ToString("ddd");
+        return local.ToString("dd/MM");
+    }
 
 }

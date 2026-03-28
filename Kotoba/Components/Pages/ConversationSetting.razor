@@ -376,9 +376,9 @@
 
 		members = await conversationService.GetAllUsersInConversationAsync(ConversationId!);
 
-		conversationName = conversation.Type == ConversationType.Group
-			? conversation.GroupName
-			: (members.Count == 0 ? "You" : members[0].DisplayName);
+        conversationName = conversation.Type == ConversationType.Group
+        ? conversation.GroupName
+        : (members.FirstOrDefault(m => m.UserId != CurrentUserId)?.DisplayName ?? "You");
 
 		var messages = await conversationService.GetMessagesAsync(ConversationId!);
 

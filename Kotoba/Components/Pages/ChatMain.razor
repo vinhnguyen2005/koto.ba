@@ -909,7 +909,7 @@
 				@if (msg.IsSystemMessage)
 				{
 					<div style="display:flex;align-items:center;justify-content:center;margin:12px 0;">
-						<div style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:rgba(122,184,0,0.08);border:1px solid rgba(122,184,0,0.2);border-radius:20px;font-size:12px;color:var(--muted);">
+                        <div style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:rgba(122,184,0,0.08);border:1px solid rgba(122,184,0,0.2);border-radius:20px;font-size:12px;color: #faffeb;">
 							<span>
 								@{
 									var userName = msg.SystemMessageData?.DisplayName ?? "User";
@@ -933,6 +933,7 @@
 				else
 				{
 					<div class="msg-group @(isOwn ? "own" : "")"
+                         data-msg-id="@msg.MessageId"
 						 @onmouseenter="() => hoveredMessageId = msg.MessageId"
 						 @onmouseleave="() => {
                  if (reactionPickerMessageId != msg.MessageId)
@@ -945,52 +946,158 @@
 								<div class="msg-avatar-sm">🌿</div>
 							}
 
+                        @if (hoveredMessageId == msg.MessageId && !msg.IsRevoked && isOwn)
+                        {
+                            <div style="display:flex;gap:4px;align-items:center;">
+                                @* Reply *@
+                                <div style="width:26px;height:26px;border-radius:50%;background:var(--surface);
+                                border:1px solid var(--border);display:flex;align-items:center;
+                                justify-content:center;font-size:13px;cursor:pointer;"
+                                     title="Reply"
+                                     @onclick:stopPropagation="true"
+                                     @onclick="() => StartReply(msg)">
+                                    ↩️
+                                </div>
+                                @* Revoke — chỉ hiện với tin của mình *@
+                                @if (msg.SenderId == currentUserId)
+                                {
+                                    <div style="width:26px;height:26px;border-radius:50%;background:var(--surface);
+                                        border:1px solid var(--border);display:flex;align-items:center;
+                                        justify-content:center;font-size:13px;cursor:pointer;"
+                                         title="Revoke"
+                                         @onclick:stopPropagation="true"
+                                         @onclick="() => RevokeMessage(msg.MessageId)">
+                                        🗑️
+                                    </div>
+                                }
+                                @* Reaction picker — giữ nguyên *@
+                                <div style="width:26px;height:26px;border-radius:50%;background:var(--surface);
+                                border:1px solid var(--border);display:flex;align-items:center;
+                                justify-content:center;font-size:13px;cursor:pointer;"
+                                     @onclick:stopPropagation="true"
+                                     @onclick="() => ToggleReactionPicker(msg.MessageId)">
+                                    😊
+                                </div>
+                            </div>
+                        }
 							<div style="display:flex;flex-direction:column;gap:2px;">
 								@if (selectedConv!.Type == ConversationType.Group && !isOwn)
 								{
 									var senderName = selectedUsers?.FirstOrDefault(u => u.UserId == msg.SenderId)?.DisplayName ?? "Unknown";
-									<span style="font-size:11px;color:var(--muted);padding-left:2px;margin-bottom:2px;">@senderName</span>
+                                <span style="font-size:11px;color:#faffeb;padding-left:2px;margin-bottom:2px;">@senderName</span>
 								}
 
-								<div class="msg-bubble @(msg.Status == MessageStatus.Pending ? "sending" : "")">
-									@if (!string.IsNullOrWhiteSpace(msg.Content))
-									{
-										<div class="msg-text">@msg.Content</div>
-									}
+                            <div class="msg-bubble @(msg.Status == MessageStatus.Pending ? "sending" : "")
+                                @(msg.IsRevoked ? "revoked" : "")">
 
-									@if (msg.Attachments != null && msg.Attachments.Any())
-									{
-										<div class="msg-attachments" style="margin-top:8px;display:flex;flex-direction:column;gap:4px;">
-											@foreach (var att in msg.Attachments)
-											{
-												if (att.ContentType.StartsWith("image/"))
-												{
-													<img src="@att.Url" alt="@att.FileName"
-														 style="max-width:200px;border-radius:8px;cursor:pointer;"
-														 @onclick="() => OpenImage(att.Url)" />
-												}
-												else
-												{
-													<a href="@att.Url" target="_blank" class="msg-file-link"
-													   style="display:flex;align-items:center;gap:4px;padding:8px;background:rgba(0,0,0,0.05);border-radius:4px;text-decoration:none;color:inherit;">
-														<span>📎</span>
-														<span>@att.FileName</span>
-													</a>
-												}
-											}
-										</div>
-									}
-								</div>
+                                @* Reply preview *@
+                                @if (msg.ReplyTo != null && !msg.IsRevoked)
+                                {
+                                    var replyName = msg.ReplyTo.SenderId == currentUserId
+                                    ? "You"
+                                    : selectedUsers?.FirstOrDefault(u => u.UserId == msg.ReplyTo.SenderId)
+                                    ?.DisplayName ?? "User";
+                                    <div style="border-left:3px solid var(--lime);padding:5px 8px;margin-bottom:6px;
+                                background:rgba(122,184,0,0.07);border-radius:6px;cursor:pointer;"
+                                         @onclick="() => ScrollToMessage(msg.ReplyTo.MessageId)">
+                                        <div style="font-size:11px;font-weight:700;color:var(--lime);margin-bottom:2px;">
+                                            @replyName
+                                        </div>
+                                        <div style="font-size:12px;color:var(--muted);white-space:nowrap;
+                                    overflow:hidden;text-overflow:ellipsis;max-width:200px;">
+                                            @if (msg.ReplyTo.IsRevoked)
+                                            {
+                                                <i>Message has been revoked</i>
+                                            }
+                                            else if (msg.ReplyTo.AttachmentType == "image")
+                                            {
+                                                <span>🖼️ Image</span>
+                                            }
+                                            else if (msg.ReplyTo.AttachmentType == "file")
+                                            {
+                                                <span>📎 Attachment</span>
+                                            }
+                                            else
+                                            {
+                                                @msg.ReplyTo.Content
+                                            }
+                                        </div>
+                                    </div>
+                                }
+
+                                @* Nội dung chính *@
+                                @if (msg.IsRevoked)
+                                {
+                                    <div style="font-style:italic;color:gray;font-size:13px;">
+                                        Message has been revoked
+                                    </div>
+                                }
+                                else
+                                {
+                                    @if (!string.IsNullOrWhiteSpace(msg.Content))
+                                    {
+                                        <div class="msg-text">@msg.Content</div>
+                                    }
+                                    @if (msg.Attachments?.Any() == true)
+                                    {
+                                        <div class="msg-attachments" style="margin-top:8px;display:flex;flex-direction:column;gap:4px;">
+                                            @foreach (var att in msg.Attachments)
+                                            {
+                                                if (att.ContentType.StartsWith("image/"))
+                                                {
+                                                    <img src="@att.Url" alt="@att.FileName"
+                                                         style="max-width:200px;border-radius:8px;cursor:pointer;"
+                                                         @onclick="() => OpenImage(att.Url)" />
+                                                }
+                                                else
+                                                {
+                                                    <a href="@att.Url" target="_blank" class="msg-file-link"
+                                                       style="display:flex;align-items:center;gap:4px;padding:8px;
+                                                          background:rgba(0,0,0,0.05);border-radius:4px;
+                                                          text-decoration:none;color:inherit;">
+                                                        <span>📎</span><span>@att.FileName</span>
+                                                    </a>
+                                                }
+                                            }
+                                        </div>
+                                    }
+                                }
+                            </div>
 							</div>
-
-							@if (hoveredMessageId == msg.MessageId)
-							{
-								<div style="width:26px;height:26px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;"
-									 @onclick:stopPropagation="true"
-									 @onclick="() => ToggleReactionPicker(msg.MessageId)">
-									😊
-								</div>
-							}
+                        @if (hoveredMessageId == msg.MessageId && !msg.IsRevoked && !isOwn)
+                        {
+                            <div style="display:flex;gap:4px;align-items:center;">
+                                @* Reply *@
+                                <div style="width:26px;height:26px;border-radius:50%;background:var(--surface);
+                                            border:1px solid var(--border);display:flex;align-items:center;
+                                            justify-content:center;font-size:13px;cursor:pointer;"
+                                     title="Reply"
+                                     @onclick:stopPropagation="true"
+                                     @onclick="() => StartReply(msg)">
+                                    ↩️
+                                </div>
+                                @* Revoke — chỉ hiện với tin của mình *@
+                                @if (msg.SenderId == currentUserId)
+                                {
+                                    <div style="width:26px;height:26px;border-radius:50%;background:var(--surface);
+                                                        border:1px solid var(--border);display:flex;align-items:center;
+                                                        justify-content:center;font-size:13px;cursor:pointer;"
+                                         title="Revoke"
+                                         @onclick:stopPropagation="true"
+                                         @onclick="() => RevokeMessage(msg.MessageId)">
+                                        🗑️
+                                    </div>
+                                }
+                                @* Reaction picker — giữ nguyên *@
+                                <div style="width:26px;height:26px;border-radius:50%;background:var(--surface);
+                                            border:1px solid var(--border);display:flex;align-items:center;
+                                            justify-content:center;font-size:13px;cursor:pointer;"
+                                     @onclick:stopPropagation="true"
+                                     @onclick="() => ToggleReactionPicker(msg.MessageId)">
+                                    😊
+                                </div>
+                            </div>
+                        }
 						</div>
 
 						@if (reactionPickerMessageId == msg.MessageId)
@@ -1051,7 +1158,7 @@
                     <div style="display:flex;flex-direction:column;gap:2px;">
                         @if (selectedConv!.Type == ConversationType.Group && !string.IsNullOrEmpty(typingUserName))
                         {
-                            <span style="font-size:11px;color:var(--muted);padding-left:2px;">@typingUserName</span>
+                        <span style="font-size:11px;color:#faffeb;padding-left:2px;">@typingUserName</span>
                         }
                         <div class="typing-dots">
                             <div class="dot"></div><div class="dot"></div><div class="dot"></div>
@@ -1077,7 +1184,7 @@
 			@if (IsReadOnly || isUserRemoved)
 			{
 				<div class="input-toolbar" style="justify-content:center;">
-					<span style="font-size:13px;color:var(--muted);">
+                <span style="font-size:13px;color:#faffeb;">
 						@if (isUserRemoved)
 						{
 							<span>You cannot send messages - removed from group</span>
@@ -1091,6 +1198,33 @@
 			}
             else
             {
+            @if (replyingTo != null)
+            {
+                var replyPreviewName = replyingTo.SenderId == currentUserId
+                ? "You"
+                : selectedUsers?.FirstOrDefault(u => u.UserId == replyingTo.SenderId)?.DisplayName ?? "User";
+
+                <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;
+                        background:rgba(122,184,0,0.07);border-top:1px solid var(--border);
+                        border-left:3px solid var(--lime);">
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-size:11px;font-weight:700;color:var(--lime);">
+                            Replying to @replyPreviewName
+                        </div>
+                        <div style="font-size:12px;color:var(--muted);white-space:nowrap;
+                                overflow:hidden;text-overflow:ellipsis;">
+                            @(replyingTo.IsRevoked ? "Message has been revoked" : replyingTo.Content)
+                        </div>
+                    </div>
+                    <div style="cursor:pointer;padding:4px;color:#faffeb;"
+                         @onclick="CancelReply">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="2.5">
+                            <path d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </div>
+                </div>
+            }
                 @if (pendingFile != null || pendingImages.Any())
                 {
                     <div class="pending-strip">
@@ -1165,6 +1299,19 @@
     </div>
 }
 
+
+<script>
+        window.scrollToMessage = (messageId) => {
+        const el = document.querySelector(`[data-msg-id="${messageId}"]`);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.style.transition = 'background 0.3s';
+            el.style.background = 'rgba(122,184,0,0.15)';
+            setTimeout(() => el.style.background = '', 1000);
+        }
+    };
+</script>
+
 @code {
     private class PendingFile
     {
@@ -1199,6 +1346,8 @@
     private System.Threading.Timer? _typingTimer;
 	private bool isUserRemoved = false;
 	private int redirectCountdown = 0;
+    private MessageDto? replyingTo;
+
 
 	private string GetUserInitial(string displayName)
 	{
@@ -1549,6 +1698,30 @@
 	}
 	});
 
+        hubConnection.On("MembersUpdated", async () =>
+{
+            await InvokeAsync(async () =>
+            {
+                selectedUsers = await conversationService
+                    .GetOtherUsersInConversationsAsync(ConversationId!, currentUserId!);
+                StateHasChanged();
+            });
+        });
+
+        hubConnection.On<Guid>("MessageRevoked", async (messageId) =>
+{
+    await InvokeAsync(() =>
+    {
+        var msg = messages.FirstOrDefault(m => m.MessageId == messageId);
+        if (msg != null)
+        {
+            msg.IsRevoked = true;
+            msg.Content = string.Empty;
+        }
+        StateHasChanged();
+    });
+});
+
         try { await hubConnection.StartAsync(); }
         catch (Exception ex) { Console.Error.WriteLine(ex); }
     }
@@ -1607,6 +1780,10 @@
         var content = newMessageText;
         newMessageText = string.Empty;
 
+        // Capture reply trước khi clear
+        var replyRef = replyingTo;
+        replyingTo = null;
+
         var previewAttachments = new List<AttachmentDto>();
         if (pendingFile != null)
             previewAttachments.Add(new AttachmentDto
@@ -1636,7 +1813,17 @@
             ConversationId = Guid.Parse(ConversationId!),
             CreatedAt = DateTime.UtcNow,
             Status = MessageStatus.Pending,
-            Attachments = previewAttachments
+            Attachments = previewAttachments,
+            ReplyToMessageId = replyRef?.MessageId,
+            ReplyTo = replyRef == null ? null : new ReplyPreviewDto
+            {
+                MessageId = replyRef.MessageId,
+                SenderId = replyRef.SenderId,
+                SenderName = selectedUsers?.FirstOrDefault(u => u.UserId == replyRef.SenderId)
+                         ?.DisplayName ?? "You",
+                Content = replyRef.IsRevoked ? null : replyRef.Content,
+                IsRevoked = replyRef.IsRevoked
+            }
         });
         StateHasChanged();
         await ScrollToBottom();
@@ -1659,7 +1846,13 @@
                 uploadedFiles.Add(fileDto);
             }
 
-            await hubConnection.InvokeAsync("SendMessage", tempId, ConversationId, currentUserId, content, uploadedFiles);
+            if (replyRef != null)
+                await hubConnection.InvokeAsync("SendReplyMessage",
+                    tempId, ConversationId, currentUserId, content,
+                    replyRef.MessageId, uploadedFiles);
+            else
+                await hubConnection.InvokeAsync("SendMessage",
+                    tempId, ConversationId, currentUserId, content, uploadedFiles);
         }
         catch (Exception ex)
         {
@@ -1683,6 +1876,26 @@
             if (hubConnection?.State == HubConnectionState.Connected)
                 await hubConnection.InvokeAsync("SendTyping", Guid.Parse(ConversationId!));
         }
+    }
+
+    private async Task RevokeMessage(Guid messageId)
+    {
+        if (hubConnection?.State != HubConnectionState.Connected) return;
+        try
+        {
+            await hubConnection.InvokeAsync("RevokeMessage",
+                Guid.Parse(ConversationId!), messageId);
+        }
+        catch { }
+    }
+
+    private async Task ScrollToMessage(Guid messageId)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("scrollToMessage", messageId.ToString());
+        }
+        catch { }
     }
 
     private string FormatSize(long bytes)
@@ -1742,4 +1955,17 @@
         if (hubConnection is not null)
             await hubConnection.DisposeAsync();
     }
+
+    private void StartReply(MessageDto msg)
+    {
+        replyingTo = msg;
+        StateHasChanged();
+    }
+
+    private void CancelReply()
+    {
+        replyingTo = null;
+        StateHasChanged();
+    }
+
 }

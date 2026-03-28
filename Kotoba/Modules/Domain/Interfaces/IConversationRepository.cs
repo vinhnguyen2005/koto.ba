@@ -7,6 +7,6 @@ namespace Kotoba.Modules.Domain.Interfaces
     {
         Task<IEnumerable<Conversation>> GetAllAsync();
         Task<Conversation?> GetAsync(Guid conversationId);
-        Task<ConversationDto?> GetDirectConversationAsync(string userAId, string userBId);
+        Task<ConversationDto?> GetDirectConversationAsync(string userAId, string userBId);        
     }
 }

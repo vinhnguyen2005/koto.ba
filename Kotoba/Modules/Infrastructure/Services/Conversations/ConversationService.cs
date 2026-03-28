@@ -5,6 +5,7 @@ using Kotoba.Modules.Domain.Interfaces;
 using Kotoba.Modules.Infrastructure.Data;
 using Kotoba.Modules.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
 
 
 namespace Kotoba.Modules.Infrastructure.Services.Conversations
@@ -197,6 +198,15 @@ namespace Kotoba.Modules.Infrastructure.Services.Conversations
                     GroupName = cp.Conversation.GroupName,
                     CreatedAt = cp.Conversation.CreatedAt,
                     UpdatedAt = cp.Conversation.UpdatedAt,
+                    LastMessage = cp.Conversation.Messages
+                        .OrderByDescending(m => m.CreatedAt)
+                        .Select(m => new MessageDto
+                        {
+                            MessageId = m.Id,
+                            SenderId = m.SenderId,
+                            Content = m.Content ?? ((m.Attachments != null && m.Attachments.Count > 0) ? "📎 Attachment" : null),
+                            CreatedAt = m.CreatedAt
+                        }).FirstOrDefault(),
                     Participants = cp.Conversation.Participants
                         .Where(p => p.IsActive)
                         .Select(p => new UserProfile

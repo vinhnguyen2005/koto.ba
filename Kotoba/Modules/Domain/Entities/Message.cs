@@ -18,6 +18,13 @@ namespace Kotoba.Modules.Domain.Entities
         // Navigation properties
         public virtual Conversation Conversation { get; set; } = null!;
         public virtual User Sender { get; set; } = null!;
+        
+        public bool IsRevoked { get; set; } = false;
+        public DateTime? RevokedAt { get; set; }
+        
+        public Guid? ReplyToMessageId { get; set; }
+        public virtual Message? ReplyToMessage { get; set; }
+
         public virtual ICollection<Reaction> Reactions { get; set; } = new List<Reaction>();
         public virtual ICollection<Attachment> Attachments { get; set; } = new List<Attachment>();
         public virtual ICollection<MessageReceipt> Receipts { get; set; } = new List<MessageReceipt>();

@@ -12,7 +12,7 @@ namespace Kotoba.Modules.Infrastructure.Repositories
     {
         private readonly IDbContextFactory<KotobaDbContext> _factory;
 
-        public MessageRepository(KotobaDbContext context, IDbContextFactory<KotobaDbContext> factory)
+        public MessageRepository(IDbContextFactory<KotobaDbContext> factory)
         {
             _factory = factory;
         }
@@ -41,13 +41,7 @@ namespace Kotoba.Modules.Infrastructure.Repositories
                 .Include(m => m.Receipts)
                 .OrderBy(m => m.CreatedAt)
                 .ToListAsync();
-        }
-
-        public async Task AddAsync(Message message)
-        {
-            await using var _context = await _factory.CreateDbContextAsync();
-            await _context.Messages.AddAsync(message);
-        }
+        }        
 
         public async Task<IEnumerable<Message>> GetMessagesPageAsync(Guid conversationId, int page, int pageSize)
         {
@@ -121,21 +115,25 @@ namespace Kotoba.Modules.Infrastructure.Repositories
         {
             await using var _context = await _factory.CreateDbContextAsync();
             var messages = await _context.Messages
-                    .Where(m => m.ConversationId == conversationId && !m.IsDeleted)
-                    .OrderBy(m => m.CreatedAt)
-                    .Include(m => m.Sender)
-                    .Include(m => m.Attachments)
-                    .Include(m => m.Reactions)
-                    .AsSplitQuery()
-                    .AsNoTracking()
-                    .ToListAsync();
+                .Where(m => m.ConversationId == conversationId && !m.IsDeleted)
+                .OrderBy(m => m.CreatedAt)
+                .Include(m => m.Attachments)
+                .Include(m => m.Reactions)
+                .Include(m => m.ReplyToMessage)          // ← thêm
+                    .ThenInclude(r => r!.Sender)
+                .Include(m => m.ReplyToMessage)          // ← thêm
+                    .ThenInclude(r => r!.Attachments)
+                .AsSplitQuery()
+                .AsNoTracking()
+                .ToListAsync();
 
             return messages.Select(m => new MessageDto
             {
                 TempId = m.Id.ToString(),
                 MessageId = m.Id,
                 SenderId = m.SenderId,
-                Content = m.Content,
+                Content = m.IsRevoked ? string.Empty : m.Content,  // ← thêm
+                IsRevoked = m.IsRevoked,                              // ← thêm
                 ConversationId = conversationId,
                 CreatedAt = m.CreatedAt,
                 Status = MessageStatus.Sent,
@@ -144,6 +142,19 @@ namespace Kotoba.Modules.Infrastructure.Repositories
                 SystemMessageData = m.IsSystemMessage && !string.IsNullOrEmpty(m.SystemMessageData)
                     ? JsonSerializer.Deserialize<SystemMessageDataDto>(m.SystemMessageData)
                     : null,
+                ReplyToMessageId = m.ReplyToMessageId,                       // ← thêm
+                ReplyTo = m.ReplyToMessage == null ? null : new ReplyPreviewDto  // ← thêm
+                {
+                    MessageId = m.ReplyToMessage.Id,
+                    SenderId = m.ReplyToMessage.SenderId,
+                    SenderName = m.ReplyToMessage.Sender?.DisplayName ?? "User",
+                    Content = m.ReplyToMessage.IsRevoked ? null : m.ReplyToMessage.Content,
+                    AttachmentType = m.ReplyToMessage.Attachments?.Any(
+                                         a => a.ContentType.StartsWith("image/")) == true
+                                     ? "image"
+                                     : m.ReplyToMessage.Attachments?.Any() == true ? "file" : null,
+                    IsRevoked = m.ReplyToMessage.IsRevoked
+                },
                 Attachments = m.Attachments.Select(a => new AttachmentDto
                 {
                     Id = a.Id,
@@ -160,5 +171,64 @@ namespace Kotoba.Modules.Infrastructure.Repositories
                 }).ToList()
             }).ToList();
         }
+
+        public async Task<Message?> GetByIdAsync(Guid id)
+        {
+            await using var ctx = await _factory.CreateDbContextAsync();
+            return await ctx.Messages
+                .Include(m => m.Attachments)
+                .FirstOrDefaultAsync(m => m.Id == id);
+        }
+
+        public async Task<Message?> GetByIdWithSenderAsync(Guid id)
+        {
+            await using var ctx = await _factory.CreateDbContextAsync();
+            return await ctx.Messages
+                .Include(m => m.Sender)
+                .Include(m => m.Attachments)
+                .FirstOrDefaultAsync(m => m.Id == id);
+        }
+
+        public async Task AddAsync(Message message)
+        {
+            await using var ctx = await _factory.CreateDbContextAsync();
+            ctx.Messages.Add(message);
+            await ctx.SaveChangesAsync();
+        }
+
+        public async Task UpdateAsync(Message message)
+        {
+            await using var ctx = await _factory.CreateDbContextAsync();
+            ctx.Messages.Update(message);
+            await ctx.SaveChangesAsync();
+        }
+
+        public async Task<List<Message>> GetByConversationAsync(
+    Guid conversationId, int page, int pageSize)
+        {
+            await using var ctx = await _factory.CreateDbContextAsync();
+            return await ctx.Messages
+                .Where(m => m.ConversationId == conversationId && !m.IsDeleted)
+                .OrderByDescending(m => m.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Include(m => m.Reactions)
+                .Include(m => m.Attachments)
+                .Include(m => m.ReplyToMessage) 
+                    .ThenInclude(r => r!.Sender)
+                .Include(m => m.ReplyToMessage)
+                    .ThenInclude(r => r!.Attachments)
+                .ToListAsync();
+        }
+
+        public async Task<bool> IsParticipantAsync(Guid conversationId, string userId)
+        {
+            await using var ctx = await _factory.CreateDbContextAsync();
+            return await ctx.ConversationParticipants
+                .AnyAsync(p => p.ConversationId == conversationId
+                            && p.UserId == userId
+                            && p.IsActive);
+        }
+
     }
 }
