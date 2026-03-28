@@ -104,6 +104,7 @@ namespace Kotoba
             builder.Services.AddScoped<IMessageService, MessageService>();
             builder.Services.AddScoped<ReportRepository>();
             builder.Services.AddScoped<IReportService, ReportService>();
+            builder.Services.AddSingleton<GlobalNotificationState>();
 
             builder.Services.AddScoped<IGroupAdminService, GroupAdminService>();
 

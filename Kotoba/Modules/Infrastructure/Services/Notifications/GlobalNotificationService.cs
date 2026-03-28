@@ -65,7 +65,19 @@ public class GlobalNotificationService : IAsyncDisposable
 
         _hub.On<MessageDto>("NotifyMessage", async (msg) =>
         {
-            if (msg.SenderId == _currentUserId) return;
+            if (string.Equals(msg.SenderId?.Trim(), _currentUserId?.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            var convId = msg.ConversationId.ToString().ToLower();
+
+            if (_state.ActiveConversationId == convId)
+            {
+                return;
+            }
+
+            _state.Add(convId, msg.SenderId);
 
             var s = await _settings.LoadAsync();
             if (!ShouldNotify(s, NotificationEvent.DirectMessage)) return;
@@ -79,7 +91,7 @@ public class GlobalNotificationService : IAsyncDisposable
             {
                 avatarUrl = "/favicon.png";
             }
-            _state.Add(msg.ConversationId.ToString());
+
             await FireAsync(s, title, body, avatarUrl);
         });
 
