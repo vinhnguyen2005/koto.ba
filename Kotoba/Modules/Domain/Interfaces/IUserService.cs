@@ -51,7 +51,7 @@ public interface IUserService
         string? correlationId = null,
         CancellationToken cancellationToken = default);
     Task<UserProfile?> GetUserProfileAsync(string userId);
-    IQueryable<UserProfile> GetUsersByDisplayNameAsync(string searchValue);
+    List<UserProfile> GetUsersByDisplayNameAsync(string searchValue);
     Task<AccountOperationResult> UpdateUserProfileAsync(string userId, UpdateProfileRequest request);
     Task<AccountOperationResult> ChangePasswordAsync(string userId, string currentPassword, string newPassword);
     Task<AccountOperationResult> DeactivateAccountAsync(string userId);

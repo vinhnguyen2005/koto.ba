@@ -15,9 +15,9 @@ namespace Kotoba.Modules.Infrastructure.Repositories
             _factory = factory;
         }
 
-        public IQueryable<UserProfile> GetUsersByDisplayNameAsync(string searchValue)
+        public List<UserProfile> GetUsersByDisplayNameAsync(string searchValue)
         {
-            using var _context =  _factory.CreateDbContext();
+            using var _context = _factory.CreateDbContext();
             return _context.Users
                 .Where(u => u.DisplayName.Contains(searchValue)
                             && u.AccountStatus != Domain.Enums.AccountStatus.Deleted)
@@ -26,7 +26,8 @@ namespace Kotoba.Modules.Infrastructure.Repositories
                     UserId = u.Id,
                     DisplayName = u.DisplayName,
                     AccountStatus = u.AccountStatus
-                });
+                })
+                .ToList(); 
         }
 
         public async Task<User?> GetByIdAsync(string userId)
