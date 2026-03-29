@@ -16,4 +16,6 @@ public interface IStoryService
     Task MarkStoriesAsSeenAsync(string viewerId, List<Guid> storyIds);
     Task ReactToStoryAsync(string userId, Guid storyId, ReactionType type);
     Task<List<UserProfile>> GetStoryViewersAsync(Guid storyId, string currentUserId);
+
+    Task<UserProfile?> GetStoryOwnerAsync(Guid storyId);
 }
