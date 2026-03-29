@@ -200,6 +200,12 @@ namespace Kotoba.Modules.Infrastructure.Data.Migrations
                 b.Property<DateTime>("ExpiresAt")
                     .HasColumnType("datetime2");
 
+                    b.Property<int>("Privacy")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
                 b.Property<string>("UserId")
                     .IsRequired()
                     .HasColumnType("nvarchar(450)");
