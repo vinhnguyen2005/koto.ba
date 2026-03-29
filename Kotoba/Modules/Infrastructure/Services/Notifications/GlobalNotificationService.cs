@@ -1,8 +1,9 @@
-using Microsoft.AspNetCore.SignalR.Client;
-using Microsoft.JSInterop;
 using Kotoba.Modules.Domain.DTOs;
 using Kotoba.Modules.Domain.Interfaces;
+using Kotoba.Modules.Infrastructure.Services.Conversations;
 using Kotoba.Modules.Infrastructure.Services.Settings;
+using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.JSInterop;
 
 namespace Kotoba.Modules.Infrastructure.Services.Notifications;
 
@@ -18,6 +19,7 @@ public class GlobalNotificationService : IAsyncDisposable
     private readonly INotificationSettingsService _settings;
     private readonly IJSRuntime _js;
     private readonly CircuitCookieService _cookieSvc;
+    private readonly IConversationService _conversationService;
     private readonly IUserService _userService;
     private readonly ChatNotificationState _state;
 
@@ -27,6 +29,7 @@ public class GlobalNotificationService : IAsyncDisposable
 
     public GlobalNotificationService(
         INotificationSettingsService settings,
+        IConversationService conversationService,
         IJSRuntime js,
         CircuitCookieService cookieSvc,
         IUserService userService,
@@ -36,6 +39,7 @@ public class GlobalNotificationService : IAsyncDisposable
         _js = js;
         _cookieSvc = cookieSvc;
         _userService = userService;
+        _conversationService = conversationService;
         _state = state;
     }
 
@@ -76,6 +80,12 @@ public class GlobalNotificationService : IAsyncDisposable
 
             if (_state.ActiveConversationId == convId)
             {
+                return;
+            }
+
+            if (await _conversationService.IsMutedAsync(msg.ConversationId.ToString(), _currentUserId))
+            {
+                Console.WriteLine("[Notif] Muted conversation → skip");
                 return;
             }
 

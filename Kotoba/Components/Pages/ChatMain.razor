@@ -12,6 +12,7 @@
 @inject GlobalNotificationService GlobalNotificationService
 @using Kotoba.Modules.Domain.Interfaces
 @using Kotoba.Modules.Infrastructure.Services.Notifications
+@inject ChatNotificationState NotifState
 
 <style>
     /* ===== CHAT LIST ===== */
@@ -1556,6 +1557,12 @@
     protected override async Task OnParametersSetAsync()
     {
         if (string.IsNullOrEmpty(ConversationId) || _loadedConvId == ConversationId) return;
+        if (!string.IsNullOrEmpty(ConversationId))
+    {
+        NotifState.SetActive(ConversationId);
+
+        NotifState.Remove(ConversationId.ToLower());
+    }
         await LoadConversationAsync();
     }
 
@@ -2012,6 +2019,7 @@
     {
         GlobalNotificationService.PresenceChanged -= HandlePresenceChanged;
         _typingTimer?.Dispose();
+        NotifState.SetActive(null);
         if (hubConnection is not null)
             await hubConnection.DisposeAsync();
     }

@@ -12,18 +12,20 @@
 @code {
     [CascadingParameter] public UserProfile? CurrentUserProfile { get; set; }
 
-	private List<StoryDto> stories = new();
-	private List<StoryDto> currentStories;
-	private int currentIndex = 0;
-	private Timer? storyTimer;
-	private int remainingTime = 5000;
-	private DateTime startTime;
-	private bool isViewerOpen = false;
-	private bool isPaused = false;
-	private string? currentUserId;
-	private string? currentStoryUserId;
-	private bool isFollowingCurrentStoryUser = false;
-	private bool IsReadOnly => CurrentUserProfile?.AccountStatus == AccountStatus.Deactivated;
+    private List<StoryDto> stories = new();
+    private List<StoryDto> currentStories;
+    private List<UserProfile> viewers = new();
+    private bool showViewers = false;
+    private int currentIndex = 0;
+    private Timer? storyTimer;
+    private int remainingTime = 5000;
+    private DateTime startTime;
+    private bool isViewerOpen = false;
+    private bool isPaused = false;
+    private string? currentUserId;
+    private string? currentStoryUserId;
+    private bool isFollowingCurrentStoryUser = false;
+    private bool IsReadOnly => CurrentUserProfile?.AccountStatus == AccountStatus.Deactivated;
     private bool _seenSent;
 
     protected override async Task OnParametersSetAsync()
@@ -37,8 +39,9 @@
         stories = allStories
             .Where(s =>
                 s.ExpiresAt > DateTime.UtcNow &&
-                s.UserId != currentUserId &&
                 (
+                    s.UserId == currentUserId // 🔥 ADD THIS
+                    ||
                     s.Visibility == "public"
                     ||
                     (s.Visibility == "followers" && followingIds.Contains(s.UserId))
@@ -50,7 +53,7 @@
             .ToList();
 
         StateHasChanged();
-	}
+    }
     private async Task OpenStory(string userId)
     {
         var currentUserId = CurrentUserProfile?.UserId;
@@ -63,8 +66,9 @@
         currentStories = all
             .Where(s =>
                 s.ExpiresAt > DateTime.UtcNow &&
-                s.UserId != currentUserId &&
                 (
+                    s.UserId == currentUserId  // ✅ Add this
+                    ||
                     s.Visibility == "public"
                     ||
                     (s.Visibility == "followers" && followingIds.Contains(s.UserId))
@@ -79,7 +83,9 @@
         if (!currentStories.Any())
             return;
 
-        if (!_seenSent)
+        
+
+        if (currentUserId != userId && !_seenSent)
         {
             _seenSent = true;
 
@@ -195,6 +201,17 @@
         var storyId = currentStories[currentIndex].StoryId;
 
         await StoryService.ReactToStoryAsync(userId, storyId, type);
+    }
+    private async Task LoadViewers()
+    {
+        var userId = CurrentUserProfile?.UserId;
+        if (string.IsNullOrEmpty(userId)) return;
+
+        var storyId = currentStories[currentIndex].StoryId;
+
+        viewers = await StoryService.GetStoryViewersAsync(storyId, userId);
+
+        showViewers = true;
     }
 }
 
@@ -341,7 +358,7 @@
                 @if (!string.IsNullOrEmpty(story.MediaUrl) && story.MediaUrl.Contains("uploads"))
                 {
                     <div class="story-bg" style="background-image:url('@story.MediaUrl')"></div>
-                    <img src="@story.MediaUrl" class="story-img" />
+                        <img src="@story.MediaUrl" class="story-img" />
                     <div class="story-text">
                         @story.Content
                     </div>
@@ -363,6 +380,12 @@
                     </div>
                     <div class="viewer-close" @onclick="CloseStory">×</div>
                 </div>
+                @if (story.UserId == CurrentUserProfile?.UserId)
+                {
+                    <div class="viewer-views-btn" @onclick="LoadViewers">
+                        👁 Viewers
+                    </div>
+                }
                 <div class="viewer-reactions" @onclick:stopPropagation="true">
                     <button class="react-btn" @onclick="() => React(ReactionType.Like)">👍</button>
                     <button class="react-btn" @onclick="() => React(ReactionType.Love)">❤️</button>
@@ -371,6 +394,35 @@
                     <button class="react-btn" @onclick="() => React(ReactionType.Sad)">😢</button>
                     <button class="react-btn" @onclick="() => React(ReactionType.Angry)">😡</button>
                 </div>
+                @if (showViewers)
+                {
+                    <div class="viewer-list-overlay" @onclick="() => showViewers = false">
+                        <div class="viewer-list" @onclick:stopPropagation="true">
+
+                            <div class="viewer-list-header">
+                                Seen by (@viewers.Count)
+                            </div>
+
+                            @if (viewers == null || !viewers.Any())
+                            {
+                                <div style="color:var(--muted);font-size:13px;">
+                                    No one has seen this story yet
+                                </div>
+                            }
+                            else
+                            {
+                                @foreach (var u in viewers)
+                                {
+                                    <div class="viewer-item">
+                                        <img src="@(u.AvatarUrl ?? "/assets/kiwi.png")" />
+                                        <span>@u.DisplayName</span>
+                                    </div>
+                                }
+                            }
+
+                        </div>
+                    </div>
+                }
             </div>
         </div>
         <div class="viewer-nav right"

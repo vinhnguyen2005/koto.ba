@@ -284,5 +284,15 @@ namespace Kotoba.Modules.Infrastructure.Services.Conversations
         {
             return _conversationParticipantRepository.GetAllUsersInConversationAsync(conversationId);
         }
+
+        public async Task ToggleMuteAsync(string conversationId, string userId)
+        {
+            await _conversationRepository.ToggleMuteAsync(conversationId, userId);
+        }
+
+        public async Task<bool> IsMutedAsync(string conversationId, string userId)
+        {
+            return await _conversationRepository.IsMutedAsync(conversationId, userId);
+        }
     }
 }

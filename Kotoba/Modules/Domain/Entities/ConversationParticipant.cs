@@ -10,6 +10,7 @@ namespace Kotoba.Modules.Domain.Entities
         public DateTime JoinedAt { get; set; } = DateTime.UtcNow;
         public DateTime? LeftAt { get; set; }
         public bool IsActive { get; set; } = true;
+        public bool IsMuted { get; set; } = false;
 
         public GroupRole Role { get; set; } = GroupRole.Member;
 

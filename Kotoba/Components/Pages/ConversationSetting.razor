@@ -575,13 +575,8 @@
 					</button>
 				}
 			}
-			<button class="profile-action-btn">
-				<svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-				stroke="currentColor" stroke-width="2" stroke-linecap="round">
-					<path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
-					<path d="M13.73 21a2 2 0 01-3.46 0" />
-				</svg>
-				Mute notifications
+            <button class="profile-action-btn" @onclick="ToggleMute">
+                🔕 @(isMuted ? "Unmute notifications" : "Mute notifications")
 			</button>
 			@if (conversation!.Type == ConversationType.Group)
 			{
@@ -634,6 +629,9 @@
 	private bool isGroupOwner => members?.FirstOrDefault(m => m.UserId == CurrentUserId)?.Role == "Owner";
 	private bool isGroupAdmin => members?.FirstOrDefault(m => m.UserId == CurrentUserId)?.Role == "Admin";
 	private bool isGroupOwnerOrAdmin => isGroupOwner || isGroupAdmin;
+    private bool isMuted;
+
+    [Inject] private IConversationService ConversationService { get; set; }
 
 	protected override void OnInitialized()
 	{
@@ -731,8 +729,20 @@
 	protected override async Task OnParametersSetAsync()
 	{
 		if (string.IsNullOrEmpty(ConversationId) || _loadedId == ConversationId) return;
+        if (!string.IsNullOrEmpty(ConversationId))
+        {
+            isMuted = isMuted = await ConversationService.IsMutedAsync(ConversationId, CurrentUserId);
+        }
 		await LoadAsync();
 	}
+
+    private async Task ToggleMute()
+    {
+        if (ConversationId == null) return;
+
+        await ConversationService.ToggleMuteAsync(ConversationId, CurrentUserId);
+        isMuted = await ConversationService.IsMutedAsync(ConversationId, CurrentUserId);
+    }
 
 	private void HandleLeave()
 	{

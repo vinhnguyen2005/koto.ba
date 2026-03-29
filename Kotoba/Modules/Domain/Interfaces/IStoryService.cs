@@ -15,4 +15,5 @@ public interface IStoryService
     Task<List<StoryDto>> GetActiveFollowingStoriesAsync(string userId);
     Task MarkStoriesAsSeenAsync(string viewerId, List<Guid> storyIds);
     Task ReactToStoryAsync(string userId, Guid storyId, ReactionType type);
+    Task<List<UserProfile>> GetStoryViewersAsync(Guid storyId, string currentUserId);
 }
