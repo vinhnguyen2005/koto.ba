@@ -7,7 +7,56 @@
         <InputFile OnChange="OnFileSelected" />
 
         <input @bind="content" placeholder="Add caption..." />
-        <button class="home-btn home-btn-secondary" @onclick="Submit">Post Story</button>
+        
+        <div class="controls">
+            <label>Visibility</label>
+
+            <select @bind="visibility">
+                <option value="public">Public</option>
+                <option value="followers">Followers</option>
+                <option value="specific">Specific people</option>
+            </select>
+        </div>
+
+        @if (visibility == "specific")
+        {
+            <div class="controls">
+                <input placeholder="Type name..."
+                       @bind="searchUser"
+                       @oninput="SearchUsers" />
+
+                @if (searchResults.Any())
+                {
+                    <div class="search-results">
+                        @foreach (var u in searchResults)
+                        {
+                            <div class="search-item" @onclick="() => AddUser(u)">
+                                @u.DisplayName
+                            </div>
+                        }
+                    </div>
+                }
+
+                @if (selectedUsers.Any())
+                {
+                    <div class="selected-users">
+                        @foreach (var u in selectedUsers)
+                        {
+                            <div class="selected-user">
+                                @u.DisplayName
+                                <button @onclick="() => RemoveUser(u)">✕</button>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        <button class="home-btn home-btn-secondary"
+                disabled="@(visibility == "specific" && !selectedUsers.Any())"
+                @onclick="Submit">
+            Post Story
+        </button>
     </div>
 
     <div class="editor-right">
@@ -30,6 +79,18 @@
     private string content = "";
     private IBrowserFile? file;
     private string? imagePreview;
+    private string visibility = "public";
+    private string searchUser = "";
+    private string? currentUserId;
+    private List<UserProfile> selectedUsers = new();
+    private List<UserProfile> searchResults = new();
+    [Inject] private IUserService UserService { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        currentUserId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    }
 
     private async Task OnFileSelected(InputFileChangeEventArgs e)
     {
@@ -52,6 +113,12 @@
         }
         if (file == null) return;
 
+        if (visibility == "specific" && !selectedUsers.Any())
+        {
+            Console.WriteLine("Invalid: no selected users");
+            return;
+        }
+
         await using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
 
         var attachment = await AttachmentService.SaveFilePhysicalAsync(
@@ -64,9 +131,44 @@
         {
             UserId = userId,
             Content = content,
-            MediaUrl = attachment.Url
+            MediaUrl = attachment.Url,
+            Visibility = visibility,
+            AllowedUserIds = visibility == "specific"
+        ? selectedUsers.Select(u => u.UserId).ToList()
+        : null
         });
 
         Nav.NavigateTo("/story");
+    }
+
+    private async Task SearchUsers(ChangeEventArgs e)
+    {
+        var q = e.Value?.ToString() ?? "";
+        searchUser = q;
+
+        if (string.IsNullOrWhiteSpace(q))
+        {
+            searchResults.Clear();
+            return;
+        }
+
+        searchResults = (UserService.GetUsersByDisplayNameAsync(q))
+    .Where(u =>
+        u.UserId != currentUserId &&
+        !selectedUsers.Any(s => s.UserId == u.UserId))
+    .Take(5)
+    .ToList();
+    }
+
+    private void AddUser(UserProfile user)
+    {
+        selectedUsers.Add(user);
+        searchResults.Clear();
+        searchUser = "";
+    }
+
+    private void RemoveUser(UserProfile user)
+    {
+        selectedUsers.RemoveAll(u => u.UserId == user.UserId);
     }
 }

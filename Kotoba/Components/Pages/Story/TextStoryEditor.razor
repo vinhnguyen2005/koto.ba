@@ -18,15 +18,64 @@
                 </div>
             }
         </div>
-        <button class="home-btn home-btn-secondary" @onclick="Submit">Post Story</button>
+
+        <div class="controls">
+            <label>Visibility</label>
+
+            <select @bind="visibility">
+                <option value="public">Public</option>
+                <option value="followers">Followers</option>
+                <option value="specific">Specific people</option>
+            </select>
+        </div>
+
+        @if (visibility == "specific")
+        {
+            <div class="controls">
+                <input placeholder="Type name..."
+                       @bind="searchUser"
+                       @oninput="SearchUsers" />
+
+                @if (searchResults.Any())
+                {
+                    <div class="search-results">
+                        @foreach (var u in searchResults)
+                        {
+                            <div class="search-item" @onclick="() => AddUser(u)">
+                                @u.DisplayName
+                            </div>
+                        }
+                    </div>
+                }
+
+                @if (selectedUsers.Any())
+                {
+                    <div class="selected-users">
+                        @foreach (var u in selectedUsers)
+                        {
+                            <div class="selected-user">
+                                @u.DisplayName
+                                <button @onclick="() => RemoveUser(u)">✕</button>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        <button class="home-btn home-btn-secondary"
+                disabled="@(visibility == "specific" && !selectedUsers.Any())"
+                @onclick="Submit">
+            Post Story
+        </button>
     </div>
 
     <div class="editor-right">
-            <div class="preview" style="background:@bgColor">
-                <div class="preview-text" style="font-size:24px">
-                    @content
-                </div>
+        <div class="preview" style="background:@bgColor">
+            <div class="preview-text" style="font-size:24px">
+                @content
             </div>
+        </div>
     </div>
 
     
@@ -35,8 +84,20 @@
 @code {
     private string content = "";
     private string bgColor = "#000";
+    private string visibility = "public";
+    private string searchUser = "";
+    private string? currentUserId;
+    private List<UserProfile> selectedUsers = new();
+    private List<UserProfile> searchResults = new();
+    [Inject] private IUserService UserService { get; set; }
 
-    private string? bgImage;
+    private string? bgImage = "https://upload.wikimedia.org/wikipedia/commons/7/71/Black.png";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        currentUserId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    }
 
     private void SelectBackground(string image, string color)
     {
@@ -45,15 +106,15 @@
     }
 
     private Dictionary<string, string> colors = new()
-{
-        ["/assets/black.png"] = "#000000",
-        ["/assets/blue.png"] = "#0096FF",
-        ["/assets/red.png"] = "#ff4d4f",
-        ["/assets/cyan.png"] = "#36cfc9",
-        ["/assets/purple.png"] = "#9254de",
-        ["/assets/yellow.png"] = "#fadb14"
+    {
+        ["https://upload.wikimedia.org/wikipedia/commons/7/71/Black.png"] = "#000000",
+        ["https://upload.wikimedia.org/wikipedia/commons/a/a7/Red-f15b5b.png"] = "#f15b5b",
+        ["https://upload.wikimedia.org/wikipedia/commons/5/5f/Sky_Blue.png"] = "#88cfec",
+        ["https://upload.wikimedia.org/wikipedia/commons/a/a8/Solid_orange.png"] = "#ffa000",
+        ["https://upload.wikimedia.org/wikipedia/commons/3/30/Solid_purple.png"] = "#660099",
+        ["https://upload.wikimedia.org/wikipedia/commons/e/e5/Golden_rectangle.png"] = "#ffee55"
 
-};
+    };
 
     [Inject] private IStoryService StoryService { get; set; }
 
@@ -67,12 +128,54 @@
             return;
         }
 
+        if (visibility == "specific" && !selectedUsers.Any())
+        {
+            Console.WriteLine("Invalid: no selected users");
+            return;
+        }
+
         await StoryService.CreateStoryAsync(new CreateStoryRequest
         {
             UserId = userId,
             Content = content,
-            MediaUrl = bgImage
+            MediaUrl = bgImage,
+            Visibility = visibility,
+            AllowedUserIds = visibility == "specific"
+        ? selectedUsers.Select(u => u.UserId).ToList()
+        : null
         });
         Nav.NavigateTo("/story");
+    }
+
+
+    private async Task SearchUsers(ChangeEventArgs e)
+    {
+        var q = e.Value?.ToString() ?? "";
+        searchUser = q;
+
+        if (string.IsNullOrWhiteSpace(q))
+        {
+            searchResults.Clear();
+            return;
+        }
+
+        searchResults = (UserService.GetUsersByDisplayNameAsync(q))
+    .Where(u =>
+        u.UserId != currentUserId &&
+        !selectedUsers.Any(s => s.UserId == u.UserId))
+    .Take(5)
+    .ToList();
+    }
+
+    private void AddUser(UserProfile user)
+    {
+        selectedUsers.Add(user);
+        searchResults.Clear();
+        searchUser = "";
+    }
+
+    private void RemoveUser(UserProfile user)
+    {
+        selectedUsers.RemoveAll(u => u.UserId == user.UserId);
     }
 }

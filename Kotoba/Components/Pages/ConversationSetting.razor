@@ -1,6 +1,7 @@
 @using Kotoba.Modules.Domain.DTOs
 @using Kotoba.Modules.Domain.Enums
 @using Kotoba.Modules.Infrastructure.Services.Notifications
+@using Kotoba.Modules.Infrastructure.Services.Follows
 @using Microsoft.AspNetCore.SignalR.Client
 @inject IConversationService conversationService
 @inject IJSRuntime JS
@@ -8,6 +9,7 @@
 @inject IHttpContextAccessor HttpContextAccessor
 @inject NavigationManager Navigation
 @inject GlobalNotificationService GlobalNotificationService
+@inject IFollowService FollowService
 @implements IAsyncDisposable
 <style>
 	.profile-panel {
@@ -560,7 +562,7 @@
 			<div class="profile-section-title">Actions</div>
 			@if (conversation!.Type == ConversationType.Direct)
 			{
-				<button class="profile-action-btn" @onclick="() => isFollowing = !isFollowing">
+                <button class="profile-action-btn" @onclick="ToggleFollow">
 					<svg width="15" height="15" viewBox="0 0 24 24" fill="@(isFollowing ? "currentColor" : "none")"
 					stroke="currentColor" stroke-width="2" stroke-linecap="round">
 						<path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
@@ -754,6 +756,14 @@
 
 		images = allAttachments.Where(a => a.ContentType.StartsWith("image/")).ToList();
 		files = allAttachments.Where(a => !a.ContentType.StartsWith("image/")).ToList();
+
+        var targetUserId = GetTargetUserId();
+
+        if (!string.IsNullOrEmpty(targetUserId) && CurrentUserId != null)
+        {
+            isFollowing = await FollowService.IsFollowingAsync(CurrentUserId, targetUserId);
+        }
+
 		await EnsureHubAsync();
 		StateHasChanged();
 	}
@@ -946,4 +956,27 @@
 		if (bytes < 1024 * 1024) return $"{bytes / 1024} KB";
 		return $"{bytes / (1024 * 1024)} MB";
 	}
+
+    private string? GetTargetUserId()
+    {
+        if (conversation?.Type != ConversationType.Direct) return null;
+
+        return members?
+            .FirstOrDefault(m => m.UserId != CurrentUserId)
+            ?.UserId;
+    }
+
+
+    private async Task ToggleFollow()
+{
+    var targetUserId = GetTargetUserId();
+    if (string.IsNullOrEmpty(targetUserId) || CurrentUserId == null) return;
+
+    if (isFollowing)
+        await FollowService.UnfollowAsync(CurrentUserId, targetUserId);
+    else
+        await FollowService.FollowAsync(CurrentUserId, targetUserId);
+
+    isFollowing = !isFollowing;
+}
 }
