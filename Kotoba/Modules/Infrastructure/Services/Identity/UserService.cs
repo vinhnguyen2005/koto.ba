@@ -91,7 +91,11 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
             return result.Succeeded;
         }
 
-        public async Task<string?> LoginAdminAsync(LoginRequest request)
+        public async Task<string?> LoginAdminAsync(
+            LoginRequest request,
+            string? sourceIp = null,
+            string? correlationId = null,
+            CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
             {
@@ -109,6 +113,14 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
                 || user.AccountStatus == AccountStatus.Deactivated
                 || user.AccountStatus == AccountStatus.Banned)
             {
+                await TraceAdminLoginAsync(
+                    user.Id,
+                    isSuccess: false,
+                    summary: "Failed admin login",
+                    metadata: $"Reason: Account status is {user.AccountStatus}",
+                    sourceIp: sourceIp,
+                    correlationId: correlationId,
+                    cancellationToken: cancellationToken);
                 return null;
             }
 
@@ -120,6 +132,14 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
 
             if (!result.Succeeded)
             {
+                await TraceAdminLoginAsync(
+                    user.Id,
+                    isSuccess: false,
+                    summary: "Failed admin login",
+                    metadata: "Reason: Invalid credentials",
+                    sourceIp: sourceIp,
+                    correlationId: correlationId,
+                    cancellationToken: cancellationToken);
                 return null;
             }
 
@@ -127,15 +147,41 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
             var isBusinessAdmin = await _userManager.IsInRoleAsync(user, AdminRoles.BusinessAdmin);
             if (isSystemAdmin)
             {
+                await TraceAdminLoginAsync(
+                    user.Id,
+                    isSuccess: true,
+                    summary: "Admin login succeeded (system admin)",
+                    metadata: "Role: SystemAdmin",
+                    sourceIp: sourceIp,
+                    correlationId: correlationId,
+                    cancellationToken: cancellationToken);
                 return "/admin/system/dashboard";
             }
 
             if (isBusinessAdmin)
             {
+                await TraceAdminLoginAsync(
+                    user.Id,
+                    isSuccess: true,
+                    summary: "Admin login succeeded (business admin)",
+                    metadata: "Role: BusinessAdmin",
+                    sourceIp: sourceIp,
+                    correlationId: correlationId,
+                    cancellationToken: cancellationToken);
                 return "/admin/business/dashboard";
             }
 
             await _signInManager.SignOutAsync();
+
+            await TraceAdminLoginAsync(
+                user.Id,
+                isSuccess: false,
+                summary: "Failed admin login",
+                metadata: "Reason: Account has no admin role",
+                sourceIp: sourceIp,
+                correlationId: correlationId,
+                cancellationToken: cancellationToken);
+
             return null;
         }
 
@@ -903,6 +949,29 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
                 Summary = result.Succeeded
                     ? $"{actionType} applied to user {targetUserId}"
                     : $"{actionType} failed for user {targetUserId}",
+                MetadataJson = metadata,
+                CorrelationId = correlationId,
+                SourceIp = sourceIp,
+            }, cancellationToken);
+        }
+
+        private Task TraceAdminLoginAsync(
+            string adminId,
+            bool isSuccess,
+            string summary,
+            string? metadata,
+            string? sourceIp,
+            string? correlationId,
+            CancellationToken cancellationToken)
+        {
+            return _adminAuditService.TraceAsync(new AdminAuditEntryRequest
+            {
+                PerformedByAdminId = adminId,
+                ActionType = isSuccess ? AdminActionType.AdminLoginSucceeded : AdminActionType.AdminLoginFailed,
+                IsSuccess = isSuccess,
+                TargetEntityType = "User",
+                TargetEntityId = adminId,
+                Summary = summary,
                 MetadataJson = metadata,
                 CorrelationId = correlationId,
                 SourceIp = sourceIp,

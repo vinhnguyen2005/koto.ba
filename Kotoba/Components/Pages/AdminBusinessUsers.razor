@@ -3,6 +3,7 @@
 @using Kotoba.Modules.Domain.Constants
 @using Kotoba.Modules.Domain.DTOs
 @using Kotoba.Modules.Domain.Enums
+@using Microsoft.AspNetCore.Components
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Components.Authorization
 @attribute [Authorize(Roles = AdminRoles.BusinessAdmin)]
@@ -59,6 +60,9 @@
                     <h2 class="admin-panel-title">Normal Users</h2>
                     <span class="admin-panel-badge">Directory</span>
                 </div>
+                <div style="padding: 0 1rem 0.75rem;">
+                    <input class="admin-create-input" @bind="UserFilter" placeholder="Filter by user ID, name, or email" />
+                </div>
                 <div class="admin-table-wrap">
                     <table class="admin-table">
                         <thead>
@@ -74,7 +78,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @if (Users.Count == 0)
+                            @if (FilteredUsers.Count == 0)
                             {
                                 <tr>
                                     <td colspan="8">No users found yet.</td>
@@ -82,7 +86,7 @@
                             }
                             else
                             {
-                                @foreach (var user in Users)
+                                @foreach (var user in FilteredUsers)
                                 {
                                     <tr>
                                         <td>@user.DisplayName</td>
@@ -142,7 +146,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @if (BannedUsers.Count == 0)
+                            @if (FilteredBannedUsers.Count == 0)
                             {
                                 <tr>
                                     <td colspan="6">No banned users.</td>
@@ -150,7 +154,7 @@
                             }
                             else
                             {
-                                @foreach (var user in BannedUsers)
+                                @foreach (var user in FilteredBannedUsers)
                                 {
                                     <tr>
                                         <td>@user.DisplayName</td>
@@ -195,6 +199,13 @@
     private List<NormalUserListItem> BannedUsers { get; set; } = new();
     private HashSet<string> OnlineUserIds { get; set; } = new(StringComparer.Ordinal);
     private Dictionary<string, string> LatestModerationReasonByUserId { get; set; } = new(StringComparer.Ordinal);
+    private string UserFilter { get; set; } = string.Empty;
+
+    [SupplyParameterFromQuery(Name = "q")]
+    public string? QueryUserFilter { get; set; }
+
+    private List<NormalUserListItem> FilteredUsers => ApplyUserFilter(Users);
+    private List<NormalUserListItem> FilteredBannedUsers => ApplyUserFilter(BannedUsers);
 
     private int TotalUserCount => Users.Count + BannedUsers.Count;
     private int OnlineUserCount => Users.Count(user => OnlineUserIds.Contains(user.UserId));
@@ -204,7 +215,28 @@
 
     protected override async Task OnInitializedAsync()
     {
+        if (!string.IsNullOrWhiteSpace(QueryUserFilter))
+        {
+            UserFilter = QueryUserFilter.Trim();
+        }
+
         await ReloadUsersAsync();
+    }
+
+    private List<NormalUserListItem> ApplyUserFilter(List<NormalUserListItem> source)
+    {
+        if (string.IsNullOrWhiteSpace(UserFilter))
+        {
+            return source;
+        }
+
+        var term = UserFilter.Trim();
+        return source
+            .Where(user =>
+                user.UserId.Contains(term, StringComparison.OrdinalIgnoreCase)
+                || user.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase)
+                || user.Email.Contains(term, StringComparison.OrdinalIgnoreCase))
+            .ToList();
     }
 
     private bool IsCurrentlyOnline(string userId)

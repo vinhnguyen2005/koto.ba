@@ -4,6 +4,7 @@
 @using Kotoba.Modules.Domain.Constants
 @using Kotoba.Modules.Domain.DTOs
 @using Kotoba.Modules.Domain.Enums
+@using Microsoft.AspNetCore.Components
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Components.Authorization
 @attribute [Authorize(Roles = AdminRoles.AnyAdmin)]
@@ -167,6 +168,12 @@
     private string SelectedRange { get; set; } = "all";
     private string SelectedActionValue { get; set; } = string.Empty;
 
+    [SupplyParameterFromQuery(Name = "q")]
+    public string? QuerySearch { get; set; }
+
+    [SupplyParameterFromQuery(Name = "range")]
+    public string? QueryRange { get; set; }
+
     private IReadOnlyList<AdminActionType> ActionOptions => Enum.GetValues<AdminActionType>()
         .Where(action => action != AdminActionType.Unknown)
         .OrderBy(action => action.ToString())
@@ -210,6 +217,17 @@
         var audits = await AdminAuditService.GetAuditsAsync(scopeAdminId);
         AllAudits.Clear();
         AllAudits.AddRange(audits.OrderByDescending(audit => audit.TimestampUtc));
+
+        if (!string.IsNullOrWhiteSpace(QuerySearch))
+        {
+            SearchTerm = QuerySearch.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(QueryRange)
+            && (QueryRange == "24h" || QueryRange == "7d" || QueryRange == "30d" || QueryRange == "all"))
+        {
+            SelectedRange = QueryRange;
+        }
     }
 
     private List<AdminAuditViewDto> ApplyFilters()

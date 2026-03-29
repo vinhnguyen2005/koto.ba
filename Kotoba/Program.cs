@@ -13,6 +13,7 @@ using Kotoba.Modules.Infrastructure.Services.Attachments;
 using Kotoba.Modules.Infrastructure.Services.Conversations;
 using Kotoba.Modules.Infrastructure.Services.Identity;
 using Kotoba.Modules.Infrastructure.Services.Messages;
+using Kotoba.Modules.Infrastructure.Services.Monitoring;
 using Kotoba.Modules.Infrastructure.Services.Notifications;
 using Kotoba.Modules.Infrastructure.Services.Reactions;
 using Kotoba.Modules.Infrastructure.Services.Reports;
@@ -103,6 +104,9 @@ namespace Kotoba
             builder.Services.AddScoped<IMessageService, MessageService>();
             builder.Services.AddScoped<ReportRepository>();
             builder.Services.AddScoped<IReportService, ReportService>();
+            builder.Services.AddScoped<IPlatformHealthService, PlatformHealthService>();
+            builder.Services.AddSingleton<AdminSecurityAlertAckStore>();
+            builder.Services.AddScoped<IAdminSecurityAlertService, AdminSecurityAlertService>();
             builder.Services.AddScoped<IFollowService, FollowService>();
             builder.Services.AddScoped<IFollowRepository, FollowRepository>();
             builder.Services.AddScoped<IGroupAdminService, GroupAdminService>();
@@ -205,9 +209,13 @@ namespace Kotoba
             .AllowAnonymous()
             .DisableAntiforgery();
 
-            app.MapPost("/auth/admin/login", async ([FromForm] LoginRequest request, IUserService userService) =>
+            app.MapPost("/auth/admin/login", async ([FromForm] LoginRequest request, IUserService userService, HttpContext httpContext) =>
             {
-                var redirectPath = await userService.LoginAdminAsync(request);
+                var redirectPath = await userService.LoginAdminAsync(
+                    request,
+                    sourceIp: httpContext.Connection.RemoteIpAddress?.ToString(),
+                    correlationId: httpContext.TraceIdentifier,
+                    cancellationToken: httpContext.RequestAborted);
                 return !string.IsNullOrWhiteSpace(redirectPath)
                     ? Results.LocalRedirect(redirectPath)
                     : Results.LocalRedirect("/admin/login?error=1");

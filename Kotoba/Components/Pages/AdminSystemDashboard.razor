@@ -2,8 +2,14 @@
 @layout Kotoba.Components.Layout.AdminLayout
 @using Kotoba.Modules.Domain.Constants
 @using Kotoba.Modules.Domain.DTOs
+@using Kotoba.Modules.Domain.Enums
+@using Kotoba.Modules.Domain.Interfaces
+@using System.Security.Claims
 @attribute [Authorize(Roles = AdminRoles.SystemAdmin)]
 @inject IAdminAuditService AdminAuditService
+@inject IPlatformHealthService PlatformHealthService
+@inject IAdminSecurityAlertService AdminSecurityAlertService
+@inject AuthenticationStateProvider AuthStateProvider
 
 <PageTitle>System Admin Dashboard</PageTitle>
 
@@ -32,45 +38,92 @@
             </article>
             <article class="admin-stat-card">
                 <p class="admin-stat-label">Security Alerts</p>
-                <p class="admin-stat-value">3</p>
-                <p class="admin-stat-meta">1 high priority</p>
+                <p class="admin-stat-value">@SecurityAlertCount</p>
+                <p class="admin-stat-meta">@SecurityAlertMeta</p>
             </article>
             <article class="admin-stat-card">
                 <p class="admin-stat-label">Platform Health</p>
-                <p class="admin-stat-value">99.95%</p>
-                <p class="admin-stat-meta">All core services online</p>
+                <p class="admin-stat-value">@(PlatformHealth?.IsHealthy == false ? "Degraded" : PlatformHealth is null ? "Checking..." : "Healthy")</p>
+                <p class="admin-stat-meta">@PlatformHealthMeta</p>
+                @if (PlatformHealth?.Checks.Count > 0)
+                {
+                    <div class="admin-stat-meta" style="display:flex; gap:.4rem; flex-wrap:wrap; margin-top:.35rem;">
+                        @foreach (var check in PlatformHealth.Checks)
+                        {
+                            <span class="admin-tag @(check.IsHealthy ? string.Empty : "admin-tag-warning")" title="@check.Detail">
+                                @check.Name: @(check.IsHealthy ? "Healthy" : "Degraded")
+                            </span>
+                        }
+                    </div>
+                }
             </article>
         </section>
 
         <section class="admin-panels">
-            <article class="admin-panel">
+            <article class="admin-panel" id="security-alerts">
                 <div class="admin-panel-header">
-                    <h2 class="admin-panel-title">Admin Provisioning Queue</h2>
-                    <span class="admin-panel-badge">System</span>
+                    <h2 class="admin-panel-title">Security Alerts</h2>
+                    <span class="admin-panel-badge">Security</span>
                 </div>
                 <div class="admin-table-wrap">
                     <table class="admin-table">
                         <thead>
                             <tr>
-                                <th>Email</th>
-                                <th>Requested By</th>
-                                <th>Status</th>
-                                <th>Created</th>
+                                <th>Time (UTC)</th>
+                                <th>Severity</th>
+                                <th>Alert</th>
+                                <th>Evidence</th>
+                                <th>State</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td>ops-admin@koto.ba</td>
-                                <td>root@koto.ba</td>
-                                <td><span class="admin-tag">Ready</span></td>
-                                <td>2026-03-28 09:42</td>
-                            </tr>
-                            <tr>
-                                <td>risk-admin@koto.ba</td>
-                                <td>root@koto.ba</td>
-                                <td><span class="admin-tag admin-tag-warning">Pending</span></td>
-                                <td>2026-03-28 09:55</td>
-                            </tr>
+                            @if (SecurityAlerts.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="6">No active security alerts.</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var alert in SecurityAlerts)
+                                {
+                                    <tr>
+                                        <td>@alert.OccurredAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                                        <td>
+                                            <span class="admin-tag @GetSeverityClass(alert.Severity)">@alert.Severity</span>
+                                        </td>
+                                        <td>
+                                            <div><strong>@alert.Title</strong></div>
+                                            <div>@alert.Message</div>
+                                        </td>
+                                        <td>@alert.EvidenceCount</td>
+                                        <td>
+                                            @if (alert.IsAcknowledged)
+                                            {
+                                                <span class="admin-tag">Acknowledged</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="admin-tag admin-tag-warning">Open</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <div style="display:flex; gap:.35rem; flex-wrap:wrap;">
+                                                <a class="admin-action-btn" href="@alert.AuditTrailUrl">Open Audit Trail</a>
+                                                @if (!string.IsNullOrWhiteSpace(alert.UserUrl))
+                                                {
+                                                    <a class="admin-action-btn" href="@alert.UserUrl">Open User</a>
+                                                }
+                                                @if (!alert.IsAcknowledged)
+                                                {
+                                                    <button class="admin-action-btn" disabled="@IsAcknowledging" @onclick="() => AcknowledgeAlertAsync(alert.AlertKey)">Acknowledge</button>
+                                                }
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            }
                         </tbody>
                     </table>
                 </div>
@@ -129,12 +182,83 @@
 @code {
     private int AuditEventsLast24h;
     private List<AdminAuditViewDto> RecentAudits { get; set; } = new();
+    private List<AdminSecurityAlertDto> SecurityAlerts { get; set; } = new();
+    private PlatformHealthSnapshotDto? PlatformHealth { get; set; }
+    private bool IsAcknowledging;
+
+    private int SecurityAlertCount => SecurityAlerts.Count(alert => !alert.IsAcknowledged);
+
+    private string SecurityAlertMeta
+    {
+        get
+        {
+            var criticalOrHigh = SecurityAlerts.Count(alert =>
+                !alert.IsAcknowledged
+                && (alert.Severity == AdminSecurityAlertSeverity.High || alert.Severity == AdminSecurityAlertSeverity.Critical));
+
+            return criticalOrHigh == 0
+                ? "No unresolved high-severity alerts"
+                : $"{criticalOrHigh} high or critical unresolved";
+        }
+    }
+
+    private string PlatformHealthMeta => PlatformHealth is null
+        ? "Running health checks..."
+        : $"Last checked {PlatformHealth.CheckedAtUtc:yyyy-MM-dd HH:mm:ss} UTC";
 
     protected override async Task OnInitializedAsync()
     {
         var sinceUtc = DateTime.UtcNow.AddHours(-24);
+
+        // AdminAuditService uses a scoped DbContext, so these calls must run sequentially.
         AuditEventsLast24h = await AdminAuditService.CountAuditsSinceAsync(sinceUtc);
         RecentAudits = (await AdminAuditService.GetRecentAuditsAsync(limit: 10)).ToList();
+        PlatformHealth = await PlatformHealthService.GetSnapshotAsync();
+        SecurityAlerts = (await AdminSecurityAlertService.GetAlertsAsync()).ToList();
+    }
+
+    private async Task AcknowledgeAlertAsync(string alertKey)
+    {
+        if (IsAcknowledging || string.IsNullOrWhiteSpace(alertKey))
+        {
+            return;
+        }
+
+        try
+        {
+            IsAcknowledging = true;
+
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var adminId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(adminId))
+            {
+                return;
+            }
+
+            var acknowledged = await AdminSecurityAlertService.AcknowledgeAsync(alertKey, adminId);
+            if (!acknowledged)
+            {
+                return;
+            }
+
+            SecurityAlerts = (await AdminSecurityAlertService.GetAlertsAsync()).ToList();
+            StateHasChanged();
+        }
+        finally
+        {
+            IsAcknowledging = false;
+        }
+    }
+
+    private static string GetSeverityClass(AdminSecurityAlertSeverity severity)
+    {
+        return severity switch
+        {
+            AdminSecurityAlertSeverity.Critical => "admin-alert-critical",
+            AdminSecurityAlertSeverity.High => "admin-alert-high",
+            AdminSecurityAlertSeverity.Medium => "admin-alert-medium",
+            _ => string.Empty,
+        };
     }
 
     private static string FormatActor(AdminAuditViewDto audit)
@@ -172,3 +296,23 @@
         return $"{audit.TargetEntityType}:{audit.TargetEntityId}";
     }
 }
+
+<style>
+    .admin-alert-critical {
+        background: #7f1d1d;
+        color: #fff;
+        border-color: #7f1d1d;
+    }
+
+    .admin-alert-high {
+        background: #dc2626;
+        color: #fff;
+        border-color: #dc2626;
+    }
+
+    .admin-alert-medium {
+        background: #f59e0b;
+        color: #111827;
+        border-color: #f59e0b;
+    }
+</style>
