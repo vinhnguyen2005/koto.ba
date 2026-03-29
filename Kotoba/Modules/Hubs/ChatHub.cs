@@ -4,6 +4,7 @@ using Kotoba.Modules.Domain.Enums;
 using Kotoba.Modules.Domain.Interfaces;
 using Kotoba.Modules.Infrastructure.Data;
 using Kotoba.Modules.Infrastructure.Services.Messages;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using static Kotoba.Modules.Domain.Interfaces.IMessageService;
@@ -19,13 +20,15 @@ namespace Kotoba.Modules.Hubs
         private readonly IGroupAdminService _adminService;
         private readonly IMessageService _messageService;
         private readonly INotificationService _notificationService;
+        private readonly UserManager<User> _userManager;
         public ChatHub(KotobaDbContext context,
             IReactionService reactionService,
             ICurrentThoughtService thoughtService,
             IGroupAdminService adminService,
             IHubContext<NotificationHub> notifHub,
             IMessageService messageService,
-            INotificationService notificationService)
+            INotificationService notificationService,
+            UserManager<User> userManager)
         {
             _context = context;
             _reactionService = reactionService;
@@ -34,6 +37,7 @@ namespace Kotoba.Modules.Hubs
             _adminService = adminService;
             _messageService = messageService;
             _notificationService = notificationService;
+            _userManager = userManager;
         }
 
         public async Task JoinConversation(string conversationId)
@@ -687,8 +691,25 @@ namespace Kotoba.Modules.Hubs
         private async Task NotifyAsync(CreateNotificationRequest request)
         {
             var dto = await _notificationService.CreateAsync(request);
-            await Clients.User(request.RecipientId)
-                .SendAsync("ReceiveNotification", dto);
+            await PushNotification(request.RecipientId, dto);
+        }
+
+        public async Task NotifyAdminsByRole(string role, CreateNotificationRequest request)
+        {
+            var admins = await _userManager.GetUsersInRoleAsync(role);
+            foreach (var admin in admins)
+            {
+                var newRequest = new CreateNotificationRequest
+                {
+                    RecipientId = admin.Id,
+                    Type = request.Type,
+                    ActorId = request.ActorId,
+                    TargetId = request.TargetId,
+                    TargetType = request.TargetType,
+                    Message = request.Message
+                };
+                await NotifyAsync(newRequest);
+            }
         }
     }
 }

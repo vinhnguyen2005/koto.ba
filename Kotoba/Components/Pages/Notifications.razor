@@ -1,6 +1,10 @@
 @page "/notifications"
 @using Kotoba.Modules.Domain.Enums
+@using Microsoft.AspNetCore.SignalR.Client
 @inject INotificationService NotificationService
+@inject NavigationManager Navigation
+@inject IHttpContextAccessor HttpContextAccessor
+@implements IAsyncDisposable
 <style>
     .notif-page {
         min-height: 100vh;        
@@ -197,6 +201,52 @@
 @code {
     [CascadingParameter] public UserProfile? CurrentUserProfile { get; set; }
     private List<NotificationDto> notifications = new();
+    private HubConnection? _hub;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (CurrentUserProfile?.UserId == null) return;
+
+        notifications = await NotificationService
+            .GetNotificationsAsync(CurrentUserProfile.UserId);
+
+        // Mark all read khi vào trang
+        await NotificationService.MarkAllAsReadAsync(CurrentUserProfile.UserId);
+        notifications.ForEach(n => n.IsRead = true);
+
+        await StartHubAsync();
+    }
+
+    private async Task StartHubAsync()
+    {
+        var cookies = HttpContextAccessor.HttpContext?.Request.Cookies;
+        var cookieStr = string.Join("; ", cookies?.Select(c => $"{c.Key}={c.Value}") ?? []);
+
+        _hub = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/chathub"), options =>
+            {
+                options.Headers.Add("Cookie", cookieStr);
+            })
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hub.On<NotificationDto>("ReceiveNotification", async (dto) =>
+        {
+            await InvokeAsync(async () =>
+            {
+                // Thêm vào đầu danh sách
+                notifications.Insert(0, dto);
+
+                // Mark read ngay vì đang ở trang notifications
+                await NotificationService.MarkAsReadAsync(dto.Id);
+                dto.IsRead = true;
+
+                StateHasChanged();
+            });
+        });
+
+        await _hub.StartAsync();
+    }
 
     private Dictionary<string, List<NotificationDto>> GroupedNotifications
     {
@@ -226,16 +276,7 @@
             <= 7 => "This week",
             _ => local.ToString("MMMM yyyy")
         };
-    }
-
-    protected override async Task OnInitializedAsync()
-    {
-        if (CurrentUserProfile?.UserId == null) return;
-        notifications = await NotificationService
-            .GetNotificationsAsync(CurrentUserProfile.UserId);
-        await NotificationService.MarkAllAsReadAsync(CurrentUserProfile.UserId);
-        notifications.ForEach(n => n.IsRead = true);
-    }
+    }  
 
     private async Task MarkAll()
     {
@@ -278,5 +319,10 @@
         if (delta.TotalDays < 1) return $"{(int)delta.TotalHours}h ago";
         if (delta.TotalDays < 7) return $"{(int)delta.TotalDays}d ago";
         return utc.ToLocalTime().ToString("dd/MM/yyyy");
+    }
+    public async ValueTask DisposeAsync()
+    {
+        if (_hub is not null)
+            await _hub.DisposeAsync();
     }
 }

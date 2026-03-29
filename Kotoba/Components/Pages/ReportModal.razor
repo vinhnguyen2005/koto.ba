@@ -1,4 +1,6 @@
+@using Kotoba.Modules.Domain.Constants
 @using Kotoba.Modules.Domain.Enums
+@using Microsoft.AspNetCore.SignalR.Client
 @implements IDisposable
 @* Dùng: <ReportModal TargetType="ReportTargetType.Message" 
                        TargetId="@msg.MessageId.ToString()"
@@ -149,6 +151,8 @@
     [Parameter] public string TargetId { get; set; } = string.Empty;
     [Parameter] public string? ReporterId { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
+    [Inject] IHttpContextAccessor HttpContextAccessor { get; set; } = null!;
+    [Inject] NavigationManager Navigation { get; set; } = null!;
 
     [Inject] IReportService ReportService { get; set; } = null!;
 
@@ -162,13 +166,25 @@
     private int undoSecondsLeft = 10;
     private Guid? submittedReportId;
     private System.Threading.Timer? _undoTimer;
-
+    private HubConnection? _hub;
 
     private bool CanSubmit => selectedCategoryId.HasValue && !isSubmitting && !submitted;
 
     protected override async Task OnInitializedAsync()
     {
         categories = await ReportService.GetCategoriesAsync();
+
+        var cookies = HttpContextAccessor.HttpContext?.Request.Cookies;
+        var cookieStr = string.Join("; ", cookies?.Select(c => $"{c.Key}={c.Value}") ?? []);
+
+        _hub = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/chathub"), options =>
+            {
+                options.Headers.Add("Cookie", cookieStr);
+            })
+            .Build();
+
+        await _hub.StartAsync();
     }
 
     private async Task Submit()
@@ -204,8 +220,12 @@
                 if (undoSecondsLeft <= 0)
                 {
                     _undoTimer?.Dispose();
+                    await NotifyBusinessAdmins();
                 }
             }, null, 1000, 1000);
+
+
+
         }
         else
         {
@@ -213,6 +233,22 @@
         }
 
         StateHasChanged();
+    }
+    private async Task NotifyBusinessAdmins()
+    {
+        if (submittedReportId == null) return;
+        if (_hub?.State != HubConnectionState.Connected) return;
+
+        await _hub.InvokeAsync("NotifyAdminsByRole",
+            AdminRoles.BusinessAdmin,
+            new CreateNotificationRequest
+            {
+                Type = NotificationType.AdminReportAlert,
+                ActorId = ReporterId,
+                TargetId = submittedReportId.ToString(),
+                TargetType = TargetType.ToString(),
+                Message = $"New report submitted — {TargetType.ToString().ToLower()} flagged for review"
+            });
     }
     private async Task UndoReport()
     {
