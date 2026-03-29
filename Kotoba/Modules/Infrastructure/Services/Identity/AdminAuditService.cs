@@ -115,6 +115,78 @@ public class AdminAuditService : IAdminAuditService
         return audits;
     }
 
+    public async Task<IReadOnlyList<AdminAuditViewDto>> GetAuditsAsync(
+        string? performedByAdminId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _dbContext.AdminAuditLogs.AsNoTracking();
+
+        if (!string.IsNullOrWhiteSpace(performedByAdminId))
+        {
+            query = query.Where(a => a.PerformedByAdminId == performedByAdminId);
+        }
+
+        var audits = await query
+            .OrderByDescending(a => a.TimestampUtc)
+            .Select(a => new AdminAuditViewDto
+            {
+                Id = a.Id,
+                TimestampUtc = a.TimestampUtc,
+                PerformedByAdminId = a.PerformedByAdminId,
+                PerformedByAdminDisplayName = a.PerformedByAdmin != null ? a.PerformedByAdmin.DisplayName : null,
+                PerformedByAdminEmail = a.PerformedByAdmin != null ? a.PerformedByAdmin.Email : null,
+                ActionType = a.ActionType,
+                IsSuccess = a.IsSuccess,
+                TargetEntityType = a.TargetEntityType,
+                TargetEntityId = a.TargetEntityId,
+                MetadataJson = a.MetadataJson,
+                Summary = a.Summary,
+            })
+            .ToListAsync(cancellationToken);
+
+        var targetUserIds = audits
+            .Where(audit => string.Equals(audit.TargetEntityType, "User", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(audit.TargetEntityId))
+            .Select(audit => audit.TargetEntityId!)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        if (targetUserIds.Count == 0)
+        {
+            return audits;
+        }
+
+        var targetUsers = await _dbContext.Users
+            .AsNoTracking()
+            .Where(user => targetUserIds.Contains(user.Id))
+            .Select(user => new
+            {
+                user.Id,
+                user.DisplayName,
+                user.Email,
+            })
+            .ToDictionaryAsync(user => user.Id, cancellationToken);
+
+        foreach (var audit in audits)
+        {
+            if (!string.Equals(audit.TargetEntityType, "User", StringComparison.OrdinalIgnoreCase)
+                || string.IsNullOrWhiteSpace(audit.TargetEntityId))
+            {
+                continue;
+            }
+
+            if (!targetUsers.TryGetValue(audit.TargetEntityId, out var targetUser))
+            {
+                continue;
+            }
+
+            audit.TargetDisplayName = targetUser.DisplayName;
+            audit.TargetEmail = targetUser.Email;
+        }
+
+        return audits;
+    }
+
     public async Task<int> CountAuditsSinceAsync(
         DateTime sinceUtc,
         string? performedByAdminId = null,

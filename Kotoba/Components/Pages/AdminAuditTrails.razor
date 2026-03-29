@@ -164,7 +164,7 @@
     private bool IsSystemAdmin;
     private string SearchTerm { get; set; } = string.Empty;
     private string SelectedStatus { get; set; } = "all";
-    private string SelectedRange { get; set; } = "24h";
+    private string SelectedRange { get; set; } = "all";
     private string SelectedActionValue { get; set; } = string.Empty;
 
     private IReadOnlyList<AdminActionType> ActionOptions => Enum.GetValues<AdminActionType>()
@@ -207,7 +207,7 @@
         IsSystemAdmin = user.IsInRole(AdminRoles.SystemAdmin);
         var scopeAdminId = IsSystemAdmin ? null : adminId;
 
-        var audits = await AdminAuditService.GetRecentAuditsAsync(scopeAdminId, 500);
+        var audits = await AdminAuditService.GetAuditsAsync(scopeAdminId);
         AllAudits.Clear();
         AllAudits.AddRange(audits.OrderByDescending(audit => audit.TimestampUtc));
     }

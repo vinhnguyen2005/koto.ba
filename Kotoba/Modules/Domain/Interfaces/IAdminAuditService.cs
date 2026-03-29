@@ -5,6 +5,9 @@ namespace Kotoba.Modules.Domain.Interfaces;
 public interface IAdminAuditService
 {
     Task TraceAsync(AdminAuditEntryRequest request, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<AdminAuditViewDto>> GetAuditsAsync(
+        string? performedByAdminId = null,
+        CancellationToken cancellationToken = default);
     Task<IReadOnlyList<AdminAuditViewDto>> GetRecentAuditsAsync(
         string? performedByAdminId = null,
         int limit = 20,

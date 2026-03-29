@@ -134,7 +134,7 @@
     {
         var sinceUtc = DateTime.UtcNow.AddHours(-24);
         AuditEventsLast24h = await AdminAuditService.CountAuditsSinceAsync(sinceUtc);
-        RecentAudits = (await AdminAuditService.GetRecentAuditsAsync(limit: 20)).ToList();
+        RecentAudits = (await AdminAuditService.GetRecentAuditsAsync(limit: 10)).ToList();
     }
 
     private static string FormatActor(AdminAuditViewDto audit)
