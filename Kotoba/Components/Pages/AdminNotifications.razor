@@ -1,0 +1,443 @@
+@page "/admin/system/notifications"
+@page "/admin/business/notifications"
+@layout Kotoba.Components.Layout.AdminLayout
+@using Kotoba.Modules.Domain.Constants
+@using Kotoba.Modules.Domain.DTOs
+@using Kotoba.Modules.Domain.Enums
+@using Microsoft.AspNetCore.SignalR.Client
+@attribute [Authorize(Roles = AdminRoles.AnyAdmin)]
+@implements IDisposable
+@inject INotificationService NotificationService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IHttpContextAccessor HttpContextAccessor
+
+<PageTitle>Admin Notifications</PageTitle>
+
+<div class="admin-console">
+    <AdminSidebar IsSystemAdmin="@IsSystemAdmin" ActiveItem="@(IsSystemAdmin ? AdminSidebarItem.SystemNotifications : AdminSidebarItem.BusinessNotifications)" />
+
+    <main class="admin-main">
+        <header class="admin-topbar">
+            <div>
+                <p class="admin-eyebrow">@((IsSystemAdmin ? "System Ops" : "Business Ops"))</p>
+                <h1 class="admin-title">Admin Notifications</h1>
+            </div>
+            <div class="admin-pill">@(IsSystemAdmin ? "System Admin" : "Business Admin")</div>
+        </header>
+
+        <section class="admin-stats" aria-label="Admin notification metrics">
+            <article class="admin-stat-card">
+                <p class="admin-stat-label">Unread</p>
+                <p class="admin-stat-value">@UnreadCount</p>
+                <p class="admin-stat-meta">Needs your attention</p>
+            </article>
+            <article class="admin-stat-card">
+                <p class="admin-stat-label">Total</p>
+                <p class="admin-stat-value">@notifications.Count</p>
+                <p class="admin-stat-meta">Current feed</p>
+            </article>
+            <article class="admin-stat-card">
+                <p class="admin-stat-label">Security Related</p>
+                <p class="admin-stat-value">@notifications.Count(item => item.Type is NotificationType.AdminWarning or NotificationType.AdminReportAlert)</p>
+                <p class="admin-stat-meta">Higher risk items</p>
+            </article>
+            <article class="admin-stat-card">
+                <p class="admin-stat-label">Last Event</p>
+                <p class="admin-stat-value">@LastEventText</p>
+                <p class="admin-stat-meta">Relative time</p>
+            </article>
+        </section>
+
+        <section class="admin-panels">
+            <article class="admin-panel" style="grid-column: 1 / -1;">
+                <div class="admin-panel-header">
+                    <h2 class="admin-panel-title">Notification Feed</h2>
+                    <span class="admin-panel-badge">Live-style UI</span>
+                    @if (UnreadCount > 0)
+                    {
+                        <button type="button" class="admin-action-btn" @onclick="MarkAllAsRead">Mark all read</button>
+                    }
+                </div>
+
+                @if (notifications.Count == 0)
+                {
+                    <div class="admin-notification-empty">
+                        <div class="admin-notification-empty-icon">N</div>
+                        <p class="admin-notification-empty-title">No notifications yet</p>
+                        <p class="admin-notification-empty-sub">New admin activity updates will appear here.</p>
+                    </div>
+                }
+                else
+                {
+                    foreach (var group in GroupedNotifications)
+                    {
+                        <div class="admin-notification-group">
+                            <div class="admin-notification-group-label">@group.Key</div>
+
+                            @foreach (var item in group.Value)
+                            {
+                                <article class="admin-notification-item @(item.IsRead ? string.Empty : "is-unread")">
+                                    <div class="admin-notification-icon">@GetCategoryGlyph(item.Type)</div>
+
+                                    <div class="admin-notification-body">
+                                        <p class="admin-notification-title">@GetNotificationTitle(item.Type)</p>
+                                        <p class="admin-notification-message">@item.Message</p>
+                                        <div class="admin-notification-meta">
+                                            <span class="admin-tag">@GetCategoryLabel(item.Type)</span>
+                                            <span>@FormatTime(item.CreatedAt)</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="admin-notification-actions">
+                                        @if (!item.IsRead)
+                                        {
+                                            <button type="button" class="admin-action-btn" @onclick="() => MarkAsRead(item)">Mark read</button>
+                                        }
+                                        <a class="admin-action-btn" href="@GetActionUrl(item)">@GetActionLabel(item.Type)</a>
+                                    </div>
+                                </article>
+                            }
+                        </div>
+                    }
+                }
+            </article>
+        </section>
+    </main>
+</div>
+
+<style>
+    .admin-notification-group {
+        display: grid;
+        gap: 0.65rem;
+        margin-top: 0.9rem;
+    }
+
+    .admin-notification-group-label {
+        color: #6a774b;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        font-weight: 700;
+    }
+
+    .admin-notification-item {
+        border: 1px solid rgba(122, 184, 0, 0.16);
+        border-radius: 0.95rem;
+        background: #fff;
+        padding: 0.8rem;
+        display: grid;
+        grid-template-columns: 36px minmax(0, 1fr) auto;
+        gap: 0.75rem;
+        align-items: start;
+    }
+
+    .admin-notification-item.is-unread {
+        border-color: rgba(122, 184, 0, 0.48);
+        box-shadow: 0 10px 20px rgba(40, 66, 47, 0.08);
+    }
+
+    .admin-notification-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 11px;
+        background: rgba(122, 184, 0, 0.14);
+        color: #3f5b13;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+    }
+
+    .admin-notification-body {
+        min-width: 0;
+    }
+
+    .admin-notification-title {
+        margin: 0;
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #1a1f0e;
+    }
+
+    .admin-notification-message {
+        margin: 0.25rem 0 0;
+        font-size: 0.82rem;
+        line-height: 1.45;
+        color: #4f5b3b;
+    }
+
+    .admin-notification-meta {
+        margin-top: 0.45rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        color: #66724a;
+        font-size: 0.72rem;
+    }
+
+    .admin-notification-actions {
+        display: inline-flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 0.4rem;
+    }
+
+    .admin-notification-empty {
+        border: 1px dashed rgba(122, 184, 0, 0.36);
+        border-radius: 1rem;
+        background: linear-gradient(180deg, #f8fce9 0%, #f1f7e4 100%);
+        min-height: 220px;
+        display: grid;
+        place-items: center;
+        text-align: center;
+        padding: 1.2rem;
+    }
+
+    .admin-notification-empty-icon {
+        width: 58px;
+        height: 58px;
+        border-radius: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        background: rgba(122, 184, 0, 0.18);
+    }
+
+    .admin-notification-empty-title {
+        margin: 0.55rem 0 0;
+        font-size: 0.98rem;
+        font-weight: 700;
+        color: #1a1f0e;
+    }
+
+    .admin-notification-empty-sub {
+        margin: 0.3rem 0 0;
+        font-size: 0.78rem;
+        color: #66724a;
+    }
+
+    @@media (max-width: 980px) {
+        .admin-notification-item {
+            grid-template-columns: 32px minmax(0, 1fr);
+        }
+
+        .admin-notification-actions {
+            grid-column: 1 / -1;
+            justify-content: flex-start;
+        }
+    }
+</style>
+
+@code {
+    private List<NotificationDto> notifications = new();
+    private string? _currentUserId;
+    private HubConnection? _hub;
+
+    private bool IsSystemAdmin => Navigation.Uri.Contains("/admin/system/", StringComparison.OrdinalIgnoreCase);
+
+    private int UnreadCount => notifications.Count(item => !item.IsRead);
+
+    private string LastEventText => notifications.Count == 0
+        ? "-"
+        : FormatTime(notifications.MaxBy(item => item.CreatedAt)!.CreatedAt);
+
+    private Dictionary<string, List<NotificationDto>> GroupedNotifications
+    {
+        get
+        {
+            var grouped = new Dictionary<string, List<NotificationDto>>();
+            foreach (var item in notifications.OrderByDescending(n => n.CreatedAt))
+            {
+                var key = GetDateLabel(item.CreatedAt);
+                if (!grouped.ContainsKey(key))
+                {
+                    grouped[key] = new List<NotificationDto>();
+                }
+
+                grouped[key].Add(item);
+            }
+
+            return grouped;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        await RefreshAsync();
+
+        if (!string.IsNullOrWhiteSpace(_currentUserId))
+        {
+            await NotificationService.MarkAllAsReadAsync(_currentUserId);
+            notifications.ForEach(item => item.IsRead = true);
+            await StartHubAsync();
+        }
+    }
+
+    private async Task StartHubAsync()
+    {
+        var cookies = HttpContextAccessor.HttpContext?.Request.Cookies;
+        var cookieStr = string.Join("; ", cookies?.Select(c => $"{c.Key}={c.Value}") ?? []);
+
+        _hub = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/chathub"), options =>
+            {
+                options.Headers.Add("Cookie", cookieStr);
+            })
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hub.On<NotificationDto>("ReceiveNotification", async (dto) =>
+        {
+            await InvokeAsync(async () =>
+            {
+                notifications.Insert(0, dto);
+                await NotificationService.MarkAsReadAsync(dto.Id);
+                dto.IsRead = true;
+                StateHasChanged();
+            });
+        });
+
+        await _hub.StartAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_currentUserId))
+        {
+            notifications = new();
+            return;
+        }
+
+        notifications = await NotificationService.GetNotificationsAsync(_currentUserId);
+    }
+
+    private async Task MarkAllAsRead()
+    {
+        if (string.IsNullOrWhiteSpace(_currentUserId)) return;
+        await NotificationService.MarkAllAsReadAsync(_currentUserId);
+        notifications.ForEach(item => item.IsRead = true);
+        StateHasChanged();
+    }
+
+    private async Task MarkAsRead(NotificationDto item)
+    {
+        await NotificationService.MarkAsReadAsync(item.Id);
+        item.IsRead = true;
+        StateHasChanged();
+    }
+
+    private static string GetDateLabel(DateTime utc)
+    {
+        var local = utc.ToLocalTime();
+        var now = DateTime.Now.Date;
+        var days = (now - local.Date).Days;
+
+        return days switch
+        {
+            0 => "Today",
+            1 => "Yesterday",
+            <= 7 => "This week",
+            _ => local.ToString("MMMM yyyy"),
+        };
+    }
+
+    private static string FormatTime(DateTime utc)
+    {
+        var delta = DateTime.UtcNow - utc;
+        if (delta.TotalMinutes < 1)
+        {
+            return "just now";
+        }
+
+        if (delta.TotalHours < 1)
+        {
+            return $"{(int)delta.TotalMinutes}m ago";
+        }
+
+        if (delta.TotalDays < 1)
+        {
+            return $"{(int)delta.TotalHours}h ago";
+        }
+
+        if (delta.TotalDays < 7)
+        {
+            return $"{(int)delta.TotalDays}d ago";
+        }
+
+        return utc.ToLocalTime().ToString("dd/MM/yyyy");
+    }
+
+    private static string GetCategoryGlyph(NotificationType type)
+    {
+        return type switch
+        {
+            NotificationType.AdminWarning => "W",
+            NotificationType.AdminReportAlert => "R",
+            NotificationType.NewFollower => "F",
+            NotificationType.StoryReaction => "S",
+            _ => "N",
+        };
+    }
+
+    private static string GetCategoryLabel(NotificationType type)
+    {
+        return type switch
+        {
+            NotificationType.AdminWarning => "Security",
+            NotificationType.AdminReportAlert => "Moderation",
+            NotificationType.NewFollower => "Follower",
+            NotificationType.StoryReaction => "Reaction",
+            _ => "Notification",
+        };
+    }
+
+    private static string GetNotificationTitle(NotificationType type)
+    {
+        return type switch
+        {
+            NotificationType.AdminWarning => "System warning",
+            NotificationType.AdminReportAlert => "Report escalation",
+            NotificationType.NewFollower => "New follower",
+            NotificationType.StoryReaction => "Story reaction",
+            _ => "Notification",
+        };
+    }
+
+    private static string GetActionLabel(NotificationType type)
+    {
+        return type switch
+        {
+            NotificationType.AdminWarning => "Open security",
+            NotificationType.AdminReportAlert => "Open reports",
+            _ => "Open notifications",
+        };
+    }
+
+    private string GetActionUrl(NotificationDto dto)
+    {
+        return dto.Type switch
+        {
+            NotificationType.AdminWarning => "/admin/system/security-alerts",
+            NotificationType.AdminReportAlert => "/admin/business/reports",
+            _ => IsSystemAdmin ? "/admin/system/notifications" : "/admin/business/notifications",
+        };
+    }
+
+    public void Dispose()
+    {
+        _ = DisposeAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hub is not null)
+        {
+            await _hub.DisposeAsync();
+        }
+    }
+}

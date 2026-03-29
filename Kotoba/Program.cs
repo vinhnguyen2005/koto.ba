@@ -111,6 +111,7 @@ namespace Kotoba
             builder.Services.AddScoped<IFollowRepository, FollowRepository>();
             builder.Services.AddScoped<IGroupAdminService, GroupAdminService>();
             builder.Services.AddSingleton<GlobalNotificationState>();
+            builder.Services.AddSingleton<AdminUiNotificationState>();
 
             var app = builder.Build();
 
