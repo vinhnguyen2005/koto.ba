@@ -39,15 +39,42 @@ namespace Kotoba.Modules.Infrastructure.Services.Social
             if (user == null || user.AccountStatus != AccountStatus.Active)
                 return null;
 
+            var visibility = request.Visibility?.ToLower() ?? "public";
+
+            if (visibility == "specific" &&
+                (request.AllowedUserIds == null || !request.AllowedUserIds.Any()))
+            {
+                return null;
+            }
+
             var story = new Story
             {
                 Id = Guid.NewGuid(),
                 UserId = request.UserId,
                 Content = request.Content,
                 MediaUrl = request.MediaUrl,
+                Visibility = visibility, 
                 CreatedAt = DateTime.UtcNow,
                 ExpiresAt = DateTime.UtcNow.Add(StoryLifetime)
             };
+
+            if (visibility == "specific")
+            {
+                var validUserIds = await db.Users
+                    .Where(u => request.AllowedUserIds!.Contains(u.Id))
+                    .Select(u => u.Id)
+                    .ToListAsync();
+
+                story.Permissions = validUserIds
+                    .Distinct()
+                    .Select(uid => new StoryPermission
+                    {
+                        Id = Guid.NewGuid(),
+                        StoryId = story.Id,
+                        UserId = uid
+                    })
+                    .ToList();
+            }
 
             await _storyRepository.AddAsync(story);
 

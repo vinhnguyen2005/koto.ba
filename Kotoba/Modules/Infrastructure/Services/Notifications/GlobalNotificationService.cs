@@ -127,6 +127,27 @@ public class GlobalNotificationService : IAsyncDisposable
             }
         });
 
+        _hub.On<NotificationDto>("NotifyFollow", async (dto) =>
+        {
+            if (dto.ActorId == _currentUserId) return;
+
+            var s = await _settings.LoadAsync();
+            if (!ShouldNotify(s, NotificationEvent.DirectMessage)) return;
+
+            var profile = await _userService.GetUserProfileAsync(dto.ActorId);
+
+            var title = s.ShowSender ? profile.DisplayName ?? "Kotoba" : "Kotoba";
+            var body = "started following you";
+
+            var avatarUrl = profile.AvatarUrl;
+            if (avatarUrl == null || !s.ShowSender)
+            {
+                avatarUrl = "/favicon.png";
+            }
+
+            await FireAsync(s, title, body, avatarUrl);
+        });
+
         try
         {
             await _hub.StartAsync();

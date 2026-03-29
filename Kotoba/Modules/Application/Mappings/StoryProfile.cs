@@ -12,10 +12,12 @@ namespace Kotoba.Modules.Application.Mappings
                 .ConstructUsing((src, context) => new StoryDto
                 {
                     StoryId = src.Id,
+                    UserId = src.UserId,
                     User = context.Mapper.Map<UserDto>(src.User),
                     Content = src.Content,
                     MediaUrl = src.MediaUrl,
-                    ExpiresAt = src.ExpiresAt
+                    ExpiresAt = src.ExpiresAt,
+                    AllowedUserIds = src.Permissions.Select(p => p.UserId).ToList()
                 });
         }
     }

@@ -25,6 +25,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using Kotoba.Modules.Infrastructure.Services.Follows;
 
 namespace Kotoba
 {
@@ -104,6 +105,7 @@ namespace Kotoba
             builder.Services.AddScoped<IMessageService, MessageService>();
             builder.Services.AddScoped<ReportRepository>();
             builder.Services.AddScoped<IReportService, ReportService>();
+            builder.Services.AddScoped<IFollowService, FollowService>();
             builder.Services.AddSingleton<GlobalNotificationState>();
 
             builder.Services.AddScoped<IGroupAdminService, GroupAdminService>();
