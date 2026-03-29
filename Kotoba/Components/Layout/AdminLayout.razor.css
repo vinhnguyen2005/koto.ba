@@ -513,12 +513,14 @@
 
 .admin-layout-host ::deep .admin-create-input {
     min-height: 2.8rem;
+    width: 100%;
     border: 1px solid rgba(122, 184, 0, 0.2);
     border-radius: 0.7rem;
     padding: 0.55rem 0.72rem;
     background: #f7faf0;
     color: #1a1f0e;
     font: inherit;
+    box-sizing: border-box;
 }
 
 .admin-layout-host ::deep .admin-create-input:focus {
@@ -571,8 +573,34 @@
 
 .admin-layout-host ::deep .admin-filter-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.7rem;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 0.8rem;
+    align-items: end;
+}
+
+.admin-layout-host ::deep .admin-filter-grid > div {
+    grid-column: span 3;
+    min-width: 0;
+}
+
+.admin-layout-host ::deep .admin-filter-grid > .admin-filter-wide {
+    grid-column: span 6;
+}
+
+.admin-layout-host ::deep .admin-filter-grid > .admin-filter-full {
+    grid-column: 1 / -1;
+}
+
+.admin-layout-host ::deep .admin-filter-grid > .admin-filter-actions {
+    display: flex;
+    align-items: end;
+    gap: 0.5rem;
+}
+
+.admin-layout-host ::deep .admin-filter-grid > .admin-filter-actions .admin-action-btn {
+    min-height: 2.8rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
 }
 
 @media (max-width: 1100px) {
@@ -607,7 +635,20 @@
     }
 
     .admin-layout-host ::deep .admin-filter-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 0.7rem;
+    }
+
+    .admin-layout-host ::deep .admin-filter-grid > div {
+        grid-column: span 3;
+    }
+
+    .admin-layout-host ::deep .admin-filter-grid > .admin-filter-wide {
+        grid-column: span 6;
+    }
+
+    .admin-layout-host ::deep .admin-filter-grid > .admin-filter-full {
+        grid-column: 1 / -1;
     }
 }
 
@@ -622,6 +663,12 @@
 
     .admin-layout-host ::deep .admin-filter-grid {
         grid-template-columns: 1fr;
+    }
+
+    .admin-layout-host ::deep .admin-filter-grid > div,
+    .admin-layout-host ::deep .admin-filter-grid > .admin-filter-wide,
+    .admin-layout-host ::deep .admin-filter-grid > .admin-filter-full {
+        grid-column: span 1;
     }
 }
 

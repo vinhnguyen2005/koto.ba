@@ -48,6 +48,26 @@
                 <p class="admin-stat-value">@MyAuditEventsLast24h</p>
                 <p class="admin-stat-meta">Visibility scoped to your account</p>
             </article>
+            <article class="admin-stat-card">
+                <p class="admin-stat-label">Total Users</p>
+                <p class="admin-stat-value">@TotalUserCount</p>
+                <p class="admin-stat-meta">Non-admin accounts</p>
+            </article>
+            <article class="admin-stat-card">
+                <p class="admin-stat-label">Restricted Accounts</p>
+                <p class="admin-stat-value">@RestrictedAccountCount</p>
+                <p class="admin-stat-meta">@BannedUserCount banned, @DeactivatedUserCount deactivated</p>
+            </article>
+            <article class="admin-stat-card">
+                <p class="admin-stat-label">New Reports (24h)</p>
+                <p class="admin-stat-value">@ReportsCreatedLast24h</p>
+                <p class="admin-stat-meta">Incoming moderation workload</p>
+            </article>
+            <article class="admin-stat-card">
+                <p class="admin-stat-label">Queue Resolution</p>
+                <p class="admin-stat-value">@ResolutionRateText</p>
+                <p class="admin-stat-meta">@ResolvedReportCount resolved / @TotalReportCount total</p>
+            </article>
         </section>
 
         <section class="admin-panels">
@@ -159,6 +179,14 @@
     private int HighPriorityOpenReportCount;
     private int StoryReportsPendingCount;
     private int ReviewedStoryReportsCount;
+    private int TotalUserCount;
+    private int BannedUserCount;
+    private int DeactivatedUserCount;
+    private int RestrictedAccountCount;
+    private int ReportsCreatedLast24h;
+    private int ResolvedReportCount;
+    private int TotalReportCount;
+    private string ResolutionRateText { get; set; } = "0%";
     private List<AdminReportListItemDto> QueuePreview { get; set; } = new();
     private List<AdminAuditViewDto> MyRecentAudits { get; set; } = new();
 
@@ -189,13 +217,24 @@
         var users = usersTask.Result;
         var reports = reportsTask.Result;
 
+        TotalUserCount = users.Count;
         ActiveUserCount = users.Count(user => user.AccountStatus == AccountStatus.Active);
+        BannedUserCount = users.Count(user => user.AccountStatus == AccountStatus.Banned);
+        DeactivatedUserCount = users.Count(user => user.AccountStatus == AccountStatus.Deactivated);
+        RestrictedAccountCount = BannedUserCount + DeactivatedUserCount;
         OnlineUserCount = onlineUsersTask.Result.Count;
 
         OpenReportCount = reports.Count(report => report.Status == ReportStatus.Pending);
         HighPriorityOpenReportCount = reports.Count(report =>
             report.Status == ReportStatus.Pending
             && HighPriorityReportCategories.Contains(report.CategoryName));
+
+        ReportsCreatedLast24h = reports.Count(report => report.CreatedAt >= DateTime.UtcNow.AddHours(-24));
+        ResolvedReportCount = reports.Count(report => report.Status is ReportStatus.Reviewed or ReportStatus.Dismissed);
+        TotalReportCount = reports.Count;
+        ResolutionRateText = TotalReportCount == 0
+            ? "0%"
+            : $"{Math.Round((double)ResolvedReportCount * 100 / TotalReportCount, MidpointRounding.AwayFromZero)}%";
 
         StoryReportsPendingCount = reports.Count(report =>
             report.TargetType == ReportTargetType.Story

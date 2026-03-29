@@ -73,11 +73,11 @@
                             <option value="ack">Acknowledged</option>
                         </select>
                     </div>
-                    <div>
+                    <div class="admin-filter-wide">
                         <label class="admin-create-label" for="search-filter">Search</label>
                         <input id="search-filter" class="admin-create-input" @bind="SearchTerm" placeholder="Type, title, user ID, IP, message" />
                     </div>
-                    <div style="display:flex; align-items:end; gap:.5rem;">
+                    <div class="admin-filter-actions">
                         <button class="admin-action-btn" disabled="@IsLoading" @onclick="ReloadAsync">Refresh</button>
                     </div>
                 </div>

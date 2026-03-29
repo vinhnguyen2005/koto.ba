@@ -60,8 +60,11 @@
                     <h2 class="admin-panel-title">Normal Users</h2>
                     <span class="admin-panel-badge">Directory</span>
                 </div>
-                <div style="padding: 0 1rem 0.75rem;">
-                    <input class="admin-create-input" @bind="UserFilter" placeholder="Filter by user ID, name, or email" />
+                <div class="admin-filter-grid" style="padding: 0 0 0.75rem;">
+                    <div class="admin-filter-full">
+                        <label class="admin-create-label" for="user-filter">Search</label>
+                        <input id="user-filter" class="admin-create-input" @bind="UserFilter" placeholder="Filter by user ID, name, or email" />
+                    </div>
                 </div>
                 <div class="admin-table-wrap">
                     <table class="admin-table">
