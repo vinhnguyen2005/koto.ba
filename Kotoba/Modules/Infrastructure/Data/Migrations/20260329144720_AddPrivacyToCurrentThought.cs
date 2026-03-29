@@ -55,32 +55,6 @@ namespace Kotoba.Modules.Infrastructure.Data.Migrations
                 nullable: false,
                 defaultValue: 0);
 
-            migrationBuilder.CreateTable(
-                name: "Follows",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    FollowerId = table.Column<string>(type: "nvarchar(450)", nullable: false),
-                    FollowingId = table.Column<string>(type: "nvarchar(450)", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Follows", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_Follows_Users_FollowerId",
-                        column: x => x.FollowerId,
-                        principalTable: "Users",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_Follows_Users_FollowingId",
-                        column: x => x.FollowingId,
-                        principalTable: "Users",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                });
-
             migrationBuilder.InsertData(
                 table: "ReportCategories",
                 columns: new[] { "Id", "Description", "DisplayOrder", "IsActive", "Name" },
@@ -95,23 +69,11 @@ namespace Kotoba.Modules.Infrastructure.Data.Migrations
                     { new Guid("d8d9e043-e9d2-45bd-907d-4ae354c8eec9"), null, 5, true, "Misinformation" }
                 });
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Follows_FollowerId",
-                table: "Follows",
-                column: "FollowerId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Follows_FollowingId",
-                table: "Follows",
-                column: "FollowingId");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropTable(
-                name: "Follows");
-
             migrationBuilder.DeleteData(
                 table: "ReportCategories",
                 keyColumn: "Id",
