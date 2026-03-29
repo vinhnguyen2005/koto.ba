@@ -88,6 +88,7 @@ public class GlobalNotificationService : IAsyncDisposable
             if (onlineUserId == _currentUserId) return;
             var s = await _settings.LoadAsync();
             var profile = await _userService.GetUserProfileAsync(onlineUserId);
+            if (profile == null) return;
             var avatarUrl = profile.AvatarUrl;
             if (avatarUrl == null || !s.ShowSender)
             {

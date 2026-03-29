@@ -792,6 +792,23 @@
 		{
 			await FollowService.FollowUserAsync(CurrentUserId, otherUser.UserId);
 			isFollowing = true;
+
+            // Push noti cho người được follow
+            if (_settingHub?.State == HubConnectionState.Connected)
+            {
+                var myName = members?.FirstOrDefault(m => m.UserId == CurrentUserId)?.DisplayName
+                             ?? "Someone";
+
+                await _settingHub.InvokeAsync("NotifyAsync", new CreateNotificationRequest
+                {
+                    RecipientId = otherUser.UserId,
+                    Type = NotificationType.NewFollower,
+                    ActorId = CurrentUserId,
+                    TargetId = CurrentUserId,
+                    TargetType = "User",
+                    Message = $"{myName} started following you"
+                });
+            }
 		}
 
 		StateHasChanged();

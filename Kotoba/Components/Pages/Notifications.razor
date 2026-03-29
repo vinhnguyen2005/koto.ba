@@ -1,6 +1,10 @@
 @page "/notifications"
 @using Kotoba.Modules.Domain.Enums
+@using Microsoft.AspNetCore.SignalR.Client
 @inject INotificationService NotificationService
+@inject NavigationManager Navigation
+@inject IHttpContextAccessor HttpContextAccessor
+@implements IAsyncDisposable
 <style>
     .notif-page {
         min-height: 100vh;        
@@ -16,11 +20,11 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 24px 32px;
-        background: transparent !important;
+        padding: 24px 32px;        
         border: none !important;
         box-shadow: none !important;
         border-bottom: 1px solid rgba(0,0,0,0.06);
+        background-color:#fff;
     }
 
     .notif-title {
@@ -39,8 +43,7 @@
     }
 
     .notif-container {        
-        width: 100%;
-        padding: 24px 32px;
+        width: 100%;        
         display: flex;
         flex-direction: column;
         gap: 8px;
@@ -84,6 +87,120 @@
         max-width: 240px;
         line-height: 1.5;
     }
+
+    .notif-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-bottom: 20px;
+        padding: 24px 32px;
+    }
+
+    .notif-group-label {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--muted, #aaa);
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        padding: 0 4px;
+        margin-bottom: 4px;
+    }
+
+    .notif-item {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 14px 16px;
+        border-radius: 16px;
+        cursor: pointer;
+        transition: background .15s, transform .1s;
+        background: #fff;
+        border: 1px solid transparent;
+    }
+
+        .notif-item:hover {
+            background: #f8fbf2;
+            border-color: rgba(122,184,0,0.15);
+            transform: translateX(2px);
+        }
+
+        .notif-item.unread {
+            border-color: rgba(122,184,0,0.2);
+            box-shadow: 0 2px 12px rgba(122,184,0,0.08);
+        }
+
+    .notif-icon-wrap {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        flex-shrink: 0;
+    }
+
+        .notif-icon-wrap.follow {
+            background: rgba(52,152,219,0.12);
+        }
+
+        .notif-icon-wrap.story {
+            background: rgba(231,76,60,0.10);
+        }
+
+        .notif-icon-wrap.warning {
+            background: rgba(230,126,34,0.12);
+        }
+
+        .notif-icon-wrap.report {
+            background: rgba(192,57,43,0.10);
+        }
+
+        .notif-icon-wrap.default {
+            background: rgba(122,184,0,0.10);
+        }
+
+    .notif-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .notif-msg {
+        font-size: 13px;
+        color: var(--text, #1a1f0e);
+        line-height: 1.45;
+        font-weight: 500;
+    }
+
+    .notif-time {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 11px;
+        color: var(--muted, #aaa);
+        margin-top: 4px;
+    }
+
+    .notif-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--lime, #7ab800);
+        flex-shrink: 0;
+        animation: pulse-dot 2s infinite;
+    }
+
+    @@keyframes pulse-dot {
+        0%, 100% {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        50% {
+            opacity: 0.6;
+            transform: scale(0.85);
+        }
+    }
 </style>
 
 <div class="notif-page">
@@ -111,11 +228,7 @@
                         </span>
                         <span style="margin:0 6px;opacity:.3;">·</span>
                         <span>@notifications.Count total</span>
-                    }
-                    else
-                    {
-                        <span>✓ All caught up</span>
-                    }
+                    }                   
                 </div>
             </div>
             @if (notifications.Any(n => !n.IsRead))
@@ -197,6 +310,52 @@
 @code {
     [CascadingParameter] public UserProfile? CurrentUserProfile { get; set; }
     private List<NotificationDto> notifications = new();
+    private HubConnection? _hub;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (CurrentUserProfile?.UserId == null) return;
+
+        notifications = await NotificationService
+            .GetNotificationsAsync(CurrentUserProfile.UserId);
+
+        // Mark all read khi vào trang
+        await NotificationService.MarkAllAsReadAsync(CurrentUserProfile.UserId);
+        notifications.ForEach(n => n.IsRead = true);
+
+        await StartHubAsync();
+    }
+
+    private async Task StartHubAsync()
+    {
+        var cookies = HttpContextAccessor.HttpContext?.Request.Cookies;
+        var cookieStr = string.Join("; ", cookies?.Select(c => $"{c.Key}={c.Value}") ?? []);
+
+        _hub = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/chathub"), options =>
+            {
+                options.Headers.Add("Cookie", cookieStr);
+            })
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hub.On<NotificationDto>("ReceiveNotification", async (dto) =>
+        {
+            await InvokeAsync(async () =>
+            {
+                // Thêm vào đầu danh sách
+                notifications.Insert(0, dto);
+
+                // Mark read ngay vì đang ở trang notifications
+                await NotificationService.MarkAsReadAsync(dto.Id);
+                dto.IsRead = true;
+
+                StateHasChanged();
+            });
+        });
+
+        await _hub.StartAsync();
+    }
 
     private Dictionary<string, List<NotificationDto>> GroupedNotifications
     {
@@ -226,16 +385,7 @@
             <= 7 => "This week",
             _ => local.ToString("MMMM yyyy")
         };
-    }
-
-    protected override async Task OnInitializedAsync()
-    {
-        if (CurrentUserProfile?.UserId == null) return;
-        notifications = await NotificationService
-            .GetNotificationsAsync(CurrentUserProfile.UserId);
-        await NotificationService.MarkAllAsReadAsync(CurrentUserProfile.UserId);
-        notifications.ForEach(n => n.IsRead = true);
-    }
+    }  
 
     private async Task MarkAll()
     {
@@ -278,5 +428,10 @@
         if (delta.TotalDays < 1) return $"{(int)delta.TotalHours}h ago";
         if (delta.TotalDays < 7) return $"{(int)delta.TotalDays}d ago";
         return utc.ToLocalTime().ToString("dd/MM/yyyy");
+    }
+    public async ValueTask DisposeAsync()
+    {
+        if (_hub is not null)
+            await _hub.DisposeAsync();
     }
 }

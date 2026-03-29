@@ -1,3 +1,4 @@
+@using Kotoba.Components.Pages
 @using Kotoba.Modules.Domain.DTOs
 @using Kotoba.Modules.Domain.Enums
 @using System.Security.Claims
@@ -44,6 +45,11 @@
         font-weight: 600;
     }
 </style>
+@* MainLayout.razor *@
+@if(CurrentUser != null)
+{
+    <NotificationToast UserId="@CurrentUser.UserId" />
+}
 
 <div class="page">
     <CascadingValue Value="CurrentUser">
