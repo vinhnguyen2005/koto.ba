@@ -40,6 +40,13 @@
 		margin: 0 auto 10px;
 		border: 3px solid rgba(122,184,0,0.25);
 		box-shadow: 0 4px 16px rgba(122,184,0,0.2);
+		overflow: hidden;
+	}
+
+	.profile-avatar-lg.has-avatar {
+		background: transparent;
+		border: none;
+		box-shadow: none;
 	}
 
 	.profile-name {
@@ -128,6 +135,20 @@
 		font-size: 13px;
 		font-weight: 700;
 		flex-shrink: 0; /* ✅ Avatar không shrink */
+		overflow: hidden;
+	}
+
+	.member-avatar.has-avatar {
+		background: transparent;
+		color: transparent;
+	}
+
+	.avatar-photo {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		display: block;
+		border-radius: inherit;
 	}
 
 	.member-card.owner-card .member-avatar {
@@ -323,8 +344,23 @@
 {
 	<div class="profile-panel">
 		<div class="profile-top">
-			<div class="profile-avatar-lg">
-				@(conversation.Type == ConversationType.Group ? "👥" : "🌿")
+			@{
+				var directChatUser = conversation.Type == ConversationType.Direct
+					? members?.FirstOrDefault(m => m.UserId != CurrentUserId)
+					: null;
+				var sidebarAvatarSrc = conversation.Type == ConversationType.Direct
+					? GetAvatarImageSource(directChatUser?.AvatarUrl)
+					: null;
+			}
+			<div class="profile-avatar-lg @(string.IsNullOrWhiteSpace(sidebarAvatarSrc) ? "" : "has-avatar")">
+				@if (!string.IsNullOrWhiteSpace(sidebarAvatarSrc))
+				{
+					<img src="@sidebarAvatarSrc" alt="" class="avatar-photo" @onerror="@(() => MarkAvatarLoadFailed(sidebarAvatarSrc))" />
+				}
+				else
+				{
+					@(conversation.Type == ConversationType.Group ? "👥" : GetAvatarFallbackEmoji(directChatUser?.AvatarUrl))
+				}
 			</div>
 			<div class="profile-name">@conversationName</div>
 			<div class="profile-username">
@@ -347,10 +383,20 @@
 			var owner = members.FirstOrDefault(m => m.Role == "Owner");
 			@if (owner != null)
 			{
+				var ownerAvatarSrc = GetAvatarImageSource(owner.AvatarUrl);
 				<div class="profile-section">
 					<div class="profile-section-title">👑 Owner</div>
 					<div class="member-card owner-card">
-						<div class="member-avatar">@owner.DisplayName[0]</div>
+						<div class="member-avatar @(string.IsNullOrWhiteSpace(ownerAvatarSrc) ? "" : "has-avatar")">
+							@if (!string.IsNullOrWhiteSpace(ownerAvatarSrc))
+							{
+								<img src="@ownerAvatarSrc" alt="" class="avatar-photo" @onerror="@(() => MarkAvatarLoadFailed(ownerAvatarSrc))" />
+							}
+							else
+							{
+								@GetAvatarFallbackEmoji(owner.AvatarUrl)
+							}
+						</div>
 						<div class="member-info">
 							<div class="member-name">@owner.DisplayName</div>
 							<div class="member-role">Owner @(owner.UserId == CurrentUserId ? "(You)" : "")</div>
@@ -377,8 +423,18 @@
 					@foreach (var admin in admins)
 					{
 						var isMe = admin.UserId == CurrentUserId;
+						var adminAvatarSrc = GetAvatarImageSource(admin.AvatarUrl);
 						<div class="member-card admin-card">
-							<div class="member-avatar">@admin.DisplayName[0]</div>
+							<div class="member-avatar @(string.IsNullOrWhiteSpace(adminAvatarSrc) ? "" : "has-avatar")">
+								@if (!string.IsNullOrWhiteSpace(adminAvatarSrc))
+								{
+									<img src="@adminAvatarSrc" alt="" class="avatar-photo" @onerror="@(() => MarkAvatarLoadFailed(adminAvatarSrc))" />
+								}
+								else
+								{
+									@GetAvatarFallbackEmoji(admin.AvatarUrl)
+								}
+							</div>
 							<div class="member-info">
 								<div class="member-name">@admin.DisplayName</div>
 								<div class="member-role">Admin @(isMe ? "(You)" : "")</div>
@@ -406,8 +462,18 @@
 					@foreach (var member in regularMembers)
 					{
 						var isMe = member.UserId == CurrentUserId;
+						var memberAvatarSrc = GetAvatarImageSource(member.AvatarUrl);
 						<div class="member-card member-card-item">
-							<div class="member-avatar">@member.DisplayName[0]</div>
+							<div class="member-avatar @(string.IsNullOrWhiteSpace(memberAvatarSrc) ? "" : "has-avatar")">
+								@if (!string.IsNullOrWhiteSpace(memberAvatarSrc))
+								{
+									<img src="@memberAvatarSrc" alt="" class="avatar-photo" @onerror="@(() => MarkAvatarLoadFailed(memberAvatarSrc))" />
+								}
+								else
+								{
+									@GetAvatarFallbackEmoji(member.AvatarUrl)
+								}
+							</div>
 							<div class="member-info">
 								<div class="member-name">@member.DisplayName</div>
 								<div class="member-role">@(isMe ? "You" : "Member")</div>
@@ -627,6 +693,7 @@
 	private bool showConfirmLeaveModal = false;
 	private HubConnection? _settingHub;
 	private string? _joinedConversationId;
+	private readonly HashSet<string> failedAvatarSources = new(StringComparer.OrdinalIgnoreCase);
 	private bool isGroupOwner => members?.FirstOrDefault(m => m.UserId == CurrentUserId)?.Role == "Owner";
 	private bool isGroupAdmin => members?.FirstOrDefault(m => m.UserId == CurrentUserId)?.Role == "Admin";
 	private bool isGroupOwnerOrAdmin => isGroupOwner || isGroupAdmin;
@@ -867,10 +934,10 @@
 		{
 			await _settingHub.InvokeAsync("EditGroupName", Guid.Parse(ConversationId!), editNameValue);
 			isEditingName = false;
-			conversation!.GroupName = editNameValue; 
-			conversationName = editNameValue; 
+			conversation!.GroupName = editNameValue;
+			conversationName = editNameValue;
 
-			await LoadAsync(); 
+			await LoadAsync();
 		}
 	}
 
@@ -1012,5 +1079,89 @@
 		if (bytes < 1024) return $"{bytes} B";
 		if (bytes < 1024 * 1024) return $"{bytes / 1024} KB";
 		return $"{bytes / (1024 * 1024)} MB";
+	}
+
+	private const string DefaultAvatarEmoji = "🥝";
+	private const string ErrorAvatarEmoji = "🍉";
+
+	private static string? NormalizeAvatarImageSource(string? avatarValue)
+	{
+		if (string.IsNullOrWhiteSpace(avatarValue))
+		{
+			return null;
+		}
+
+		var trimmed = avatarValue.Trim().Trim('\"', '\'');
+
+		if (trimmed.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
+		{
+			return trimmed;
+		}
+
+		if (trimmed.StartsWith("//", StringComparison.Ordinal))
+		{
+			return trimmed;
+		}
+
+		if (trimmed.StartsWith("/", StringComparison.Ordinal))
+		{
+			return trimmed;
+		}
+
+		if (trimmed.StartsWith("./", StringComparison.Ordinal) || trimmed.StartsWith("../", StringComparison.Ordinal))
+		{
+			return trimmed;
+		}
+
+		if (Uri.TryCreate(trimmed, UriKind.Absolute, out var uri)
+			&& (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+		{
+			return trimmed;
+		}
+
+		if (!trimmed.Contains("://", StringComparison.Ordinal)
+			&& !trimmed.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase)
+			&& !trimmed.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+		{
+			return $"/{trimmed.TrimStart('/')}";
+		}
+
+		return null;
+	}
+
+	private string? GetAvatarImageSource(string? avatarValue)
+	{
+		var normalized = NormalizeAvatarImageSource(avatarValue);
+		if (string.IsNullOrWhiteSpace(normalized))
+		{
+			return null;
+		}
+
+		return failedAvatarSources.Contains(normalized) ? null : normalized;
+	}
+
+	private void MarkAvatarLoadFailed(string? avatarSrc)
+	{
+		var normalized = NormalizeAvatarImageSource(avatarSrc);
+		if (string.IsNullOrWhiteSpace(normalized))
+		{
+			return;
+		}
+
+		failedAvatarSources.Add(normalized);
+
+		StateHasChanged();
+	}
+
+	private string GetAvatarFallbackEmoji(string? avatarValue)
+	{
+		var normalized = NormalizeAvatarImageSource(avatarValue);
+		if (!string.IsNullOrWhiteSpace(normalized)
+			&& failedAvatarSources.Contains(normalized))
+		{
+			return ErrorAvatarEmoji;
+		}
+
+		return DefaultAvatarEmoji;
 	}
 }

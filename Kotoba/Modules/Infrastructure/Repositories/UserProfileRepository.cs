@@ -25,9 +25,10 @@ namespace Kotoba.Modules.Infrastructure.Repositories
                 {
                     UserId = u.Id,
                     DisplayName = u.DisplayName,
+                    AvatarUrl = u.AvatarUrl,
                     AccountStatus = u.AccountStatus
                 })
-                .ToList(); 
+                .ToList();
         }
 
         public async Task<User?> GetByIdAsync(string userId)
