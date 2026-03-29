@@ -5,6 +5,7 @@
 @inject IHttpContextAccessor HttpContextAccessor
 @inject GlobalNotificationState NotifState
 @using Kotoba.Modules.Infrastructure.Services.Notifications
+@using Modules.Domain.Enums
 
 <div style="position:relative;cursor:pointer;" @onclick="GoToNotifications" title="Notifications">
     <svg width="20" height="20" fill="none" viewBox="0 0 24 24"
@@ -68,6 +69,8 @@
 
         _hub.On<NotificationDto>("ReceiveNotification", async (dto) =>
         {
+            if (dto.Type == NotificationType.NewMessage)
+                return;
             NotifState.Increment();
         });
 

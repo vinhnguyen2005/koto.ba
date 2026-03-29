@@ -1,9 +1,12 @@
-
 @page "/story/create"
+@inject NavigationManager Nav
 
 <div class="story-container full-screen">
     <div class="story-header">
         <div class="story-title">Stories - Create new Story</div>
+        <button class="btn-back" @onclick="GoBackToStory">
+            ← Back to Stories
+        </button>
     </div>
     <div class="create-container">
 
@@ -46,5 +49,9 @@
     private void SelectMode(StoryMode selected)
     {
         mode = selected;
+    }
+    private void GoBackToStory()
+    {
+        Nav.NavigateTo("/story");
     }
 }

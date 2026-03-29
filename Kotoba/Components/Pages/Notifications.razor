@@ -178,7 +178,8 @@
     private static string GetIcon(NotificationType type) => type switch
     {
         NotificationType.NewFollower => "👤",
-        NotificationType.StoryReaction => "❤️",
+        NotificationType.StoryReaction => "👍",
+        NotificationType.StorySeen => "💬",
         NotificationType.AdminWarning => "⚠️",
         NotificationType.AdminReportAlert => "🚩",
         _ => "🔔"
@@ -188,6 +189,7 @@
     {
         NotificationType.NewFollower => "follow",
         NotificationType.StoryReaction => "story",
+        NotificationType.StorySeen => "story",
         NotificationType.AdminWarning => "warning",
         NotificationType.AdminReportAlert => "report",
         _ => "default"

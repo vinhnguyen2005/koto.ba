@@ -123,3 +123,29 @@ body {
     font-size: 14px;
     color: var(--text);
 }
+.btn-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 10px;
+    border: 1.5px solid var(--border);
+    background: var(--surface2);
+    color: var(--text2);
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+    .btn-back:hover {
+        background: var(--lime-pale);
+        border-color: var(--lime);
+        color: var(--green-dark);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(122,184,0,0.2);
+    }
+
+    .btn-back:active {
+        transform: scale(0.97);
+    }
