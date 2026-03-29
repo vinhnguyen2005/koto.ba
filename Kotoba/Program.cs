@@ -190,7 +190,11 @@ namespace Kotoba
                 var accountStatus = await userService.GetAccountStatusByEmailAsync(request.Email);
                 if (accountStatus == AccountStatus.Banned)
                 {
-                    return Results.LocalRedirect("/login?banned=1");
+                    var reason = await userService.GetLatestBanReasonByEmailAsync(request.Email);
+                    var encodedReason = string.IsNullOrWhiteSpace(reason)
+                        ? string.Empty
+                        : $"&reason={Uri.EscapeDataString(reason)}";
+                    return Results.LocalRedirect($"/login?banned=1{encodedReason}");
                 }
 
                 var isLoggedIn = await userService.LoginAsync(request);
