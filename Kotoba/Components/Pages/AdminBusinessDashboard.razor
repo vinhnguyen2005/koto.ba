@@ -55,30 +55,41 @@
                 <div class="admin-panel-header">
                     <h2 class="admin-panel-title">Report Moderation Queue</h2>
                     <span class="admin-panel-badge">Business</span>
+                    <a class="admin-action-btn" href="/admin/business/reports">Open Full Queue</a>
                 </div>
                 <div class="admin-table-wrap">
                     <table class="admin-table">
                         <thead>
                             <tr>
                                 <th>Report ID</th>
-                                <th>Type</th>
+                                <th>Target</th>
                                 <th>Status</th>
-                                <th>Assigned To</th>
+                                <th>Reporter</th>
+                                <th>Action</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td>RPT-10932</td>
-                                <td>Chat abuse</td>
-                                <td><span class="admin-tag admin-tag-warning">In Review</span></td>
-                                <td>business-admin-3</td>
-                            </tr>
-                            <tr>
-                                <td>RPT-10941</td>
-                                <td>Story violation</td>
-                                <td><span class="admin-tag">Queued</span></td>
-                                <td>business-admin-2</td>
-                            </tr>
+                            @if (QueuePreview.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="5">No reports in queue. <a href="/admin/business/reports">Go to reports page</a>.</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var report in QueuePreview)
+                                {
+                                    <tr>
+                                        <td>@report.ReportId.ToString()[..8]</td>
+                                        <td>@FormatReportTargetPreview(report)</td>
+                                        <td>
+                                            <span class="admin-tag @GetReportStatusClass(report.Status)">@report.Status</span>
+                                        </td>
+                                        <td>@(string.IsNullOrWhiteSpace(report.ReporterDisplayName) ? report.ReporterEmail : report.ReporterDisplayName)</td>
+                                        <td><a class="admin-action-btn" href="/admin/business/reports">Open</a></td>
+                                    </tr>
+                                }
+                            }
                         </tbody>
                     </table>
                 </div>
@@ -148,6 +159,7 @@
     private int HighPriorityOpenReportCount;
     private int StoryReportsPendingCount;
     private int ReviewedStoryReportsCount;
+    private List<AdminReportListItemDto> QueuePreview { get; set; } = new();
     private List<AdminAuditViewDto> MyRecentAudits { get; set; } = new();
 
     protected override async Task OnInitializedAsync()
@@ -192,6 +204,34 @@
         ReviewedStoryReportsCount = reports.Count(report =>
             report.TargetType == ReportTargetType.Story
             && report.Status == ReportStatus.Reviewed);
+
+        QueuePreview = reports
+            .Where(report => report.Status == ReportStatus.Pending)
+            .OrderByDescending(report => report.CreatedAt)
+            .Take(5)
+            .ToList();
+    }
+
+    private static string FormatReportTargetPreview(AdminReportListItemDto report)
+    {
+        var preview = string.IsNullOrWhiteSpace(report.TargetPreview) ? "No preview" : report.TargetPreview;
+        if (preview.Length > 80)
+        {
+            preview = preview[..80] + "...";
+        }
+
+        return $"{report.TargetType}: {preview}";
+    }
+
+    private static string GetReportStatusClass(ReportStatus status)
+    {
+        return status switch
+        {
+            ReportStatus.Pending => "admin-tag-warning",
+            ReportStatus.Dismissed => string.Empty,
+            ReportStatus.Reviewed => string.Empty,
+            _ => string.Empty,
+        };
     }
 
     private static string FormatTarget(AdminAuditViewDto audit)
