@@ -11,6 +11,7 @@ public interface IUserService
     Task<RegistrationResult> RegisterAsync(RegisterRequest request);
     Task<bool> LoginAsync(LoginRequest request);
     Task<string?> LoginAdminAsync(LoginRequest request);
+    Task<string?> GetLatestBanReasonByEmailAsync(string? email, CancellationToken cancellationToken = default);
     Task<AccountStatus?> GetAccountStatusByEmailAsync(string? email, CancellationToken cancellationToken = default);
     Task<AdminCreationResult> CreateBusinessAdminAsync(
         CreateBusinessAdminRequest request,

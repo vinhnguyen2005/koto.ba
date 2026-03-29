@@ -1,3 +1,4 @@
+using Kotoba.Modules.Domain.Enums;
 namespace Kotoba.Modules.Domain.Entities
 {
     public class CurrentThought
@@ -8,7 +9,7 @@ namespace Kotoba.Modules.Domain.Entities
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime ExpiresAt { get; set; }
         public bool IsExpired => DateTime.UtcNow > ExpiresAt;
-
+        public ThoughtPrivacy Privacy { get; set; } = ThoughtPrivacy.Public;
         // Navigation properties
         public virtual User User { get; set; } = null!;
     }

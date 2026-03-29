@@ -5,6 +5,7 @@ using Kotoba.Modules.Domain.Interfaces;
 using Kotoba.Modules.Domain.Constants;
 using Kotoba.Modules.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Identity;
+using Kotoba.Modules.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using System.Threading;
 
@@ -20,6 +21,7 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
         private readonly SignInManager<User> _signInManager;
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly IAdminAuditService _adminAuditService;
+        private readonly KotobaDbContext _dbContext;
         private readonly UserProfileRepository _userProfileRepository;
         private readonly SemaphoreSlim _userProfileLock = new(1, 1);
 
@@ -28,12 +30,14 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
             SignInManager<User> signInManager,
             RoleManager<IdentityRole> roleManager,
             IAdminAuditService adminAuditService,
+            KotobaDbContext dbContext,
             UserProfileRepository userProfileRepository)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _roleManager = roleManager;
             _adminAuditService = adminAuditService;
+            _dbContext = dbContext;
             _userProfileRepository = userProfileRepository;
         }
 
@@ -68,6 +72,12 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
             }
 
             if (user.AccountStatus == AccountStatus.Banned)
+            {
+                return false;
+            }
+
+            // Admin accounts must authenticate through the admin portal only.
+            if (await IsAnyAdminAsync(user))
             {
                 return false;
             }
@@ -127,6 +137,37 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
 
             await _signInManager.SignOutAsync();
             return null;
+        }
+
+        public async Task<string?> GetLatestBanReasonByEmailAsync(string? email, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return null;
+            }
+
+            var normalizedEmail = email.Trim();
+            var user = await _userManager.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Email == normalizedEmail, cancellationToken);
+
+            if (user is null)
+            {
+                return null;
+            }
+
+            var metadata = await _dbContext.AdminAuditLogs
+                .AsNoTracking()
+                .Where(a => a.TargetEntityId == user.Id
+                    && a.ActionType == AdminActionType.UserBanned
+                    && a.IsSuccess)
+                .OrderByDescending(a => a.TimestampUtc)
+                .Select(a => a.MetadataJson)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return ExtractReasonFromMetadata(metadata);
         }
 
         public async Task<AccountStatus?> GetAccountStatusByEmailAsync(string? email, CancellationToken cancellationToken = default)
@@ -896,6 +937,24 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
             return baseName.EndsWith(BannedDisplayTag, StringComparison.Ordinal)
                 ? baseName
                 : baseName + BannedDisplayTag;
+        }
+
+        private static string? ExtractReasonFromMetadata(string? metadata)
+        {
+            if (string.IsNullOrWhiteSpace(metadata))
+            {
+                return null;
+            }
+
+            const string prefix = "Reason:";
+            var index = metadata.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
+            if (index < 0)
+            {
+                return null;
+            }
+
+            var reason = metadata[(index + prefix.Length)..].Trim();
+            return string.IsNullOrWhiteSpace(reason) ? null : reason;
         }
 
         private static string RemoveBannedTag(string? displayName)

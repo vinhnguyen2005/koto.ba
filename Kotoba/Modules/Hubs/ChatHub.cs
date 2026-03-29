@@ -4,6 +4,7 @@ using Kotoba.Modules.Domain.Enums;
 using Kotoba.Modules.Domain.Interfaces;
 using Kotoba.Modules.Infrastructure.Data;
 using Kotoba.Modules.Infrastructure.Services.Messages;
+using Kotoba.Modules.Infrastructure.Services.Social;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -198,14 +199,31 @@ namespace Kotoba.Modules.Hubs
                     IsTyping = false
                 });
         }
-        public async Task UpdateThought(string content)
+        public async Task UpdateThought(string content, int privacyValue)
         {
             var userId = Context.UserIdentifier!;
             await AssertUserCanWriteAsync(userId);
-            await _thoughtService.SetThoughtAsync(userId, content);
-            await Clients.All.SendAsync("ThoughtUpdated", new { userId, content });
-        }
+            var privacy = (ThoughtPrivacy)privacyValue;
+            await _thoughtService.SetThoughtAsync(userId, content, privacy);
 
+            if (privacy == ThoughtPrivacy.FollowersOnly)
+            {
+                var followerIds = await _context.Follows
+                    .Where(f => f.FollowingId == userId)
+                    .Select(f => f.FollowerId)
+                    .ToListAsync();
+                followerIds.Add(userId);
+
+                await Clients.Users(followerIds)
+                    .SendAsync("ThoughtUpdated", new { userId, content });
+                await Clients.AllExcept(followerIds)
+                    .SendAsync("ThoughtUpdated", new { userId, content = (string?)null });
+            }
+            else
+            {
+                await Clients.All.SendAsync("ThoughtUpdated", new { userId, content });
+            }
+        }
         private async Task AssertParticipantAsync(Guid conversationId, string userId)
         {
             var isParticipant = await _context.ConversationParticipants
@@ -521,7 +539,7 @@ namespace Kotoba.Modules.Hubs
     .Where(p => p.ConversationId == conversationId && p.IsActive)
     .Select(p => p.UserId)
     .ToListAsync();
-
+            await Clients.Users(participantIds).SendAsync("GroupNameUpdated", newName);
             await Clients.Users(participantIds).SendAsync("ConversationListChanged");
         }
 
@@ -689,7 +707,21 @@ namespace Kotoba.Modules.Hubs
         {
             await Clients.User(recipientId).SendAsync("ReceiveNotification", dto);
         }
+        public async Task DeleteThought()
+        {
+            var userId = Context.UserIdentifier!;
+            await AssertUserCanWriteAsync(userId);
 
+            var followerIds = await _context.Follows
+                .Where(f => f.FollowingId == userId)
+                .Select(f => f.FollowerId)
+                .ToListAsync();
+            followerIds.Add(userId);
+            await _thoughtService.DeleteAsync(Guid.Empty, userId);
+            await Clients.Users(followerIds)
+                .SendAsync("ThoughtUpdated", new { userId, content = (string?)null });
+            await Clients.All.SendAsync("ThoughtUpdated", new { userId, content = (string?)null });
+        }
         // Helper dùng nội bộ trong các Hub method khác
         private async Task NotifyAsync(CreateNotificationRequest request)
         {

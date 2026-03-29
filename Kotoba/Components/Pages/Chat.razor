@@ -159,7 +159,8 @@
 
 <div class="chat-shell">
 	<ChatNav @ref="chatNavRef" currentUserId="@currentUserId" />
-	<ChatMain ConversationId="@ConversationId"
+	<ChatMain @ref="chatMainRef"
+			  ConversationId="@ConversationId"
 			  currentUserId="@currentUserId"
 			  OnToggleSetting="ToggleSetting"
 			  OnConversationListChanged="RefreshNav" />
@@ -167,7 +168,8 @@
 	{
 		<ConversationSetting ConversationId="@ConversationId"
 							 CurrentUserId="@currentUserId"
-							 OnLeft="HandleLeft" />
+							 OnLeft="HandleLeft"
+							 OnFollowChanged="RefreshThought" />
 	}
 </div>
 
@@ -176,6 +178,7 @@
 	private string? currentUserId;
 	private bool showSetting = false;
 	private ChatNav? chatNavRef;
+	private ChatMain? chatMainRef;
 
 	private void ToggleSetting()
 	{
@@ -203,5 +206,11 @@
 			currentUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 		if (string.IsNullOrEmpty(currentUserId))
 			Navigation.NavigateTo("/login", true);
+	}
+
+	private async Task RefreshThought()
+	{
+		if (chatMainRef != null)
+			await chatMainRef.RefreshOtherUserThought();
 	}
 }

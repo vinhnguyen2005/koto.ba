@@ -43,7 +43,15 @@
             @if (ShowBanned)
             {
                 <div class="auth-alert" role="alert">
-                    Your account has been banned. Please contact support.
+                    Your account has been banned.
+                    @if (!string.IsNullOrWhiteSpace(BanReason))
+                    {
+                        <div><strong>Reason:</strong> @BanReason</div>
+                    }
+                    else
+                    {
+                        <div>Please contact support.</div>
+                    }
                 </div>
             }
 
@@ -76,6 +84,9 @@
 
     [SupplyParameterFromQuery(Name = "banned")]
     public string? BannedCode { get; set; }
+
+    [SupplyParameterFromQuery(Name = "reason")]
+    public string? BanReason { get; set; }
 
     private bool ShowError => string.Equals(ErrorCode, "1", StringComparison.Ordinal);
     private bool ShowBanned => string.Equals(BannedCode, "1", StringComparison.Ordinal);

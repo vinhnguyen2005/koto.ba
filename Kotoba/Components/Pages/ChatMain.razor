@@ -14,6 +14,7 @@
 @using Kotoba.Modules.Infrastructure.Services.Notifications
 @inject ChatNotificationState NotifState
 
+@inject IFollowService FollowService
 <style>
     /* ===== CHAT LIST ===== */
     .chat-list-panel {
@@ -1596,7 +1597,7 @@
 		if (selectedConv.Type == ConversationType.Direct && selectedUsers?.Count > 0)
 		{
 			var otherId = selectedUsers[0].UserId;
-			otherUserThought = await CurrentThoughtService.GetThoughtAsync(otherId);
+			otherUserThought = await CurrentThoughtService.GetThoughtForViewerAsync(otherId, currentUserId!);
 		}
 		else
 		{
@@ -1754,16 +1755,24 @@
 		});
 
 		hubConnection.On<System.Text.Json.JsonElement>("ThoughtUpdated", async (data) =>
-	{
-	var userId = data.GetProperty("userId").GetString();
-	var content = data.GetProperty("content").GetString();
+		{
+			var userId = data.GetProperty("userId").GetString();
+			var content = data.GetProperty("content").GetString();
 
-	if (selectedUsers?.Any(u => u.UserId == userId) == true)
-	{
-		otherUserThought = content;
-		await InvokeAsync(StateHasChanged);
-	}
-	});
+			if (selectedUsers?.Any(u => u.UserId == userId) == true)
+			{
+				if (string.IsNullOrEmpty(content))
+				{
+					otherUserThought = null;
+				}
+				else
+				{
+					otherUserThought = await CurrentThoughtService
+						.GetThoughtForViewerAsync(userId!, currentUserId!);
+				}
+				await InvokeAsync(StateHasChanged);
+			}
+		});
 		hubConnection.On("MembersUpdated", async () =>
 		{
 			await InvokeAsync(async () =>
@@ -2051,5 +2060,16 @@
         showReportModal = true;
         StateHasChanged();
     }
+
+	public async Task RefreshOtherUserThought()
+	{
+		if (selectedConv?.Type == ConversationType.Direct && selectedUsers?.Count > 0)
+		{
+			var otherId = selectedUsers[0].UserId;
+			otherUserThought = await CurrentThoughtService
+				.GetThoughtForViewerAsync(otherId, currentUserId!);
+			await InvokeAsync(StateHasChanged);
+		}
+	}
 
 }

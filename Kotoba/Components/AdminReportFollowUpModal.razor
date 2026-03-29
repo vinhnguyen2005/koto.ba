@@ -1,0 +1,250 @@
+<div class="modal-overlay @(IsVisible ? "modal-overlay-active" : "")" @onclick="CloseAsync">
+    <div class="modal-panel followup-modal-panel" @onclick:stopPropagation="true">
+        <div class="modal-header">
+            <div class="followup-modal-title-wrap">
+                <span class="followup-modal-kicker">Moderation Workflow</span>
+                <h2 class="modal-title">Post-Review Action</h2>
+            </div>
+            <button class="modal-close" @onclick="CloseAsync" aria-label="Close modal">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <div class="modal-content followup-modal-content">
+            <div class="followup-summary-card" role="status">
+                <div class="followup-summary-icon" aria-hidden="true">!</div>
+                <div class="followup-summary-body">
+                    <div class="followup-summary-title">Report reviewed</div>
+                    <div class="followup-summary-text">
+                        Target user: <strong>@TargetUserDisplayName</strong>
+                        @if (!string.IsNullOrWhiteSpace(TargetUserEmail))
+                        {
+                            <span>(@TargetUserEmail)</span>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            @if (CanModerateTarget)
+            {
+                <p class="followup-instruction">Choose what to do next with this account:</p>
+
+                <div class="followup-action-grid">
+                    <button class="followup-action-btn followup-action-neutral" @onclick="NoActionAsync">
+                        <span class="followup-action-title">No Action</span>
+                        <span class="followup-action-copy">Keep account unchanged and close this review.</span>
+                    </button>
+
+                    <button class="followup-action-btn followup-action-warn" @onclick="DeactivateAsync">
+                        <span class="followup-action-title">Deactivate User</span>
+                        <span class="followup-action-copy">Temporarily block account access pending follow-up.</span>
+                    </button>
+
+                    <button class="followup-action-btn followup-action-danger" @onclick="BanAsync">
+                        <span class="followup-action-title">Ban User</span>
+                        <span class="followup-action-copy">Permanently block account access for severe violations.</span>
+                    </button>
+                </div>
+            }
+            else
+            {
+                <div class="followup-error-card" role="alert">
+                    No moderation action is available because the reported target user could not be resolved.
+                </div>
+
+                <div class="modal-footer">
+                    <button class="modal-btn modal-btn-primary" @onclick="NoActionAsync">Close</button>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+    .followup-modal-panel {
+        max-width: 560px;
+    }
+
+    .followup-modal-title-wrap {
+        display: grid;
+        gap: 0.18rem;
+    }
+
+    .followup-modal-kicker {
+        font-size: 0.64rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        font-weight: 800;
+        color: #6a774b;
+    }
+
+    .followup-modal-content {
+        display: grid;
+        gap: 0.9rem;
+    }
+
+    .followup-summary-card {
+        display: grid;
+        grid-template-columns: 2rem 1fr;
+        gap: 0.6rem;
+        align-items: start;
+        padding: 0.7rem;
+        border-radius: 0.75rem;
+        border: 1px solid rgba(122, 184, 0, 0.28);
+        background: linear-gradient(180deg, #f7fbe9 0%, #f2f7e4 100%);
+    }
+
+    .followup-summary-icon {
+        width: 2rem;
+        height: 2rem;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        color: #365d2f;
+        background: #d9ecab;
+        border: 1px solid rgba(122, 184, 0, 0.35);
+    }
+
+    .followup-summary-title {
+        font-size: 0.88rem;
+        font-weight: 800;
+        color: #304125;
+        margin-bottom: 0.15rem;
+    }
+
+    .followup-summary-text {
+        font-size: 0.82rem;
+        color: #4f5d37;
+        line-height: 1.45;
+    }
+
+    .followup-instruction {
+        margin: 0;
+        font-size: 0.84rem;
+        color: #5d6a40;
+    }
+
+    .followup-action-grid {
+        display: grid;
+        gap: 0.55rem;
+    }
+
+    .followup-action-btn {
+        display: grid;
+        gap: 0.2rem;
+        text-align: left;
+        width: 100%;
+        padding: 0.68rem 0.78rem;
+        border-radius: 0.7rem;
+        border: 1px solid transparent;
+        background: #f7faf0;
+        cursor: pointer;
+        transition: border-color 0.15s ease, transform 0.15s ease, background-color 0.15s ease;
+    }
+
+    .followup-action-btn:hover {
+        transform: translateY(-1px);
+    }
+
+    .followup-action-title {
+        font-size: 0.82rem;
+        font-weight: 800;
+    }
+
+    .followup-action-copy {
+        font-size: 0.74rem;
+        line-height: 1.35;
+        color: #5f6a45;
+    }
+
+    .followup-action-neutral {
+        border-color: rgba(100, 116, 139, 0.32);
+        background: #f8fafc;
+        color: #344155;
+    }
+
+    .followup-action-neutral:hover {
+        border-color: rgba(71, 85, 105, 0.48);
+        background: #f1f5f9;
+    }
+
+    .followup-action-warn {
+        border-color: rgba(217, 119, 6, 0.36);
+        background: #fff8ed;
+        color: #8b4e03;
+    }
+
+    .followup-action-warn:hover {
+        border-color: rgba(217, 119, 6, 0.55);
+        background: #ffefd7;
+    }
+
+    .followup-action-danger {
+        border-color: rgba(220, 38, 38, 0.35);
+        background: #fff1f1;
+        color: #9f1239;
+    }
+
+    .followup-action-danger:hover {
+        border-color: rgba(220, 38, 38, 0.56);
+        background: #ffe2e2;
+    }
+
+    .followup-error-card {
+        border-radius: 0.75rem;
+        border: 1px solid rgba(220, 38, 38, 0.28);
+        background: rgba(220, 38, 38, 0.08);
+        color: #991b1b;
+        font-size: 0.82rem;
+        line-height: 1.45;
+        padding: 0.72rem 0.78rem;
+    }
+</style>
+
+@code {
+    [Parameter] public EventCallback OnNoAction { get; set; }
+    [Parameter] public EventCallback OnDeactivate { get; set; }
+    [Parameter] public EventCallback OnBan { get; set; }
+
+    private bool IsVisible { get; set; }
+    private bool CanModerateTarget { get; set; }
+    private string TargetUserDisplayName { get; set; } = "Unknown user";
+    private string? TargetUserEmail { get; set; }
+
+    public async Task OpenAsync(string targetUserDisplayName, string? targetUserEmail, bool canModerateTarget)
+    {
+        TargetUserDisplayName = string.IsNullOrWhiteSpace(targetUserDisplayName) ? "Unknown user" : targetUserDisplayName;
+        TargetUserEmail = targetUserEmail;
+        CanModerateTarget = canModerateTarget;
+        IsVisible = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public async Task CloseAsync()
+    {
+        IsVisible = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task NoActionAsync()
+    {
+        await CloseAsync();
+        await OnNoAction.InvokeAsync();
+    }
+
+    private async Task DeactivateAsync()
+    {
+        await CloseAsync();
+        await OnDeactivate.InvokeAsync();
+    }
+
+    private async Task BanAsync()
+    {
+        await CloseAsync();
+        await OnBan.InvokeAsync();
+    }
+}

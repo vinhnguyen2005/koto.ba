@@ -17,6 +17,15 @@ namespace Kotoba.Modules.Infrastructure.Services.Reports
         public Task<List<ReportCategoryDto>> GetCategoriesAsync()
             => _repo.GetActiveCategoriesAsync();
 
+        public Task<List<AdminReportListItemDto>> GetReportsForReviewAsync()
+            => _repo.GetReportsForReviewAsync();
+
+        public Task<(bool success, string error)> MarkReportReviewedAsync(Guid reportId, string reviewerId)
+            => _repo.UpdateStatusAsync(reportId, Domain.Enums.ReportStatus.Reviewed, reviewerId);
+
+        public Task<(bool success, string error)> DismissReportAsync(Guid reportId, string reviewerId)
+            => _repo.UpdateStatusAsync(reportId, Domain.Enums.ReportStatus.Dismissed, reviewerId);
+
         public async Task<(bool success, string error, Guid? reportId)> SubmitReportAsync(
     CreateReportRequest request)
         {

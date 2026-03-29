@@ -2,11 +2,16 @@
 @layout Kotoba.Components.Layout.AdminLayout
 @using Kotoba.Modules.Domain.Constants
 @using Kotoba.Modules.Domain.DTOs
+@using Kotoba.Modules.Domain.Enums
+@using Kotoba.Modules.Domain.Interfaces
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Components.Authorization
 @attribute [Authorize(Roles = AdminRoles.BusinessAdmin)]
 @inject IAdminAuditService AdminAuditService
 @inject AuthenticationStateProvider AuthStateProvider
+@inject IUserService UserService
+@inject IPresenceService PresenceService
+@inject IReportService ReportService
 
 <PageTitle>Business Admin Dashboard</PageTitle>
 
@@ -25,18 +30,18 @@
         <section class="admin-stats" aria-label="Business metrics">
             <article class="admin-stat-card">
                 <p class="admin-stat-label">Active Users</p>
-                <p class="admin-stat-value">24,831</p>
-                <p class="admin-stat-meta">+2.1% from yesterday</p>
+                <p class="admin-stat-value">@ActiveUserCount</p>
+                <p class="admin-stat-meta">@OnlineUserCount currently online</p>
             </article>
             <article class="admin-stat-card">
                 <p class="admin-stat-label">Open Reports</p>
-                <p class="admin-stat-value">11</p>
-                <p class="admin-stat-meta">4 high-priority items</p>
+                <p class="admin-stat-value">@OpenReportCount</p>
+                <p class="admin-stat-meta">@HighPriorityOpenReportCount high-priority items</p>
             </article>
             <article class="admin-stat-card">
                 <p class="admin-stat-label">Stories Pending Review</p>
-                <p class="admin-stat-value">7</p>
-                <p class="admin-stat-meta">2 escalated</p>
+                <p class="admin-stat-value">@StoryReportsPendingCount</p>
+                <p class="admin-stat-meta">@ReviewedStoryReportsCount reviewed</p>
             </article>
             <article class="admin-stat-card">
                 <p class="admin-stat-label">Your Audit Events (24h)</p>
@@ -128,11 +133,27 @@
 </div>
 
 @code {
+    private static readonly HashSet<string> HighPriorityReportCategories = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Hate speech",
+        "Violence",
+        "Adult content",
+        "Harassment"
+    };
+
     private int MyAuditEventsLast24h;
+    private int ActiveUserCount;
+    private int OnlineUserCount;
+    private int OpenReportCount;
+    private int HighPriorityOpenReportCount;
+    private int StoryReportsPendingCount;
+    private int ReviewedStoryReportsCount;
     private List<AdminAuditViewDto> MyRecentAudits { get; set; } = new();
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadHeroStatsAsync();
+
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         var adminId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(adminId))
@@ -143,6 +164,34 @@
         var sinceUtc = DateTime.UtcNow.AddHours(-24);
         MyAuditEventsLast24h = await AdminAuditService.CountAuditsSinceAsync(sinceUtc, adminId);
         MyRecentAudits = (await AdminAuditService.GetRecentAuditsAsync(adminId, 20)).ToList();
+    }
+
+    private async Task LoadHeroStatsAsync()
+    {
+        var usersTask = UserService.GetNormalUsersAsync();
+        var onlineUsersTask = PresenceService.GetAllOnlineUsersAsync();
+        var reportsTask = ReportService.GetReportsForReviewAsync();
+
+        await Task.WhenAll(usersTask, onlineUsersTask, reportsTask);
+
+        var users = usersTask.Result;
+        var reports = reportsTask.Result;
+
+        ActiveUserCount = users.Count(user => user.AccountStatus == AccountStatus.Active);
+        OnlineUserCount = onlineUsersTask.Result.Count;
+
+        OpenReportCount = reports.Count(report => report.Status == ReportStatus.Pending);
+        HighPriorityOpenReportCount = reports.Count(report =>
+            report.Status == ReportStatus.Pending
+            && HighPriorityReportCategories.Contains(report.CategoryName));
+
+        StoryReportsPendingCount = reports.Count(report =>
+            report.TargetType == ReportTargetType.Story
+            && report.Status == ReportStatus.Pending);
+
+        ReviewedStoryReportsCount = reports.Count(report =>
+            report.TargetType == ReportTargetType.Story
+            && report.Status == ReportStatus.Reviewed);
     }
 
     private static string FormatTarget(AdminAuditViewDto audit)

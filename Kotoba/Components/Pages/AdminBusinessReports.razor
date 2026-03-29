@@ -1,0 +1,556 @@
+@page "/admin/business/reports"
+@layout Kotoba.Components.Layout.AdminLayout
+@using Kotoba.Modules.Domain.Constants
+@using Kotoba.Modules.Domain.DTOs
+@using Kotoba.Modules.Domain.Enums
+@using System.Security.Claims
+@attribute [Authorize(Roles = AdminRoles.BusinessAdmin)]
+@inject IReportService ReportService
+@inject IUserService UserService
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Reports</PageTitle>
+
+<style>
+    .admin-main .report-context-block {
+        display: grid;
+        gap: 0.4rem;
+        padding: 0.7rem;
+        border: 1px solid rgba(122, 184, 0, 0.38);
+        border-radius: 0.85rem;
+        background: linear-gradient(180deg, #f8fce9 0%, #f1f7e4 100%);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+        min-width: 300px;
+    }
+
+    .admin-main .report-context-meta-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+    }
+
+    .admin-main .report-context-chip {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 0.12rem 0.48rem;
+        font-size: 0.68rem;
+        font-weight: 700;
+        background: rgba(122, 184, 0, 0.18);
+        color: #3f5b13;
+        border: 1px solid rgba(122, 184, 0, 0.32);
+    }
+
+    .admin-main .report-context-chip-key {
+        background: #2f5a28;
+        color: #f4f9e9;
+        border-color: #2f5a28;
+    }
+
+    .admin-main .report-context-chip-muted {
+        background: rgba(100, 116, 139, 0.14);
+        color: #475569;
+        border-color: rgba(100, 116, 139, 0.28);
+    }
+
+    .admin-main .report-context-section-title {
+        font-size: 0.62rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        font-weight: 800;
+        margin-top: 0.1rem;
+    }
+
+    .admin-main .report-context-section-title-before {
+        color: #5f7340;
+    }
+
+    .admin-main .report-context-section-title-reported {
+        color: #8a4300;
+    }
+
+    .admin-main .report-context-section-title-after {
+        color: #27507c;
+    }
+
+    .admin-main .report-context-row {
+        padding: 0.42rem 0.55rem;
+        border-radius: 0.62rem;
+        font-size: 0.78rem;
+        line-height: 1.38;
+        border: 1px solid transparent;
+    }
+
+    .admin-main .report-context-row-before {
+        background: #ecf7dd;
+        border-color: rgba(122, 184, 0, 0.36);
+        color: #4c5f2e;
+    }
+
+    .admin-main .report-context-row-reported {
+        background: #ffe8d6;
+        border-color: rgba(217, 119, 6, 0.56);
+        color: #6f3a00;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.58);
+    }
+
+    .admin-main .report-context-row-after {
+        background: #e4f0ff;
+        border-color: rgba(59, 130, 246, 0.48);
+        color: #1f446f;
+    }
+
+    .admin-main .report-context-footer {
+        font-size: 0.68rem;
+        color: #5d6a40;
+        border-top: 1px dashed rgba(122, 184, 0, 0.36);
+        padding-top: 0.35rem;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+</style>
+
+<div class="admin-console">
+    <AdminSidebar IsSystemAdmin="false" ActiveItem="AdminSidebarItem.BusinessReports" />
+
+    <main class="admin-main">
+        <header class="admin-topbar">
+            <div>
+                <p class="admin-eyebrow">Moderation</p>
+                <h1 class="admin-title">User Reports</h1>
+            </div>
+            <div class="admin-pill">Business Admin</div>
+        </header>
+
+        <section class="admin-stats" aria-label="Report metrics">
+            <article class="admin-stat-card">
+                <p class="admin-stat-label">Total Reports</p>
+                <p class="admin-stat-value">@Reports.Count</p>
+                <p class="admin-stat-meta">All time</p>
+            </article>
+            <article class="admin-stat-card">
+                <p class="admin-stat-label">Pending</p>
+                <p class="admin-stat-value">@Reports.Count(r => r.Status == ReportStatus.Pending)</p>
+                <p class="admin-stat-meta">Awaiting review</p>
+            </article>
+            <article class="admin-stat-card">
+                <p class="admin-stat-label">Reviewed</p>
+                <p class="admin-stat-value">@Reports.Count(r => r.Status == ReportStatus.Reviewed)</p>
+                <p class="admin-stat-meta">Processed by admins</p>
+            </article>
+            <article class="admin-stat-card">
+                <p class="admin-stat-label">Dismissed</p>
+                <p class="admin-stat-value">@Reports.Count(r => r.Status == ReportStatus.Dismissed)</p>
+                <p class="admin-stat-meta">Closed without action</p>
+            </article>
+        </section>
+
+        <section class="admin-panels">
+            <article class="admin-panel" style="grid-column: 1 / -1;">
+                <div class="admin-panel-header">
+                    <h2 class="admin-panel-title">Report Queue</h2>
+                    <span class="admin-panel-badge">User Reports</span>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(ActionSuccessMessage))
+                {
+                    <div class="admin-create-alert admin-create-alert-success" role="status">
+                        @ActionSuccessMessage
+                    </div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(ActionErrorMessage))
+                {
+                    <div class="admin-create-alert admin-create-alert-error" role="alert">
+                        @ActionErrorMessage
+                    </div>
+                }
+
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Created (UTC)</th>
+                                <th>Reporter</th>
+                                <th>Target Type</th>
+                                <th>Target Context</th>
+                                <th>Category</th>
+                                <th>Report Notes</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Reports.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="8">No reports submitted yet.</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var report in Reports)
+                                {
+                                    <tr>
+                                        <td>@report.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                                        <td>
+                                            <div>@report.ReporterDisplayName</div>
+                                            <div class="admin-stat-meta">@report.ReporterEmail</div>
+                                        </td>
+                                        <td>@report.TargetType</td>
+                                        <td>
+                                            @if (report.TargetType == ReportTargetType.Message)
+                                            {
+                                                <div class="report-context-block">
+                                                    <div class="report-context-meta-row">
+                                                        <span class="report-context-chip report-context-chip-key">Message Context</span>
+                                                        @if (!string.IsNullOrWhiteSpace(report.TargetConversationLabel))
+                                                        {
+                                                            <span class="report-context-chip">@report.TargetConversationLabel</span>
+                                                        }
+                                                        @if (report.TargetCreatedAtUtc.HasValue)
+                                                        {
+                                                            <span class="report-context-chip report-context-chip-muted">@report.TargetCreatedAtUtc.Value.ToString("yyyy-MM-dd HH:mm") UTC</span>
+                                                        }
+                                                    </div>
+
+                                                    @if (!string.IsNullOrWhiteSpace(report.TargetPreviousPreviewSecondary) || !string.IsNullOrWhiteSpace(report.TargetPreviousPreview))
+                                                    {
+                                                        <div class="report-context-section-title report-context-section-title-before">Before</div>
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(report.TargetPreviousPreviewSecondary))
+                                                    {
+                                                        <div class="report-context-row report-context-row-before">@report.TargetPreviousPreviewSecondary</div>
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(report.TargetPreviousPreview))
+                                                    {
+                                                        <div class="report-context-row report-context-row-before">@report.TargetPreviousPreview</div>
+                                                    }
+
+                                                    <div class="report-context-section-title report-context-section-title-reported">Reported Message</div>
+                                                    <div class="report-context-row report-context-row-reported">
+                                                        <div>@report.TargetPreview</div>
+                                                    </div>
+
+                                                    @if (!string.IsNullOrWhiteSpace(report.TargetNextPreview) || !string.IsNullOrWhiteSpace(report.TargetNextPreviewSecondary))
+                                                    {
+                                                        <div class="report-context-section-title report-context-section-title-after">After</div>
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(report.TargetNextPreview))
+                                                    {
+                                                        <div class="report-context-row report-context-row-after">@report.TargetNextPreview</div>
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(report.TargetNextPreviewSecondary))
+                                                    {
+                                                        <div class="report-context-row report-context-row-after">@report.TargetNextPreviewSecondary</div>
+                                                    }
+
+                                                    <div class="report-context-footer">ID: @report.TargetId</div>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div class="report-context-block">
+                                                    <div class="report-context-row report-context-row-reported">@report.TargetPreview</div>
+                                                    <div class="report-context-footer">ID: @report.TargetId</div>
+                                                </div>
+                                            }
+
+                                            @if (!string.IsNullOrWhiteSpace(report.TargetUserDisplayName))
+                                            {
+                                                <div class="admin-stat-meta">
+                                                    Owner: @report.TargetUserDisplayName
+                                                    @if (!string.IsNullOrWhiteSpace(report.TargetUserEmail))
+                                                    {
+                                                        <span> (@report.TargetUserEmail)</span>
+                                                    }
+                                                </div>
+                                            }
+                                        </td>
+                                        <td>@report.CategoryName</td>
+                                        <td>@(string.IsNullOrWhiteSpace(report.Description) ? "-" : report.Description)</td>
+                                        <td>
+                                            <span class="admin-tag @(report.Status == ReportStatus.Pending ? "admin-tag-warning" : string.Empty)">
+                                                @report.Status
+                                            </span>
+                                        </td>
+                                        <td>
+                                            @if (report.Status == ReportStatus.Pending)
+                                            {
+                                                <button class="admin-action-btn" disabled="@IsProcessingAction" @onclick="() => MarkReviewedAsync(report)">
+                                                    Mark Reviewed
+                                                </button>
+                                                <button class="admin-action-btn admin-action-disable" disabled="@IsProcessingAction" @onclick="() => DismissAsync(report.ReportId)">
+                                                    Dismiss
+                                                </button>
+                                            }
+                                            else if (report.Status == ReportStatus.Reviewed)
+                                            {
+                                                <button class="admin-action-btn" disabled="@IsProcessingAction" @onclick="() => OpenFollowUpModalAsync(report)">
+                                                    Follow-up Action
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <span class="admin-action-disabled">Processed</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+        </section>
+    </main>
+</div>
+
+<AdminActionModal
+    @ref="ActionModal"
+    OnConfirm="OnConfirmModerationAsync"
+    OnConfirmWithReason="OnConfirmModerationReasonAsync"
+    OnClose="OnModalCloseAsync" />
+
+<AdminReportFollowUpModal
+    @ref="FollowUpModal"
+    OnNoAction="OnFollowUpNoActionAsync"
+    OnDeactivate="OnFollowUpDeactivateAsync"
+    OnBan="OnFollowUpBanAsync" />
+
+@code {
+    private enum ReportModerationAction
+    {
+        Deactivate,
+        Ban,
+    }
+
+    private List<AdminReportListItemDto> Reports { get; set; } = new();
+    private bool IsProcessingAction { get; set; }
+    private string? ActionErrorMessage { get; set; }
+    private string? ActionSuccessMessage { get; set; }
+    private AdminActionModal? ActionModal { get; set; }
+    private AdminReportFollowUpModal? FollowUpModal { get; set; }
+    private Guid? PendingModerationReportId { get; set; }
+    private string? PendingModerationTargetUserId { get; set; }
+    private string PendingModerationTargetName { get; set; } = string.Empty;
+    private string? PendingModerationTargetEmail { get; set; }
+    private ReportModerationAction? PendingModerationAction { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadReportsAsync();
+    }
+
+    private async Task ReloadReportsAsync()
+    {
+        Reports = await ReportService.GetReportsForReviewAsync();
+    }
+
+    private async Task MarkReviewedAsync(AdminReportListItemDto report)
+    {
+        var didSucceed = await ApplyReportActionAsync(
+            report.ReportId,
+            (id, reviewerId) => ReportService.MarkReportReviewedAsync(id, reviewerId),
+            "Report marked as reviewed.");
+
+        if (didSucceed)
+        {
+            await OpenFollowUpModalAsync(report);
+        }
+    }
+
+    private async Task DismissAsync(Guid reportId)
+    {
+        await ApplyReportActionAsync(
+            reportId,
+            (id, reviewerId) => ReportService.DismissReportAsync(id, reviewerId),
+            "Report dismissed.");
+    }
+
+    private bool CanModerateTarget(AdminReportListItemDto report)
+    {
+        if (string.IsNullOrWhiteSpace(report.TargetUserId))
+        {
+            return false;
+        }
+
+        return report.TargetUserAccountStatus != AccountStatus.Deleted;
+    }
+
+    private async Task OpenFollowUpModalAsync(AdminReportListItemDto report)
+    {
+        if (FollowUpModal == null)
+        {
+            return;
+        }
+
+        PendingModerationReportId = report.ReportId;
+        PendingModerationTargetUserId = report.TargetUserId;
+        PendingModerationTargetName = string.IsNullOrWhiteSpace(report.TargetUserDisplayName)
+            ? report.TargetId
+            : report.TargetUserDisplayName;
+        PendingModerationTargetEmail = report.TargetUserEmail;
+
+        await FollowUpModal.OpenAsync(
+            PendingModerationTargetName,
+            PendingModerationTargetEmail,
+            CanModerateTarget(report));
+    }
+
+    private async Task OnFollowUpNoActionAsync()
+    {
+        ActionSuccessMessage = "Report reviewed with no further account action.";
+        await Task.CompletedTask;
+    }
+
+    private async Task OnFollowUpDeactivateAsync()
+    {
+        await StartPendingUserModerationAsync(ReportModerationAction.Deactivate);
+    }
+
+    private async Task OnFollowUpBanAsync()
+    {
+        await StartPendingUserModerationAsync(ReportModerationAction.Ban);
+    }
+
+    private async Task StartPendingUserModerationAsync(ReportModerationAction action)
+    {
+        ActionErrorMessage = null;
+        ActionSuccessMessage = null;
+
+        if (ActionModal == null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(PendingModerationTargetUserId))
+        {
+            ActionErrorMessage = "This report does not map to a valid target user.";
+            return;
+        }
+
+        PendingModerationAction = action;
+
+        var title = action == ReportModerationAction.Ban ? "Ban Reported User" : "Deactivate Reported User";
+        var message = action == ReportModerationAction.Ban
+            ? $"Ban user '{PendingModerationTargetName}' based on this report?"
+            : $"Deactivate user '{PendingModerationTargetName}' based on this report?";
+
+        await ActionModal.OpenAsync(AdminActionModalType.Confirmation, title, message);
+    }
+
+    private async Task OnConfirmModerationAsync()
+    {
+        if (ActionModal == null || PendingModerationAction == null)
+        {
+            return;
+        }
+
+        var prompt = PendingModerationAction == ReportModerationAction.Ban
+            ? "Why are you banning this user?"
+            : "Why are you deactivating this user?";
+
+        await ActionModal.OpenAsync(AdminActionModalType.Reason, "Reason Required", prompt);
+    }
+
+    private async Task OnConfirmModerationReasonAsync(string reason)
+    {
+        if (ActionModal == null || PendingModerationAction == null || string.IsNullOrWhiteSpace(PendingModerationTargetUserId))
+        {
+            return;
+        }
+
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var adminId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(adminId))
+        {
+            await ActionModal.OpenAsync(AdminActionModalType.Info, "Error", "Unable to resolve your admin session.");
+            return;
+        }
+
+        AccountOperationResult moderationResult;
+        if (PendingModerationAction == ReportModerationAction.Ban)
+        {
+            moderationResult = await UserService.BanUserByAdminAsync(PendingModerationTargetUserId, adminId, reason);
+        }
+        else
+        {
+            moderationResult = await UserService.DeactivateUserByAdminAsync(PendingModerationTargetUserId, adminId, reason);
+        }
+
+        if (!moderationResult.Succeeded)
+        {
+            var message = moderationResult.Errors.Count > 0
+                ? string.Join(" ", moderationResult.Errors)
+                : "Unable to apply moderation action.";
+            await ActionModal.OpenAsync(AdminActionModalType.Info, "Error", message);
+            return;
+        }
+
+        var successMessage = PendingModerationAction == ReportModerationAction.Ban
+            ? "User has been banned successfully."
+            : "User has been deactivated successfully.";
+
+        await ReloadReportsAsync();
+        ActionSuccessMessage = successMessage;
+        await ActionModal.OpenAsync(AdminActionModalType.Info, "Success", successMessage);
+        ClearPendingModeration();
+    }
+
+    private Task OnModalCloseAsync()
+    {
+        ClearPendingModeration();
+        return Task.CompletedTask;
+    }
+
+    private void ClearPendingModeration()
+    {
+        PendingModerationReportId = null;
+        PendingModerationTargetUserId = null;
+        PendingModerationTargetName = string.Empty;
+        PendingModerationAction = null;
+    }
+
+    private async Task<bool> ApplyReportActionAsync(
+        Guid reportId,
+        Func<Guid, string, Task<(bool success, string error)>> action,
+        string successMessage)
+    {
+        if (IsProcessingAction)
+        {
+            return false;
+        }
+
+        IsProcessingAction = true;
+        ActionErrorMessage = null;
+        ActionSuccessMessage = null;
+
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var reviewerId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(reviewerId))
+            {
+                ActionErrorMessage = "Unable to resolve your admin session.";
+                return false;
+            }
+
+            var (success, error) = await action(reportId, reviewerId);
+            if (!success)
+            {
+                ActionErrorMessage = string.IsNullOrWhiteSpace(error)
+                    ? "Unable to process report."
+                    : error;
+                return false;
+            }
+
+            ActionSuccessMessage = successMessage;
+            await ReloadReportsAsync();
+            return true;
+        }
+        finally
+        {
+            IsProcessingAction = false;
+        }
+    }
+}

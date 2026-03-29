@@ -7,5 +7,6 @@ public enum AdminSidebarItem
     SystemAudits,
     BusinessDashboard,
     BusinessUsers,
+    BusinessReports,
     BusinessAudits,
 }

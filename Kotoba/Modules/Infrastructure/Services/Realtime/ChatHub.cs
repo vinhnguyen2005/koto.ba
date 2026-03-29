@@ -1,4 +1,5 @@
 using Kotoba.Modules.Domain.DTOs;
+using Kotoba.Modules.Domain.Constants;
 using Kotoba.Modules.Domain.Entities;
 using Kotoba.Modules.Domain.Enums;
 using Kotoba.Modules.Domain.Interfaces;
@@ -31,6 +32,13 @@ namespace Kotoba.Modules.Infrastructure.Services.Realtime
 
         public override async Task OnConnectedAsync()
         {
+            if (Context.User?.IsInRole(AdminRoles.SystemAdmin) == true
+                || Context.User?.IsInRole(AdminRoles.BusinessAdmin) == true)
+            {
+                Context.Abort();
+                return;
+            }
+
             var userId = Context.UserIdentifier;
             if (!string.IsNullOrWhiteSpace(userId))
             {

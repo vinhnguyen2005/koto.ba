@@ -609,6 +609,7 @@
 	[Parameter] public string? ConversationId { get; set; }
 	[Parameter] public string? CurrentUserId { get; set; }
 	[Parameter] public EventCallback OnLeft { get; set; }
+	[Parameter] public EventCallback OnFollowChanged { get; set; }
 	private ConversationDto? conversation;
 	private List<UserProfile>? members;
 	private string? conversationName;
@@ -820,7 +821,7 @@
                 });
             }
 		}
-
+		await OnFollowChanged.InvokeAsync();
 		StateHasChanged();
 	}
 
