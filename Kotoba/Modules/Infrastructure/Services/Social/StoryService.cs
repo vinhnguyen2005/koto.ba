@@ -137,66 +137,6 @@ namespace Kotoba.Modules.Infrastructure.Services.Social
                 db.StoryViews.AddRange(newViews);
                 await db.SaveChangesAsync();
             }
-
-            var uploaderGroups = stories
-                .Where(s => s.UserId != viewerId)
-                .GroupBy(s => s.UserId);
-
-            foreach (var group in uploaderGroups)
-            {
-                var uploaderId = group.Key;
-
-
-                var alreadyNotified = await db.Notifications
-                    .Where(n =>
-                        n.RecipientId == uploaderId &&
-                        n.ActorId == viewerId &&
-                        n.Type == NotificationType.StorySeen &&
-                        n.CreatedAt > DateTime.UtcNow.AddSeconds(-10))
-                    .AnyAsync();
-
-                if (alreadyNotified) continue;
-
-                var viewer = await db.Users
-                    .Where(u => u.Id == viewerId)
-                    .Select(u => new { u.DisplayName, u.AvatarUrl })
-                    .FirstOrDefaultAsync();
-
-                var notification = new Notification
-                {
-                    Id = Guid.NewGuid(),
-                    RecipientId = uploaderId,
-                    ActorId = viewerId,
-                    Type = NotificationType.StorySeen,
-                    Message = $"{viewer?.DisplayName ?? "Someone"} viewed your story"
-                };
-
-                db.Notifications.Add(notification);
-                await db.SaveChangesAsync();
-
-                var dto = new NotificationDto
-                {
-                    Id = notification.Id,
-                    Type = NotificationType.StorySeen,
-
-                    ActorId = viewerId,
-                    ActorName = viewer?.DisplayName,
-                    ActorAvatar = viewer?.AvatarUrl,
-
-                    TargetId = null,
-                    TargetType = "Story",
-
-                    Message = $"{viewer?.DisplayName ?? "Someone"} viewed your story",
-
-                    IsRead = false,
-                    CreatedAt = notification.CreatedAt
-                };
-
-                await _hub.Clients.Group(uploaderId)
-                    .SendAsync("ReceiveNotification", dto);
-                await _hub.Clients.Group(uploaderId)
-                    .SendAsync("NotifyStorySeen", dto);
-            }
         }
 
         public async Task ReactToStoryAsync(string userId, Guid storyId, ReactionType type)
@@ -278,6 +218,31 @@ namespace Kotoba.Modules.Infrastructure.Services.Social
 
             await _hub.Clients.Group(story.UserId)
                 .SendAsync("NotifyStoryReaction", dto);
+        }
+
+        public async Task<List<UserProfile>> GetStoryViewersAsync(Guid storyId, string currentUserId)
+        {
+            await using var db = await _dbFactory.CreateDbContextAsync();
+
+            var isOwner = await db.Stories
+                .AnyAsync(s => s.Id == storyId && s.UserId == currentUserId);
+
+            if (!isOwner) return new();
+
+            var viewers = await db.StoryViews
+                .Include(v => v.Viewer)
+                .Where(v => v.StoryId == storyId)
+                .OrderByDescending(v => v.ViewedAt)
+                .Select(v => new UserProfile
+                {
+                    UserId = v.Viewer.Id,
+                    DisplayName = v.Viewer.DisplayName,
+                    AvatarUrl = v.Viewer.AvatarUrl
+                })
+                .Distinct()
+                .ToListAsync();
+
+            return viewers;
         }
     }
 }

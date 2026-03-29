@@ -16,5 +16,7 @@ public interface IConversationService
     Task<List<UserProfile>> GetOtherUsersInConversationsAsync(string conversationId, string userId);
     Task<List<MessageDto>> GetMessagesAsync(string conversationId);
     Task<List<UserProfile>> GetAllUsersInConversationAsync(string conversationId);
+    Task ToggleMuteAsync(string conversationId, string userId);
+    Task<bool> IsMutedAsync(string conversationId, string userId);
 
 }

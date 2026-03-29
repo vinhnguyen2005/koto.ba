@@ -742,6 +742,7 @@ body {
     background-position: center;
     filter: blur(20px) brightness(0.7);
     transform: scale(1.2); /* prevent edges showing */
+    z-index: 0;
 }
 
 .story-img {
@@ -749,6 +750,7 @@ body {
     max-width: 100%;
     max-height: 100%;
     object-fit: contain;
+    z-index: 1;
 }
 
 .story-text {
@@ -853,4 +855,58 @@ body {
 
     .react-btn:active {
         transform: scale(1.1);
+    }
+
+.viewer-views-btn {
+    position: absolute;
+    z-index: 2;
+    bottom: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: white;
+    font-size: 13px;
+    cursor: pointer;
+    background: rgba(0,0,0,0.35);
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.2);
+}
+
+.viewer-list-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 100;
+}
+
+.viewer-list {
+    width: 100%;
+    max-height: 60%;
+    background: var(--surface);
+    border-top-left-radius: 18px;
+    border-top-right-radius: 18px;
+    padding: 16px;
+    overflow-y: auto;
+}
+
+.viewer-list-header {
+    font-weight: 700;
+    margin-bottom: 10px;
+    color: var(--text);
+}
+
+.viewer-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 4px;
+}
+
+    .viewer-item img {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
     }

@@ -97,5 +97,33 @@ namespace Kotoba.Modules.Infrastructure.Repositories
             conversation.UpdatedAt = DateTime.UtcNow;
             await ctx.SaveChangesAsync();
         }
+
+        public async Task ToggleMuteAsync(string conversationId, string userId)
+        {
+            using var _context = await _dbFactory.CreateDbContextAsync();
+            var convId = Guid.Parse(conversationId);
+
+            var participant = await _context.ConversationParticipants
+                .FirstOrDefaultAsync(x =>
+                    x.ConversationId == convId &&
+                    x.UserId == userId);
+
+            if (participant == null) return;
+
+            participant.IsMuted = !participant.IsMuted;
+
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task<bool> IsMutedAsync(string conversationId, string userId)
+        {
+            using var _context = await _dbFactory.CreateDbContextAsync();
+            var convId = Guid.Parse(conversationId);
+
+            return await _context.ConversationParticipants
+                .Where(x => x.ConversationId == convId && x.UserId == userId)
+                .Select(x => x.IsMuted)
+                .FirstOrDefaultAsync();
+        }
     }
 }
