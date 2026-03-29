@@ -72,6 +72,12 @@ namespace Kotoba.Modules.Infrastructure.Services.Identity
                 return false;
             }
 
+            // Admin accounts must authenticate through the admin portal only.
+            if (await IsAnyAdminAsync(user))
+            {
+                return false;
+            }
+
             var result = await _signInManager.PasswordSignInAsync(
                 user,
                 request.Password,

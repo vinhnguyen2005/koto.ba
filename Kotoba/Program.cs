@@ -94,7 +94,7 @@ namespace Kotoba
             builder.Services.AddScoped<IStoryService, StoryService>();
             builder.Services.AddScoped<ICurrentThoughtRepository, CurrentThoughtRepository>();
             builder.Services.AddScoped<ICurrentThoughtService, CurrentThoughtService>();
-            builder.Services.AddScoped<INotificationSettingsService, NotificationSettingsService>();           
+            builder.Services.AddScoped<INotificationSettingsService, NotificationSettingsService>();
             builder.Services.AddScoped<NotificationRepository>();
             builder.Services.AddScoped<INotificationService, Modules.Infrastructure.Services.Notifications.NotificationService>();
             builder.Services.AddScoped<GlobalNotificationService>();
@@ -149,6 +149,18 @@ namespace Kotoba
 
             app.Use(async (context, next) =>
             {
+                var user = context.User;
+                if (user?.Identity?.IsAuthenticated == true && IsAnyAdmin(user) && IsNormalUserRoute(context.Request.Path))
+                {
+                    context.Response.Redirect(GetAdminDashboardPath(user));
+                    return;
+                }
+
+                await next();
+            });
+
+            app.Use(async (context, next) =>
+            {
                 // Only capture for the Blazor hub negotiate or page requests
                 var cookieSvc = context.RequestServices.GetRequiredService<CircuitCookieService>();
                 cookieSvc.CookieHeader = context.Request.Headers["Cookie"].ToString();
@@ -198,6 +210,22 @@ namespace Kotoba
             })
             .AllowAnonymous()
             .DisableAntiforgery();
+
+            app.MapGet("/admin", (HttpContext httpContext) =>
+            {
+                var user = httpContext.User;
+                if (user?.Identity?.IsAuthenticated != true)
+                {
+                    return Results.LocalRedirect("/admin/login");
+                }
+
+                if (IsAnyAdmin(user))
+                {
+                    return Results.LocalRedirect(GetAdminDashboardPath(user));
+                }
+
+                return Results.LocalRedirect("/admin/login");
+            });
 
             app.MapPost("/admin/system/admins/create", async (
                 [FromForm] CreateBusinessAdminRequest request,
@@ -511,6 +539,40 @@ namespace Kotoba
 
             await dbContext.SaveChangesAsync();
             logger.LogInformation("Presence startup reconciliation marked {Count} users offline.", usersMarkedOnline.Count);
+        }
+
+        private static bool IsAnyAdmin(ClaimsPrincipal user)
+        {
+            return user.IsInRole(AdminRoles.SystemAdmin) || user.IsInRole(AdminRoles.BusinessAdmin);
+        }
+
+        private static string GetAdminDashboardPath(ClaimsPrincipal user)
+        {
+            if (user.IsInRole(AdminRoles.SystemAdmin))
+            {
+                return "/admin/system/dashboard";
+            }
+
+            if (user.IsInRole(AdminRoles.BusinessAdmin))
+            {
+                return "/admin/business/dashboard";
+            }
+
+            return "/admin/login";
+        }
+
+        private static bool IsNormalUserRoute(PathString path)
+        {
+            if (path == "/" || path == "/login")
+            {
+                return true;
+            }
+
+            return path.StartsWithSegments("/chat")
+                || path.StartsWithSegments("/profile")
+                || path.StartsWithSegments("/settings")
+                || path.StartsWithSegments("/story")
+                || path.StartsWithSegments("/notifications");
         }
     }
 }
