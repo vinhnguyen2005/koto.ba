@@ -3,11 +3,15 @@
 @inject NavigationManager Nav
 @inject IStoryService StoryService;
 @using Kotoba.Modules.Domain.Enums
+@using Microsoft.AspNetCore.SignalR.Client
 @inject NavigationManager Nav
 @inject IStoryService StoryService
 @inject IFollowService FollowService
+@inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IHttpContextAccessor HttpContextAccessor
 @inject IFollowService FollowService;
+@implements IAsyncDisposable
 
 @code {
     [CascadingParameter] public UserProfile? CurrentUserProfile { get; set; }
@@ -27,11 +31,31 @@
     private bool isFollowingCurrentStoryUser = false;
     private bool IsReadOnly => CurrentUserProfile?.AccountStatus == AccountStatus.Deactivated;
     private bool _seenSent;
+    private HubConnection? _hub;
+
+    private async Task StartHubAsync()
+    {
+        var cookies = HttpContextAccessor.HttpContext?.Request.Cookies;
+        var cookieStr = string.Join("; ", cookies?.Select(c => $"{c.Key}={c.Value}") ?? []);
+
+        _hub = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/chathub"), options =>
+            {
+                options.Headers.Add("Cookie", cookieStr);
+            })
+            .WithAutomaticReconnect()
+            .Build();       
+
+        await _hub.StartAsync();
+    }
 
     protected override async Task OnParametersSetAsync()
     {
         var currentUserId = CurrentUserProfile?.UserId;
         if (string.IsNullOrEmpty(currentUserId)) return;
+
+        if (_hub == null)
+            await StartHubAsync();
 
         var allStories = await StoryService.GetActiveStoriesAsync();
         var followingIds = await FollowService.GetFollowingIdsAsync(currentUserId);
@@ -196,11 +220,49 @@
     private async Task React(ReactionType type)
     {
         var userId = CurrentUserProfile?.UserId;
-        if (string.IsNullOrEmpty(userId)) return;
+        if (string.IsNullOrEmpty(userId))
+        {
+            System.Diagnostics.Debug.WriteLine("❌ userId null");
+            return;
+        }
 
         var storyId = currentStories[currentIndex].StoryId;
-
         await StoryService.ReactToStoryAsync(userId, storyId, type);
+
+        System.Diagnostics.Debug.WriteLine($"✅ Hub state: {_hub?.State}");
+
+        if (_hub?.State == HubConnectionState.Connected)
+        {
+            var owner = await StoryService.GetStoryOwnerAsync(storyId);
+            System.Diagnostics.Debug.WriteLine($"✅ Owner: {owner?.UserId} | Me: {userId}");
+
+            if (string.IsNullOrEmpty(owner?.UserId))
+            {
+                System.Diagnostics.Debug.WriteLine("❌ owner null → bỏ qua");                
+                return;
+            }
+
+            if (owner.UserId == userId)
+            {
+                System.Diagnostics.Debug.WriteLine("❌ tự notify chính mình → bỏ qua");
+                return;
+            }
+
+            var request = new CreateNotificationRequest
+            {
+                RecipientId = owner.UserId,
+                Type = NotificationType.StoryReaction,
+                ActorId = userId,
+                TargetId = storyId.ToString(),
+                TargetType = "Story",
+                Message = $"{CurrentUserProfile?.DisplayName} reacted to your story"
+                // UserName → DisplayName
+            };
+
+            System.Diagnostics.Debug.WriteLine($"📤 Invoking NotifyAsync → recipient: {request.RecipientId}");
+            await _hub.InvokeAsync("NotifyAsync", request);
+            System.Diagnostics.Debug.WriteLine("✅ NotifyAsync done");
+        }
     }
     private async Task LoadViewers()
     {
@@ -212,6 +274,13 @@
         viewers = await StoryService.GetStoryViewersAsync(storyId, userId);
 
         showViewers = true;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        storyTimer?.Dispose();
+        if (_hub is not null)
+            await _hub.DisposeAsync();
     }
 }
 

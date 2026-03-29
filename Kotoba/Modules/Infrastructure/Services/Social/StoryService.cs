@@ -171,53 +171,53 @@ namespace Kotoba.Modules.Infrastructure.Services.Social
 
             await db.SaveChangesAsync();
 
-            var alreadyNotified = await db.Notifications.AnyAsync(n =>
-                n.RecipientId == story.UserId &&
-                n.ActorId == userId &&
-                n.TargetId == storyId.ToString() &&
-                n.Type == NotificationType.StoryReaction &&
-                n.CreatedAt > DateTime.UtcNow.AddSeconds(-10));
+            //var alreadyNotified = await db.Notifications.AnyAsync(n =>
+            //    n.RecipientId == story.UserId &&
+            //    n.ActorId == userId &&
+            //    n.TargetId == storyId.ToString() &&
+            //    n.Type == NotificationType.StoryReaction &&
+            //    n.CreatedAt > DateTime.UtcNow.AddSeconds(-10));
 
-            if (alreadyNotified) return;
+            //if (alreadyNotified) return;
 
-            var viewer = await db.Users
-                .Where(u => u.Id == userId)
-                .Select(u => new { u.DisplayName, u.AvatarUrl })
-                .FirstAsync();
+            //var viewer = await db.Users
+            //    .Where(u => u.Id == userId)
+            //    .Select(u => new { u.DisplayName, u.AvatarUrl })
+            //    .FirstAsync();
 
-            var notification = new Notification
-            {
-                Id = Guid.NewGuid(),
-                RecipientId = story.UserId,
-                ActorId = userId,
-                TargetId = storyId.ToString(),
-                TargetType = "Story",
-                Type = NotificationType.StoryReaction,
-                Message = $"{viewer.DisplayName} reacted to your story"
-            };
+            //var notification = new Notification
+            //{
+            //    Id = Guid.NewGuid(),
+            //    RecipientId = story.UserId,
+            //    ActorId = userId,
+            //    TargetId = storyId.ToString(),
+            //    TargetType = "Story",
+            //    Type = NotificationType.StoryReaction,
+            //    Message = $"{viewer.DisplayName} reacted to your story"
+            //};
 
-            db.Notifications.Add(notification);
-            await db.SaveChangesAsync();
+            //db.Notifications.Add(notification);
+            //await db.SaveChangesAsync();
 
-            var dto = new NotificationDto
-            {
-                Id = notification.Id,
-                Type = notification.Type,
-                ActorId = userId,
-                ActorName = viewer.DisplayName,
-                ActorAvatar = viewer.AvatarUrl,
-                TargetId = storyId.ToString(),
-                TargetType = "Story",
-                Message = notification.Message,
-                CreatedAt = notification.CreatedAt,
-                IsRead = false
-            };
+            //var dto = new NotificationDto
+            //{
+            //    Id = notification.Id,
+            //    Type = notification.Type,
+            //    ActorId = userId,
+            //    ActorName = viewer.DisplayName,
+            //    ActorAvatar = viewer.AvatarUrl,
+            //    TargetId = storyId.ToString(),
+            //    TargetType = "Story",
+            //    Message = notification.Message,
+            //    CreatedAt = notification.CreatedAt,
+            //    IsRead = false
+            //};
 
-            await _hub.Clients.Group(story.UserId)
-                .SendAsync("ReceiveNotification", dto);
+            ////await _hub.Clients.Group(story.UserId)
+            ////    .SendAsync("ReceiveNotification", dto);
 
-            await _hub.Clients.Group(story.UserId)
-                .SendAsync("NotifyStoryReaction", dto);
+            //await _hub.Clients.Group(story.UserId)
+            //    .SendAsync("NotifyStoryReaction", dto);
         }
 
         public async Task<List<UserProfile>> GetStoryViewersAsync(Guid storyId, string currentUserId)
@@ -243,6 +243,24 @@ namespace Kotoba.Modules.Infrastructure.Services.Social
                 .ToListAsync();
 
             return viewers;
+        }
+
+        public async Task<UserProfile?> GetStoryOwnerAsync(Guid storyId)
+        {
+            await using var db = await _dbFactory.CreateDbContextAsync();
+            var story = await db.Stories
+                .Include(s => s.User)
+                .FirstOrDefaultAsync(s => s.Id == storyId);
+
+            if (story?.User == null) return null;
+
+            return new UserProfile
+            {
+                UserId = story.User.Id,
+                DisplayName = story.User.DisplayName,
+                AvatarUrl = story.User.AvatarUrl,
+                AccountStatus = story.User.AccountStatus
+            };
         }
     }
 }
