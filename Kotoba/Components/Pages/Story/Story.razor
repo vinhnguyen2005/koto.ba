@@ -2,7 +2,6 @@
 @using Kotoba.Modules.Domain.Enums
 @inject NavigationManager Nav
 @inject IStoryService StoryService;
-@inject IFollowService FollowService;
 
 @code {
     [CascadingParameter] public UserProfile? CurrentUserProfile { get; set; }
@@ -15,73 +14,20 @@
     private DateTime startTime;
     private bool isViewerOpen = false;
     private bool isPaused = false;
-    private bool _seenSent;
-
 
     private bool IsReadOnly => CurrentUserProfile?.AccountStatus == AccountStatus.Deactivated;
 
-    protected override async Task OnParametersSetAsync()
+    protected override async Task OnInitializedAsync()
     {
-        var currentUserId = CurrentUserProfile?.UserId;
-        if (string.IsNullOrEmpty(currentUserId)) return;
-
-        var allStories = await StoryService.GetActiveStoriesAsync();
-        var followingIds = await FollowService.GetFollowingIdsAsync(currentUserId);
-
-        stories = allStories
-            .Where(s =>
-                s.ExpiresAt > DateTime.UtcNow &&
-                s.UserId != currentUserId &&
-                (
-                    s.Visibility == "public"
-                    ||
-                    (s.Visibility == "followers" && followingIds.Contains(s.UserId))
-                    ||
-                    (s.Visibility == "specific" &&
-                        s.AllowedUserIds.Contains(currentUserId))
-                )
-            )
-            .ToList();
-
-        StateHasChanged();
+        stories = await StoryService.GetActiveStoriesAsync();
     }
 
     private async Task OpenStory(string userId)
     {
-        var currentUserId = CurrentUserProfile?.UserId;
-        if (string.IsNullOrEmpty(currentUserId)) return;
+        currentStories = await StoryService.GetActiveStoriesByUserIdAsync(userId);
 
-        var followingIds = await FollowService.GetFollowingIdsAsync(currentUserId);
-
-        var all = await StoryService.GetActiveStoriesByUserIdAsync(userId);
-
-        currentStories = all
-            .Where(s =>
-                s.ExpiresAt > DateTime.UtcNow &&
-                s.UserId != currentUserId &&
-                (
-                    s.Visibility == "public"
-                    ||
-                    (s.Visibility == "followers" && followingIds.Contains(s.UserId))
-                    ||
-                    (s.Visibility == "specific" &&
-                        s.AllowedUserIds.Contains(currentUserId))
-                )
-            )
-            .OrderBy(s => s.ExpiresAt)
-            .ToList();
-
-        if (!currentStories.Any())
+        if (currentStories == null || !currentStories.Any())
             return;
-
-        if (!_seenSent)
-        {
-            _seenSent = true;
-
-            var storyIds = currentStories.Select(s => s.StoryId).ToList();
-
-            await StoryService.MarkStoriesAsSeenAsync(currentUserId, storyIds);
-        }
 
         currentIndex = 0;
         isViewerOpen = true;
@@ -95,7 +41,6 @@
         isViewerOpen = false;
         currentStories = null;
         currentIndex = 0;
-        _seenSent = false;
     }
 
 	private string GetTimeAgo(DateTime expiresAt)
@@ -180,16 +125,6 @@
             currentIndex--;
             StartStoryTimer();
         }
-    }
-
-    private async Task React(ReactionType type)
-    {
-        var userId = CurrentUserProfile?.UserId;
-        if (string.IsNullOrEmpty(userId)) return;
-
-        var storyId = currentStories[currentIndex].StoryId;
-
-        await StoryService.ReactToStoryAsync(userId, storyId, type);
     }
 }
 
@@ -357,14 +292,6 @@
                         </div>
                     </div>
                     <div class="viewer-close" @onclick="CloseStory">×</div>
-                </div>
-                <div class="viewer-reactions" @onclick:stopPropagation="true">
-                    <button class="react-btn" @onclick="() => React(ReactionType.Like)">👍</button>
-                    <button class="react-btn" @onclick="() => React(ReactionType.Love)">❤️</button>
-                    <button class="react-btn" @onclick="() => React(ReactionType.Haha)">😂</button>
-                    <button class="react-btn" @onclick="() => React(ReactionType.Wow)">😮</button>
-                    <button class="react-btn" @onclick="() => React(ReactionType.Sad)">😢</button>
-                    <button class="react-btn" @onclick="() => React(ReactionType.Angry)">😡</button>
                 </div>
             </div>
         </div>

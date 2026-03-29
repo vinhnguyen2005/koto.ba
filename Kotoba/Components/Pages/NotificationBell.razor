@@ -3,9 +3,6 @@
 @inject INotificationService NotificationService
 @inject NavigationManager Navigation
 @inject IHttpContextAccessor HttpContextAccessor
-@inject GlobalNotificationState NotifState
-@using Kotoba.Modules.Infrastructure.Services.Notifications
-@using Modules.Domain.Enums
 
 <div style="position:relative;cursor:pointer;" @onclick="GoToNotifications" title="Notifications">
     <svg width="20" height="20" fill="none" viewBox="0 0 24 24"
@@ -13,13 +10,13 @@
         <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
         <path d="M13.73 21a2 2 0 01-3.46 0" />
     </svg>
-    @if (NotifState.Count > 0)
+    @if (unreadCount > 0)
     {
         <div style="position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;
                         background:#c0392b;border-radius:50%;font-size:10px;font-weight:700;
                         color:#fff;display:flex;align-items:center;justify-content:center;
                         padding:0 3px;line-height:1;">
-            @(NotifState.Count > 99 ? "99+" : NotifState.Count.ToString())
+            @(unreadCount > 99 ? "99+" : unreadCount.ToString())
         </div>
     }
 </div>
@@ -27,31 +24,14 @@
 @code {
     [Parameter] public string? UserId { get; set; }
 
+    private int unreadCount = 0;
     private HubConnection? _hub;
-    private bool _initialized = false;
 
     protected override async Task OnParametersSetAsync()
     {
         if (string.IsNullOrEmpty(UserId)) return;
-
-        if (!_initialized)
-        {
-            NotifState.Set(await NotificationService.GetUnreadCountAsync(UserId));
-            _initialized = true;
-        }
-
-        if (_hub == null)
-            await StartHubAsync();
-    }
-
-    protected override void OnInitialized()
-    {
-        NotifState.OnChange += HandleChange;
-    }
-
-    private void HandleChange()
-    {
-        InvokeAsync(StateHasChanged);
+        unreadCount = await NotificationService.GetUnreadCountAsync(UserId);
+        if (_hub == null) await StartHubAsync();
     }
 
     private async Task StartHubAsync()
@@ -60,7 +40,7 @@
         var cookieStr = string.Join("; ", cookies?.Select(c => $"{c.Key}={c.Value}") ?? []);
 
         _hub = new HubConnectionBuilder()
-            .WithUrl(Navigation.ToAbsoluteUri("/notificationhub"), options =>
+            .WithUrl(Navigation.ToAbsoluteUri("/chathub"), options =>
             {
                 options.Headers.Add("Cookie", cookieStr);
             })
@@ -69,13 +49,14 @@
 
         _hub.On<NotificationDto>("ReceiveNotification", async (dto) =>
         {
-            if (dto.Type == NotificationType.NewMessage)
-                return;
-            NotifState.Increment();
+            await InvokeAsync(() =>
+            {
+                unreadCount++;
+                StateHasChanged();
+            });
         });
 
         await _hub.StartAsync();
-        await _hub.InvokeAsync("Register", UserId);
     }
 
     private void GoToNotifications()
@@ -83,7 +64,6 @@
 
     public async ValueTask DisposeAsync()
     {
-        NotifState.OnChange -= HandleChange;
         if (_hub is not null) await _hub.DisposeAsync();
     }
 }

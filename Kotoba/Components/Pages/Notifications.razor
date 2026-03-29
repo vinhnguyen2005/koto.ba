@@ -1,7 +1,90 @@
 @page "/notifications"
 @using Kotoba.Modules.Domain.Enums
 @inject INotificationService NotificationService
-@inject AuthenticationStateProvider AuthStateProvider
+<style>
+    .notif-page {
+        min-height: 100vh;        
+        background: var(--bg, #f4f7f0);
+        padding: 0;
+        font-family: 'DM Sans', sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .notif-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 24px 32px;
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+    }
+
+    .notif-title {
+        font-family: 'Syne', sans-serif;
+        font-weight: 800;
+        font-size: 20px;
+        color: var(--text, #1a1f0e);
+        letter-spacing: -0.3px;
+        line-height: 1;
+    }
+
+    .notif-subtitle {
+        font-size: 12px;
+        color: var(--muted, #888);
+        margin-top: 3px;
+    }
+
+    .notif-container {        
+        width: 100%;
+        padding: 24px 32px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+
+    .notif-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 80px 0;
+        gap: 12px;
+        text-align: center;
+    }
+
+    .notif-empty-icon {
+        width: 72px;
+        height: 72px;
+        border-radius: 24px;
+        background: rgba(122,184,0,0.1);
+        border: 2px dashed rgba(122,184,0,0.25);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--lime, #7ab800);
+        margin-bottom: 4px;
+    }
+
+    .notif-empty-title {
+        font-family: 'Syne', sans-serif;
+        font-weight: 700;
+        font-size: 18px;
+        color: var(--text, #1a1f0e);
+    }
+
+    .notif-empty-sub {
+        font-size: 13px;
+        color: var(--muted, #aaa);
+        max-width: 240px;
+        line-height: 1.5;
+    }
+</style>
 
 <div class="notif-page">
     <div class="notif-container">
@@ -83,7 +166,7 @@
 
                             @* Content *@
                             <div class="notif-content">
-                                <div class="notif-msg">@FormatNotification(n)</div>
+                                <div class="notif-msg">@n.Message</div>
                                 <div class="notif-time">
                                     <svg width="10" height="10" fill="none" viewBox="0 0 24 24"
                                          stroke="currentColor" stroke-width="2">
@@ -146,19 +229,13 @@
     }
 
     protected override async Task OnInitializedAsync()
-{
-    var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-    var user = authState.User;
-
-    var userId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-
-    if (string.IsNullOrEmpty(userId)) return;
-
-    notifications = await NotificationService.GetNotificationsAsync(userId);
-    await NotificationService.MarkAllAsReadAsync(userId);
-
-    notifications.ForEach(n => n.IsRead = true);
-}
+    {
+        if (CurrentUserProfile?.UserId == null) return;
+        notifications = await NotificationService
+            .GetNotificationsAsync(CurrentUserProfile.UserId);
+        await NotificationService.MarkAllAsReadAsync(CurrentUserProfile.UserId);
+        notifications.ForEach(n => n.IsRead = true);
+    }
 
     private async Task MarkAll()
     {
@@ -178,8 +255,7 @@
     private static string GetIcon(NotificationType type) => type switch
     {
         NotificationType.NewFollower => "👤",
-        NotificationType.StoryReaction => "👍",
-        NotificationType.StorySeen => "💬",
+        NotificationType.StoryReaction => "❤️",
         NotificationType.AdminWarning => "⚠️",
         NotificationType.AdminReportAlert => "🚩",
         _ => "🔔"
@@ -189,7 +265,6 @@
     {
         NotificationType.NewFollower => "follow",
         NotificationType.StoryReaction => "story",
-        NotificationType.StorySeen => "story",
         NotificationType.AdminWarning => "warning",
         NotificationType.AdminReportAlert => "report",
         _ => "default"
@@ -203,34 +278,5 @@
         if (delta.TotalDays < 1) return $"{(int)delta.TotalHours}h ago";
         if (delta.TotalDays < 7) return $"{(int)delta.TotalDays}d ago";
         return utc.ToLocalTime().ToString("dd/MM/yyyy");
-    }
-
-    private string FormatNotification(NotificationDto n)
-    {
-        return n.Type switch
-        {
-            NotificationType.NewMessage
-                => $"{n.ActorName}: {TrimMessage(n.Message)}",
-
-            NotificationType.NewFollower
-                => $"{n.ActorName} started following you",
-
-            NotificationType.StoryReaction
-                => $"{n.ActorName} reacted to your story",
-
-            NotificationType.AdminWarning
-                => $"Admin warning: {n.Message}",
-
-            NotificationType.AdminReportAlert
-                => $"Report alert: {n.Message}",
-
-            _ => n.Message
-        };
-    }
-
-    private static string TrimMessage(string msg)
-    {
-        if (string.IsNullOrEmpty(msg)) return "";
-        return msg.Length > 40 ? msg.Substring(0, 40) + "..." : msg;
     }
 }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -13,30 +13,30 @@ namespace Kotoba.Modules.Infrastructure.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            //migrationBuilder.AddColumn<string>(
-            //    name: "OwnerId",
-            //    table: "Conversations",
-            //    type: "nvarchar(max)",
-            //    nullable: true);
+            migrationBuilder.AddColumn<string>(
+                name: "OwnerId",
+                table: "Conversations",
+                type: "nvarchar(max)",
+                nullable: true);
 
-            //migrationBuilder.AddColumn<int>(
-            //    name: "Role",
-            //    table: "ConversationParticipants",
-            //    type: "int",
-            //    nullable: false,
-            //    defaultValue: 0);
+            migrationBuilder.AddColumn<int>(
+                name: "Role",
+                table: "ConversationParticipants",
+                type: "int",
+                nullable: false,
+                defaultValue: 0);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            //migrationBuilder.DropColumn(
-            //    name: "OwnerId",
-            //    table: "Conversations");
+            migrationBuilder.DropColumn(
+                name: "OwnerId",
+                table: "Conversations");
 
-            //migrationBuilder.DropColumn(
-            //    name: "Role",
-            //    table: "ConversationParticipants");
+            migrationBuilder.DropColumn(
+                name: "Role",
+                table: "ConversationParticipants");
         }
     }
 }
