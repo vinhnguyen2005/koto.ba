@@ -5,6 +5,7 @@ public enum AdminSidebarItem
     SystemDashboard,
     SystemAdminAccounts,
     SystemAudits,
+    SystemSecurityAlerts,
     BusinessDashboard,
     BusinessUsers,
     BusinessReports,

@@ -1,0 +1,292 @@
+@page "/admin/system/security-alerts"
+@layout Kotoba.Components.Layout.AdminLayout
+@using Kotoba.Modules.Domain.Constants
+@using Kotoba.Modules.Domain.DTOs
+@using Kotoba.Modules.Domain.Enums
+@using Kotoba.Modules.Domain.Interfaces
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@attribute [Authorize(Roles = AdminRoles.SystemAdmin)]
+@inject IAdminSecurityAlertService AdminSecurityAlertService
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Security Alerts</PageTitle>
+
+<div class="admin-console">
+    <AdminSidebar IsSystemAdmin="true" ActiveItem="AdminSidebarItem.SystemSecurityAlerts" />
+
+    <main class="admin-main">
+        <header class="admin-topbar">
+            <div>
+                <p class="admin-eyebrow">Security</p>
+                <h1 class="admin-title">Security Alerts</h1>
+            </div>
+            <div class="admin-pill">System Admin</div>
+        </header>
+
+        <section class="admin-stats" aria-label="Security alert metrics">
+            <article class="admin-stat-card">
+                <p class="admin-stat-label">Open Alerts</p>
+                <p class="admin-stat-value">@OpenAlertsCount</p>
+                <p class="admin-stat-meta">Unacknowledged items</p>
+            </article>
+            <article class="admin-stat-card">
+                <p class="admin-stat-label">High / Critical</p>
+                <p class="admin-stat-value">@HighOrCriticalOpenCount</p>
+                <p class="admin-stat-meta">Prioritize these first</p>
+            </article>
+            <article class="admin-stat-card">
+                <p class="admin-stat-label">Acknowledged</p>
+                <p class="admin-stat-value">@AcknowledgedCount</p>
+                <p class="admin-stat-meta">Already triaged</p>
+            </article>
+            <article class="admin-stat-card">
+                <p class="admin-stat-label">Last Refresh</p>
+                <p class="admin-stat-value">@LastRefreshText</p>
+                <p class="admin-stat-meta">UTC</p>
+            </article>
+        </section>
+
+        <section class="admin-panels">
+            <article class="admin-panel" style="grid-column: 1 / -1;">
+                <div class="admin-panel-header">
+                    <h2 class="admin-panel-title">Alert Feed</h2>
+                    <span class="admin-panel-badge">Detailed</span>
+                </div>
+
+                <div class="admin-filter-grid">
+                    <div>
+                        <label class="admin-create-label" for="severity-filter">Severity</label>
+                        <select id="severity-filter" class="admin-create-input" @bind="SelectedSeverity">
+                            <option value="all">All severities</option>
+                            <option value="critical">Critical</option>
+                            <option value="high">High</option>
+                            <option value="medium">Medium</option>
+                            <option value="low">Low</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="admin-create-label" for="state-filter">State</label>
+                        <select id="state-filter" class="admin-create-input" @bind="SelectedState">
+                            <option value="all">All states</option>
+                            <option value="open">Open</option>
+                            <option value="ack">Acknowledged</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="admin-create-label" for="search-filter">Search</label>
+                        <input id="search-filter" class="admin-create-input" @bind="SearchTerm" placeholder="Type, title, user ID, IP, message" />
+                    </div>
+                    <div style="display:flex; align-items:end; gap:.5rem;">
+                        <button class="admin-action-btn" disabled="@IsLoading" @onclick="ReloadAsync">Refresh</button>
+                    </div>
+                </div>
+
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Time (UTC)</th>
+                                <th>Severity</th>
+                                <th>Type</th>
+                                <th>Message</th>
+                                <th>Evidence</th>
+                                <th>Related</th>
+                                <th>State</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (FilteredAlerts.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="8">No alerts match current filters.</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var alert in FilteredAlerts)
+                                {
+                                    <tr>
+                                        <td>@alert.OccurredAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                                        <td>
+                                            <span class="admin-tag @GetSeverityClass(alert.Severity)">@alert.Severity</span>
+                                        </td>
+                                        <td>@alert.Type</td>
+                                        <td>
+                                            <div><strong>@alert.Title</strong></div>
+                                            <div>@alert.Message</div>
+                                        </td>
+                                        <td>@alert.EvidenceCount</td>
+                                        <td>
+                                            @if (!string.IsNullOrWhiteSpace(alert.RelatedUserId))
+                                            {
+                                                <div>User: @alert.RelatedUserId</div>
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(alert.RelatedIp))
+                                            {
+                                                <div>IP: @alert.RelatedIp</div>
+                                            }
+                                            @if (string.IsNullOrWhiteSpace(alert.RelatedUserId) && string.IsNullOrWhiteSpace(alert.RelatedIp))
+                                            {
+                                                <span>-</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (alert.IsAcknowledged)
+                                            {
+                                                <span class="admin-tag">Acknowledged</span>
+                                                <div style="font-size:.72rem; margin-top:.2rem; color:#64748b;">
+                                                    @alert.AcknowledgedAtUtc?.ToString("yyyy-MM-dd HH:mm")
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <span class="admin-tag admin-tag-warning">Open</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <div style="display:flex; gap:.35rem; flex-wrap:wrap;">
+                                                <a class="admin-action-btn" href="@alert.AuditTrailUrl">Audit Trail</a>
+                                                @if (!string.IsNullOrWhiteSpace(alert.UserUrl))
+                                                {
+                                                    <a class="admin-action-btn" href="@alert.UserUrl">User</a>
+                                                }
+                                                @if (!alert.IsAcknowledged)
+                                                {
+                                                    <button class="admin-action-btn" disabled="@IsLoading" @onclick="() => AcknowledgeAsync(alert.AlertKey)">Acknowledge</button>
+                                                }
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+        </section>
+    </main>
+</div>
+
+@code {
+    private List<AdminSecurityAlertDto> Alerts { get; set; } = new();
+    private bool IsLoading;
+    private DateTime? LastRefreshUtc;
+
+    private string SelectedSeverity { get; set; } = "all";
+    private string SelectedState { get; set; } = "all";
+    private string SearchTerm { get; set; } = string.Empty;
+
+    private int OpenAlertsCount => Alerts.Count(a => !a.IsAcknowledged);
+    private int AcknowledgedCount => Alerts.Count(a => a.IsAcknowledged);
+    private int HighOrCriticalOpenCount => Alerts.Count(a =>
+        !a.IsAcknowledged
+        && (a.Severity == AdminSecurityAlertSeverity.High || a.Severity == AdminSecurityAlertSeverity.Critical));
+
+    private string LastRefreshText => LastRefreshUtc.HasValue
+        ? LastRefreshUtc.Value.ToString("yyyy-MM-dd HH:mm:ss")
+        : "-";
+
+    private List<AdminSecurityAlertDto> FilteredAlerts => ApplyFilters();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        try
+        {
+            IsLoading = true;
+            Alerts = (await AdminSecurityAlertService.GetAlertsAsync()).ToList();
+            LastRefreshUtc = DateTime.UtcNow;
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private async Task AcknowledgeAsync(string alertKey)
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var adminId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(adminId) || string.IsNullOrWhiteSpace(alertKey))
+        {
+            return;
+        }
+
+        await AdminSecurityAlertService.AcknowledgeAsync(alertKey, adminId);
+        await ReloadAsync();
+    }
+
+    private List<AdminSecurityAlertDto> ApplyFilters()
+    {
+        IEnumerable<AdminSecurityAlertDto> query = Alerts;
+
+        query = SelectedSeverity switch
+        {
+            "critical" => query.Where(a => a.Severity == AdminSecurityAlertSeverity.Critical),
+            "high" => query.Where(a => a.Severity == AdminSecurityAlertSeverity.High),
+            "medium" => query.Where(a => a.Severity == AdminSecurityAlertSeverity.Medium),
+            "low" => query.Where(a => a.Severity == AdminSecurityAlertSeverity.Low),
+            _ => query,
+        };
+
+        query = SelectedState switch
+        {
+            "open" => query.Where(a => !a.IsAcknowledged),
+            "ack" => query.Where(a => a.IsAcknowledged),
+            _ => query,
+        };
+
+        if (!string.IsNullOrWhiteSpace(SearchTerm))
+        {
+            var term = SearchTerm.Trim();
+            query = query.Where(alert =>
+                alert.Title.Contains(term, StringComparison.OrdinalIgnoreCase)
+                || alert.Message.Contains(term, StringComparison.OrdinalIgnoreCase)
+                || alert.Type.ToString().Contains(term, StringComparison.OrdinalIgnoreCase)
+                || (!string.IsNullOrWhiteSpace(alert.RelatedUserId) && alert.RelatedUserId.Contains(term, StringComparison.OrdinalIgnoreCase))
+                || (!string.IsNullOrWhiteSpace(alert.RelatedIp) && alert.RelatedIp.Contains(term, StringComparison.OrdinalIgnoreCase)));
+        }
+
+        return query
+            .OrderByDescending(a => a.Severity)
+            .ThenByDescending(a => a.OccurredAtUtc)
+            .ToList();
+    }
+
+    private static string GetSeverityClass(AdminSecurityAlertSeverity severity)
+    {
+        return severity switch
+        {
+            AdminSecurityAlertSeverity.Critical => "admin-alert-critical",
+            AdminSecurityAlertSeverity.High => "admin-alert-high",
+            AdminSecurityAlertSeverity.Medium => "admin-alert-medium",
+            _ => string.Empty,
+        };
+    }
+}
+
+<style>
+    .admin-alert-critical {
+        background: #7f1d1d;
+        color: #fff;
+        border-color: #7f1d1d;
+    }
+
+    .admin-alert-high {
+        background: #dc2626;
+        color: #fff;
+        border-color: #dc2626;
+    }
+
+    .admin-alert-medium {
+        background: #f59e0b;
+        color: #111827;
+        border-color: #f59e0b;
+    }
+</style>
