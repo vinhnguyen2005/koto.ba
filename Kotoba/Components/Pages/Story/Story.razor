@@ -2,26 +2,38 @@
 @using Kotoba.Modules.Domain.Enums
 @inject NavigationManager Nav
 @inject IStoryService StoryService;
+@using Kotoba.Modules.Domain.Enums
+@inject NavigationManager Nav
+@inject IStoryService StoryService
+@inject IFollowService FollowService
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 @code {
     [CascadingParameter] public UserProfile? CurrentUserProfile { get; set; }
 
-    private List<StoryDto> stories = new();
-    private List<StoryDto> currentStories;
-    private int currentIndex = 0;
-    private Timer? storyTimer;
-    private int remainingTime = 5000;
-    private DateTime startTime;
-    private bool isViewerOpen = false;
-    private bool isPaused = false;
+	private List<StoryDto> stories = new();
+	private List<StoryDto> currentStories;
+	private int currentIndex = 0;
+	private Timer? storyTimer;
+	private int remainingTime = 5000;
+	private DateTime startTime;
+	private bool isViewerOpen = false;
+	private bool isPaused = false;
+	private string? currentUserId;
+	private string? currentStoryUserId;
+	private bool isFollowingCurrentStoryUser = false;
+	private bool IsReadOnly => CurrentUserProfile?.AccountStatus == AccountStatus.Deactivated;
 
-    private bool IsReadOnly => CurrentUserProfile?.AccountStatus == AccountStatus.Deactivated;
+	protected override async Task OnInitializedAsync()
+	{
+		var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+		currentUserId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-    protected override async Task OnInitializedAsync()
-    {
-        stories = await StoryService.GetActiveStoriesAsync();
-    }
-
+		if (!string.IsNullOrEmpty(currentUserId))
+		{
+			stories = await StoryService.GetActiveFollowingStoriesAsync(currentUserId);
+		}
+	}
     private async Task OpenStory(string userId)
     {
         currentStories = await StoryService.GetActiveStoriesByUserIdAsync(userId);

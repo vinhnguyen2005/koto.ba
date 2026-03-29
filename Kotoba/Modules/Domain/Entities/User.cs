@@ -1,4 +1,4 @@
-﻿using Kotoba.Modules.Domain.Enums;
+using Kotoba.Modules.Domain.Enums;
 using Microsoft.AspNetCore.Identity;
 
 namespace Kotoba.Modules.Domain.Entities
@@ -21,5 +21,7 @@ namespace Kotoba.Modules.Domain.Entities
         public virtual ICollection<Reaction> Reactions { get; set; } = new List<Reaction>();
         public virtual ICollection<Story> Stories { get; set; } = new List<Story>();
         public virtual CurrentThought? CurrentThought { get; set; }
+        public virtual ICollection<Follow> Followers { get; set; } = new List<Follow>();
+        public virtual ICollection<Follow> Following { get; set; } = new List<Follow>();
     }
 }
