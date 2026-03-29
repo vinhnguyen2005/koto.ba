@@ -22,8 +22,22 @@
         else
         {
             <header class="profile-hero">
-                <div class="profile-avatar-wrap" aria-hidden="true">
-                    <div class="profile-avatar">@AvatarLabel</div>
+                <div class="profile-avatar-wrap" aria-hidden="true" style="overflow:hidden;border-radius:999px;">
+                    <div class="profile-avatar" style="overflow:hidden;border-radius:999px;">
+                        @if (!string.IsNullOrWhiteSpace(AvatarImageSrc) && !avatarImageLoadFailed)
+                        {
+                            <img @key="AvatarImageSrc"
+                                 src="@AvatarImageSrc"
+                                 alt=""
+                                 class="profile-avatar-image"
+                                 style="width:100%;height:100%;max-width:none;object-fit:cover;border-radius:50%;display:block;"
+                                 @onerror="HandleAvatarImageError" />
+                        }
+                        else
+                        {
+                            @AvatarLabel
+                        }
+                    </div>
                 </div>
 
                 <div class="profile-hero-body">
@@ -76,7 +90,16 @@
 
                             <div class="profile-field">
                                 <label for="avatarUrl" class="profile-label">Avatar URL</label>
-                                <InputText id="avatarUrl" class="profile-input" @bind-Value="profileForm.AvatarUrl" placeholder="https://example.com/avatar.jpg" />
+                                <InputText id="avatarUrl"
+                                           class="profile-input"
+                                           Value="@profileForm.AvatarUrl"
+                                           ValueChanged="OnAvatarUrlChanged"
+                                           ValueExpression="@(() => profileForm.AvatarUrl)"
+                                           placeholder="https://example.com/avatar.jpg" />
+                                @if (!string.IsNullOrWhiteSpace(avatarUrlValidationMessage))
+                                {
+                                    <div class="profile-validation-message">@avatarUrlValidationMessage</div>
+                                }
                             </div>
 
                             <div class="profile-field profile-field-full">
@@ -186,9 +209,12 @@
     private DateTime? profileUpdatedAt;
     private bool isAccountActionSubmitting;
     private AccountStatus currentAccountStatus = AccountStatus.Active;
+    private bool avatarImageLoadFailed;
+    private string? avatarUrlValidationMessage;
 
     private string DisplayNameOrFallback => string.IsNullOrWhiteSpace(profileForm.DisplayName) ? "Your Profile" : profileForm.DisplayName;
-    private string AvatarLabel => string.IsNullOrWhiteSpace(profileForm.AvatarUrl) ? "🥝" : profileForm.AvatarUrl;
+    private string? AvatarImageSrc => TryGetAvatarImageSource(profileForm.AvatarUrl);
+    private string AvatarLabel => string.IsNullOrWhiteSpace(profileForm.AvatarUrl) ? "🥝" : profileForm.AvatarUrl.Trim();
     private string UserHandle => string.IsNullOrWhiteSpace(profileForm.UserName) ? "@account" : $"@{profileForm.UserName.Trim().TrimStart('@')}";
     private string ProfileBioOrFallback => string.IsNullOrWhiteSpace(profileForm.Bio)
         ? "Add a short bio so others know who you are."
@@ -247,6 +273,8 @@
         profileForm.Email = profile.Email;
         profileForm.Bio = profile.Bio;
         currentAccountStatus = profile.AccountStatus;
+        avatarImageLoadFailed = false;
+        avatarUrlValidationMessage = null;
         isLoading = false;
     }
 
@@ -261,6 +289,12 @@
             if (string.IsNullOrWhiteSpace(userId))
             {
                 saveErrorMessage = "Unable to resolve current user.";
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(AvatarImageSrc) && avatarImageLoadFailed)
+            {
+                saveErrorMessage = "Avatar URL must point to a valid image.";
                 return;
             }
 
@@ -407,5 +441,43 @@
     private string GetTabClass(ProfileTab tab)
     {
         return activeTab == tab ? "active" : string.Empty;
+    }
+
+    private Task OnAvatarUrlChanged(string? value)
+    {
+        profileForm.AvatarUrl = value;
+        avatarImageLoadFailed = false;
+        avatarUrlValidationMessage = null;
+        return Task.CompletedTask;
+    }
+
+    private void HandleAvatarImageError()
+    {
+        profileForm.AvatarUrl = null;
+        avatarImageLoadFailed = false;
+        avatarUrlValidationMessage = "This URL is not a valid image.";
+    }
+
+    private static string? TryGetAvatarImageSource(string? avatarValue)
+    {
+        if (string.IsNullOrWhiteSpace(avatarValue))
+        {
+            return null;
+        }
+
+        var trimmed = avatarValue.Trim();
+
+        if (trimmed.StartsWith("/", StringComparison.Ordinal))
+        {
+            return trimmed;
+        }
+
+        if (Uri.TryCreate(trimmed, UriKind.Absolute, out var uri)
+            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+        {
+            return trimmed;
+        }
+
+        return null;
     }
 }

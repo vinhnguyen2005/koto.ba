@@ -51,17 +51,19 @@
     width: 78px;
     height: 78px;
     border-radius: 999px;
-    border: 2px solid rgba(42, 106, 32, 0.3);
-    background: linear-gradient(135deg,#4A7C1F,#2D5016);
+    overflow: hidden;
+    border: none;
+    background: transparent;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
 .profile-avatar {
-    width: 66px;
-    height: 66px;
+    width: 100%;
+    height: 100%;
     border-radius: 999px;
+    overflow: hidden;
     background: linear-gradient(135deg,#4A7C1F,#2D5016);
     color: #ffffff;
     font-size: 1.35rem;
@@ -69,6 +71,17 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+}
+
+.profile-avatar-image {
+    max-width: none;
+    width: 100%;
+    height: 100%;
+    min-width: 100%;
+    min-height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+    display: block;
 }
 
 .profile-hero-body {

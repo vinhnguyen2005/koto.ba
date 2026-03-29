@@ -48,18 +48,17 @@ namespace Kotoba.Modules.Infrastructure.Data.Migrations
                 keyColumn: "Id",
                 keyValue: new Guid("ae4b4e91-572e-49ba-bdce-25ae10a60bd8"));
 
-            migrationBuilder.AddColumn<string>(
-                name: "OwnerId",
-                table: "Conversations",
-                type: "nvarchar(max)",
-                nullable: true);
+            migrationBuilder.Sql(@"
+IF COL_LENGTH('Conversations', 'OwnerId') IS NULL
+BEGIN
+    ALTER TABLE [Conversations] ADD [OwnerId] nvarchar(max) NULL;
+END");
 
-            migrationBuilder.AddColumn<int>(
-                name: "Role",
-                table: "ConversationParticipants",
-                type: "int",
-                nullable: false,
-                defaultValue: 0);
+            migrationBuilder.Sql(@"
+IF COL_LENGTH('ConversationParticipants', 'Role') IS NULL
+BEGIN
+    ALTER TABLE [ConversationParticipants] ADD [Role] int NOT NULL CONSTRAINT [DF_ConversationParticipants_Role] DEFAULT(0);
+END");
 
             migrationBuilder.InsertData(
                 table: "ReportCategories",
@@ -114,13 +113,27 @@ namespace Kotoba.Modules.Infrastructure.Data.Migrations
                 keyColumn: "Id",
                 keyValue: new Guid("e3110a2e-f503-4585-9262-8ae741ac90d1"));
 
-            migrationBuilder.DropColumn(
-                name: "OwnerId",
-                table: "Conversations");
+            migrationBuilder.Sql(@"
+IF COL_LENGTH('Conversations', 'OwnerId') IS NOT NULL
+BEGIN
+    ALTER TABLE [Conversations] DROP COLUMN [OwnerId];
+END");
 
-            migrationBuilder.DropColumn(
-                name: "Role",
-                table: "ConversationParticipants");
+            migrationBuilder.Sql(@"
+IF COL_LENGTH('ConversationParticipants', 'Role') IS NOT NULL
+BEGIN
+    DECLARE @RoleDefaultConstraint nvarchar(128);
+    SELECT @RoleDefaultConstraint = dc.name
+    FROM sys.default_constraints dc
+    INNER JOIN sys.columns c ON c.default_object_id = dc.object_id
+    INNER JOIN sys.tables t ON t.object_id = c.object_id
+    WHERE t.name = 'ConversationParticipants' AND c.name = 'Role';
+
+    IF @RoleDefaultConstraint IS NOT NULL
+        EXEC('ALTER TABLE [ConversationParticipants] DROP CONSTRAINT [' + @RoleDefaultConstraint + ']');
+
+    ALTER TABLE [ConversationParticipants] DROP COLUMN [Role];
+END");
 
             migrationBuilder.InsertData(
                 table: "ReportCategories",
