@@ -148,6 +148,40 @@ public class GlobalNotificationService : IAsyncDisposable
             await FireAsync(s, title, body, avatarUrl);
         });
 
+        _hub.On<NotificationDto>("NotifyStorySeen", async (dto) =>
+        {
+            if (dto.ActorId == _currentUserId) return;
+
+            var s = await _settings.LoadAsync();
+            if (!ShouldNotify(s, NotificationEvent.DirectMessage)) return;
+
+            var title = s.ShowSender ? dto.ActorName ?? "Kotoba" : "Kotoba";
+            var body = dto.Message;
+
+            var avatarUrl = string.IsNullOrWhiteSpace(dto.ActorAvatar) || !s.ShowSender
+                ? "/favicon.png"
+                : dto.ActorAvatar;
+
+            await FireAsync(s, title, body, avatarUrl);
+        });
+
+        _hub.On<NotificationDto>("NotifyStoryReaction", async (dto) =>
+        {
+            if (dto.ActorId == _currentUserId) return;
+
+            var s = await _settings.LoadAsync();
+            if (!ShouldNotify(s, NotificationEvent.DirectMessage)) return;
+
+            var title = s.ShowSender ? dto.ActorName ?? "Kotoba" : "Kotoba";
+            var body = dto.Message;
+
+            var avatarUrl = string.IsNullOrWhiteSpace(dto.ActorAvatar)
+                ? "/favicon.png"
+                : dto.ActorAvatar;
+
+            await FireAsync(s, title, body, avatarUrl);
+        });
+
         try
         {
             await _hub.StartAsync();

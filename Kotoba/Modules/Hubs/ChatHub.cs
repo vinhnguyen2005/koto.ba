@@ -129,37 +129,7 @@ namespace Kotoba.Modules.Hubs
                 .Select(p => p.UserId)
                 .ToListAsync();
 
-            var notifications = participants
-                .Where(u => u != senderId)
-                .Select(u => new Notification
-                {
-                    Id = Guid.NewGuid(),
-                    RecipientId = u,
-                    Type = NotificationType.NewMessage,
-                    ActorId = senderId,
-                    TargetId = conversationId.ToString(),
-                    TargetType = "Conversation",
-                    Message = content,
-                    IsRead = false,
-                    CreatedAt = DateTime.UtcNow
-                })
-                .ToList();
-
-            _context.Notifications.AddRange(notifications);
             await _context.SaveChangesAsync();
-
-            foreach (var notif in notifications)
-            {
-                await _notifHub.Clients.Group(notif.RecipientId)
-                    .SendAsync("ReceiveNotification", new NotificationDto
-                    {
-                        Id = notif.Id,
-                        Message = notif.Message,
-                        Type = notif.Type,
-                        CreatedAt = notif.CreatedAt,
-                        IsRead = false
-                    });
-            }
 
             await Clients.Users(participants).SendAsync("ConversationListChanged");
 
