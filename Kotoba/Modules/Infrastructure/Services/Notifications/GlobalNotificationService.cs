@@ -67,6 +67,20 @@ public class GlobalNotificationService : IAsyncDisposable
         {
             if (msg.SenderId == _currentUserId) return;
 
+            if (string.Equals(msg.SenderId?.Trim(), _currentUserId?.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            var convId = msg.ConversationId.ToString().ToLower();
+
+            if (_state.ActiveConversationId == convId)
+            {
+                return;
+            }
+
+            _state.Add(convId, msg.SenderId);
+
             var s = await _settings.LoadAsync();
             if (!ShouldNotify(s, NotificationEvent.DirectMessage)) return;
 
@@ -79,7 +93,6 @@ public class GlobalNotificationService : IAsyncDisposable
             {
                 avatarUrl = "/favicon.png";
             }
-            _state.Add(msg.ConversationId.ToString());
             await FireAsync(s, title, body, avatarUrl);
         });
 
@@ -88,7 +101,6 @@ public class GlobalNotificationService : IAsyncDisposable
             if (onlineUserId == _currentUserId) return;
             var s = await _settings.LoadAsync();
             var profile = await _userService.GetUserProfileAsync(onlineUserId);
-            if (profile == null) return;
             var avatarUrl = profile.AvatarUrl;
             if (avatarUrl == null || !s.ShowSender)
             {
@@ -114,6 +126,61 @@ public class GlobalNotificationService : IAsyncDisposable
             {
                 PresenceChanged?.Invoke(update);
             }
+        });
+
+        _hub.On<NotificationDto>("NotifyFollow", async (dto) =>
+        {
+            if (dto.ActorId == _currentUserId) return;
+
+            var s = await _settings.LoadAsync();
+            if (!ShouldNotify(s, NotificationEvent.DirectMessage)) return;
+
+            var profile = await _userService.GetUserProfileAsync(dto.ActorId);
+
+            var title = s.ShowSender ? profile.DisplayName ?? "Kotoba" : "Kotoba";
+            var body = "started following you";
+
+            var avatarUrl = profile.AvatarUrl;
+            if (avatarUrl == null || !s.ShowSender)
+            {
+                avatarUrl = "/favicon.png";
+            }
+
+            await FireAsync(s, title, body, avatarUrl);
+        });
+
+        _hub.On<NotificationDto>("NotifyStorySeen", async (dto) =>
+        {
+            if (dto.ActorId == _currentUserId) return;
+
+            var s = await _settings.LoadAsync();
+            if (!ShouldNotify(s, NotificationEvent.DirectMessage)) return;
+
+            var title = s.ShowSender ? dto.ActorName ?? "Kotoba" : "Kotoba";
+            var body = dto.Message;
+
+            var avatarUrl = string.IsNullOrWhiteSpace(dto.ActorAvatar) || !s.ShowSender
+                ? "/favicon.png"
+                : dto.ActorAvatar;
+
+            await FireAsync(s, title, body, avatarUrl);
+        });
+
+        _hub.On<NotificationDto>("NotifyStoryReaction", async (dto) =>
+        {
+            if (dto.ActorId == _currentUserId) return;
+
+            var s = await _settings.LoadAsync();
+            if (!ShouldNotify(s, NotificationEvent.DirectMessage)) return;
+
+            var title = s.ShowSender ? dto.ActorName ?? "Kotoba" : "Kotoba";
+            var body = dto.Message;
+
+            var avatarUrl = string.IsNullOrWhiteSpace(dto.ActorAvatar)
+                ? "/favicon.png"
+                : dto.ActorAvatar;
+
+            await FireAsync(s, title, body, avatarUrl);
         });
 
         try

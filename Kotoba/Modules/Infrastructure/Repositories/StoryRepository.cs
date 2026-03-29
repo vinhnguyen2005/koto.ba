@@ -34,6 +34,7 @@ namespace Kotoba.Modules.Infrastructure.Repositories
                 return await context.Stories
                     .AsNoTracking()
                     .Include(s => s.User)
+                    .Include(s => s.Permissions)
                     .Where(s => s.ExpiresAt > now)
                     .OrderByDescending(s => s.CreatedAt)
                     .GroupBy(s => s.UserId)
@@ -51,6 +52,7 @@ namespace Kotoba.Modules.Infrastructure.Repositories
                 return await context.Stories
                     .AsNoTracking()
                     .Include(s => s.User)
+                    .Include(s => s.Permissions)
                     .Where(s => s.ExpiresAt > now)
                     .Where(s => s.UserId == userId)
                     .OrderBy(s => s.CreatedAt)

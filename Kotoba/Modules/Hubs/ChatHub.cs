@@ -133,6 +133,9 @@ namespace Kotoba.Modules.Hubs
                 .Select(p => p.UserId)
                 .ToListAsync();
 
+            
+            await _context.SaveChangesAsync();
+
             await Clients.Users(participants).SendAsync("ConversationListChanged");
 
             await _notifHub.Clients.Groups(participants).SendAsync("NotifyMessage", dto);
@@ -688,7 +691,7 @@ namespace Kotoba.Modules.Hubs
         }
 
         // Helper dùng nội bộ trong các Hub method khác
-        public async Task NotifyAsync(CreateNotificationRequest request)
+        private async Task NotifyAsync(CreateNotificationRequest request)
         {
             var dto = await _notificationService.CreateAsync(request);
             await PushNotification(request.RecipientId, dto);

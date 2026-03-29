@@ -25,6 +25,9 @@ namespace Kotoba.Modules.Infrastructure.Data
         public DbSet<Report> Reports => Set<Report>();
         public DbSet<ReportCategory> ReportCategories => Set<ReportCategory>();
         public DbSet<Notification> Notifications => Set<Notification>();
+        public DbSet<StoryReaction> StoryReactions => Set<StoryReaction>();
+        public DbSet<StoryView> StoryViews => Set<StoryView>();
+        public DbSet<StoryPermission> StoryPermissions => Set<StoryPermission>();
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -136,6 +139,7 @@ namespace Kotoba.Modules.Infrastructure.Data
                 entity.HasKey(s => s.Id);
                 entity.Property(s => s.Content).HasMaxLength(3000);
                 entity.Property(s => s.MediaUrl).HasMaxLength(1000);
+                entity.Property(s => s.Visibility).HasMaxLength(20).IsRequired(); ;
 
                 entity.HasOne(s => s.User)
                     .WithMany(u => u.Stories)
@@ -200,6 +204,64 @@ namespace Kotoba.Modules.Infrastructure.Data
                 .WithMany(u => u.Followers)
                 .HasForeignKey(f => f.FollowingId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<StoryReaction>(entity =>
+            {
+                entity.ToTable("StoryReactions");
+                entity.HasKey(r => r.Id);
+
+                entity.Property(r => r.Type)
+                    .HasConversion<string>()
+                    .HasMaxLength(40);
+
+                entity.HasOne(r => r.Story)
+                    .WithMany(s => s.Reactions)
+                    .HasForeignKey(r => r.StoryId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(r => r.User)
+                    .WithMany()
+                    .HasForeignKey(r => r.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(r => new { r.StoryId, r.UserId }).IsUnique();
+            });
+
+            modelBuilder.Entity<StoryView>(entity =>
+            {
+                entity.ToTable("StoryViews");
+                entity.HasKey(v => v.Id);
+
+                entity.HasOne(v => v.Story)
+                    .WithMany(s => s.Views)
+                    .HasForeignKey(v => v.StoryId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(v => v.Viewer)
+                    .WithMany()
+                    .HasForeignKey(v => v.ViewerId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(v => new { v.StoryId, v.ViewerId }).IsUnique();
+            });
+
+            modelBuilder.Entity<StoryPermission>(entity =>
+            {
+                entity.ToTable("StoryPermissions");
+                entity.HasKey(p => p.Id);
+
+                entity.HasOne(p => p.Story)
+                    .WithMany(s => s.Permissions)
+                    .HasForeignKey(p => p.StoryId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(p => p.User)
+                    .WithMany()
+                    .HasForeignKey(p => p.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(p => new { p.StoryId, p.UserId }).IsUnique();
+            });
         }
     }
 }

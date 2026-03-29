@@ -7,6 +7,7 @@
 @inject IStoryService StoryService
 @inject IFollowService FollowService
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IFollowService FollowService;
 
 @code {
     [CascadingParameter] public UserProfile? CurrentUserProfile { get; set; }
@@ -23,23 +24,69 @@
 	private string? currentStoryUserId;
 	private bool isFollowingCurrentStoryUser = false;
 	private bool IsReadOnly => CurrentUserProfile?.AccountStatus == AccountStatus.Deactivated;
+    private bool _seenSent;
 
-	protected override async Task OnInitializedAsync()
-	{
-		var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-		currentUserId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    protected override async Task OnParametersSetAsync()
+    {
+        var currentUserId = CurrentUserProfile?.UserId;
+        if (string.IsNullOrEmpty(currentUserId)) return;
 
-		if (!string.IsNullOrEmpty(currentUserId))
-		{
-			stories = await StoryService.GetActiveFollowingStoriesAsync(currentUserId);
-		}
+        var allStories = await StoryService.GetActiveStoriesAsync();
+        var followingIds = await FollowService.GetFollowingIdsAsync(currentUserId);
+
+        stories = allStories
+            .Where(s =>
+                s.ExpiresAt > DateTime.UtcNow &&
+                s.UserId != currentUserId &&
+                (
+                    s.Visibility == "public"
+                    ||
+                    (s.Visibility == "followers" && followingIds.Contains(s.UserId))
+                    ||
+                    (s.Visibility == "specific" &&
+                        s.AllowedUserIds.Contains(currentUserId))
+                )
+            )
+            .ToList();
+
+        StateHasChanged();
 	}
     private async Task OpenStory(string userId)
     {
-        currentStories = await StoryService.GetActiveStoriesByUserIdAsync(userId);
+        var currentUserId = CurrentUserProfile?.UserId;
+        if (string.IsNullOrEmpty(currentUserId)) return;
 
-        if (currentStories == null || !currentStories.Any())
+        var followingIds = await FollowService.GetFollowingIdsAsync(currentUserId);
+
+        var all = await StoryService.GetActiveStoriesByUserIdAsync(userId);
+
+        currentStories = all
+            .Where(s =>
+                s.ExpiresAt > DateTime.UtcNow &&
+                s.UserId != currentUserId &&
+                (
+                    s.Visibility == "public"
+                    ||
+                    (s.Visibility == "followers" && followingIds.Contains(s.UserId))
+                    ||
+                    (s.Visibility == "specific" &&
+                        s.AllowedUserIds.Contains(currentUserId))
+                )
+            )
+            .OrderBy(s => s.ExpiresAt)
+            .ToList();
+
+        if (!currentStories.Any())
             return;
+
+        if (!_seenSent)
+        {
+            _seenSent = true;
+
+            var storyIds = currentStories.Select(s => s.StoryId).ToList();
+
+            await StoryService.MarkStoriesAsSeenAsync(currentUserId, storyIds);
+        }
 
         currentIndex = 0;
         isViewerOpen = true;
@@ -53,6 +100,7 @@
         isViewerOpen = false;
         currentStories = null;
         currentIndex = 0;
+        _seenSent = false;
     }
 
 	private string GetTimeAgo(DateTime expiresAt)
@@ -137,6 +185,16 @@
             currentIndex--;
             StartStoryTimer();
         }
+    }
+
+    private async Task React(ReactionType type)
+    {
+        var userId = CurrentUserProfile?.UserId;
+        if (string.IsNullOrEmpty(userId)) return;
+
+        var storyId = currentStories[currentIndex].StoryId;
+
+        await StoryService.ReactToStoryAsync(userId, storyId, type);
     }
 }
 
@@ -304,6 +362,14 @@
                         </div>
                     </div>
                     <div class="viewer-close" @onclick="CloseStory">×</div>
+                </div>
+                <div class="viewer-reactions" @onclick:stopPropagation="true">
+                    <button class="react-btn" @onclick="() => React(ReactionType.Like)">👍</button>
+                    <button class="react-btn" @onclick="() => React(ReactionType.Love)">❤️</button>
+                    <button class="react-btn" @onclick="() => React(ReactionType.Haha)">😂</button>
+                    <button class="react-btn" @onclick="() => React(ReactionType.Wow)">😮</button>
+                    <button class="react-btn" @onclick="() => React(ReactionType.Sad)">😢</button>
+                    <button class="react-btn" @onclick="() => React(ReactionType.Angry)">😡</button>
                 </div>
             </div>
         </div>
