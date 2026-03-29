@@ -9,6 +9,7 @@
 @inject NavigationManager Navigation
 @inject GlobalNotificationService GlobalNotificationService
 @implements IAsyncDisposable
+@inject IFollowService FollowService
 <style>
 	.profile-panel {
 		width: 272px;
@@ -560,13 +561,19 @@
 			<div class="profile-section-title">Actions</div>
 			@if (conversation!.Type == ConversationType.Direct)
 			{
-				<button class="profile-action-btn" @onclick="() => isFollowing = !isFollowing">
-					<svg width="15" height="15" viewBox="0 0 24 24" fill="@(isFollowing ? "currentColor" : "none")"
-					stroke="currentColor" stroke-width="2" stroke-linecap="round">
-						<path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
-					</svg>
-					@(isFollowing ? "Following" : "Follow")
-				</button>
+				var otherUser = members?.FirstOrDefault(m => m.UserId != CurrentUserId);
+
+				@if (otherUser != null && otherUser.UserId != CurrentUserId)
+				{
+					<button class="profile-action-btn" @onclick="ToggleFollowInConversation">
+						<svg width="15" height="15" viewBox="0 0 24 24"
+							 fill="@(isFollowing ? "currentColor" : "none")"
+							 stroke="currentColor" stroke-width="2" stroke-linecap="round">
+							<path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
+						</svg>
+						@(isFollowing ? "Following" : "Follow")
+					</button>
+				}
 			}
 			<button class="profile-action-btn">
 				<svg width="15" height="15" viewBox="0 0 24 24" fill="none"
@@ -754,7 +761,39 @@
 
 		images = allAttachments.Where(a => a.ContentType.StartsWith("image/")).ToList();
 		files = allAttachments.Where(a => !a.ContentType.StartsWith("image/")).ToList();
+		if (conversation.Type == ConversationType.Direct && members != null)
+		{
+			var otherUser = members.FirstOrDefault(m => m.UserId != CurrentUserId);
+			if (otherUser != null && !string.IsNullOrEmpty(CurrentUserId))
+			{
+				isFollowing = await FollowService.IsFollowingAsync(CurrentUserId, otherUser.UserId);
+			}
+		}
+
 		await EnsureHubAsync();
+		StateHasChanged();
+	}
+
+	private async Task ToggleFollowInConversation()
+	{
+		if (string.IsNullOrEmpty(CurrentUserId) || conversation?.Type != ConversationType.Direct)
+			return;
+
+		var otherUser = members?.FirstOrDefault(m => m.UserId != CurrentUserId);
+		if (otherUser == null)
+			return;
+
+		if (isFollowing)
+		{
+			await FollowService.UnfollowUserAsync(CurrentUserId, otherUser.UserId);
+			isFollowing = false;
+		}
+		else
+		{
+			await FollowService.FollowUserAsync(CurrentUserId, otherUser.UserId);
+			isFollowing = true;
+		}
+
 		StateHasChanged();
 	}
 
