@@ -8,6 +8,7 @@ namespace Kotoba.Modules.Domain.DTOs
         public DateTime CreatedAt { get; set; }
         public string ReporterId { get; set; } = string.Empty;
         public string ReporterDisplayName { get; set; } = string.Empty;
+        public string? ReportedUserId { get; set; } = string.Empty;
         public string ReporterEmail { get; set; } = string.Empty;
         public ReportTargetType TargetType { get; set; }
         public string TargetId { get; set; } = string.Empty;

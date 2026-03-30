@@ -4,10 +4,14 @@
 @using Kotoba.Modules.Domain.DTOs
 @using Kotoba.Modules.Domain.Enums
 @using System.Security.Claims
+@using Microsoft.AspNetCore.SignalR.Client
 @attribute [Authorize(Roles = AdminRoles.BusinessAdmin)]
 @inject IReportService ReportService
 @inject IUserService UserService
 @inject AuthenticationStateProvider AuthStateProvider
+@implements IAsyncDisposable
+@inject NavigationManager Navigation
+@inject IHttpContextAccessor HttpContextAccessor
 
 <PageTitle>Reports</PageTitle>
 
@@ -335,11 +339,35 @@
     private string PendingModerationTargetName { get; set; } = string.Empty;
     private string? PendingModerationTargetEmail { get; set; }
     private ReportModerationAction? PendingModerationAction { get; set; }
+    private HubConnection? _hub;
 
     protected override async Task OnInitializedAsync()
     {
         await ReloadReportsAsync();
+        await StartHubAsync();
     }
+
+    private async Task StartHubAsync()
+    {
+        var cookies = HttpContextAccessor.HttpContext?.Request.Cookies;
+        var cookieStr = string.Join("; ", cookies?.Select(c => $"{c.Key}={c.Value}") ?? []);
+
+        _hub = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/chathub"), options =>
+            {
+                options.Headers.Add("Cookie", cookieStr);
+            })
+            .WithAutomaticReconnect()
+            .Build();
+
+        await _hub.StartAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hub is not null)
+            await _hub.DisposeAsync();
+    }   
 
     private async Task ReloadReportsAsync()
     {
@@ -355,16 +383,59 @@
 
         if (didSucceed)
         {
+            // Notify reporter — report đang được xem xét
+            if (_hub?.State == HubConnectionState.Connected)
+            {
+                await _hub.InvokeAsync("NotifyAsync", new CreateNotificationRequest
+                {
+                    RecipientId = report.ReporterId,
+                    Type = NotificationType.AdminWarning,
+                    ActorId = null,
+                    TargetId = report.ReportId.ToString(),
+                    TargetType = "Report",
+                    Message = $"Your report has been reviewed by our team."
+                });
+
+                await _hub.InvokeAsync("NotifyAsync", new CreateNotificationRequest
+                {
+                    RecipientId = report.ReportedUserId,
+                    Type = NotificationType.AdminWarning,
+                    ActorId = null,
+                    TargetId = report.ReportId.ToString(),
+                    TargetType = "Report",
+                    Message = $"Some one has reported you."
+                });
+            }
+
             await OpenFollowUpModalAsync(report);
         }
     }
 
     private async Task DismissAsync(Guid reportId)
     {
-        await ApplyReportActionAsync(
+        var report = Reports.FirstOrDefault(r => r.ReportId == reportId);
+
+        var didSucceed = await ApplyReportActionAsync(
             reportId,
             (id, reviewerId) => ReportService.DismissReportAsync(id, reviewerId),
             "Report dismissed.");
+
+        if (didSucceed && report != null)
+        {
+            // Notify reporter — report bị dismiss
+            if (_hub?.State == HubConnectionState.Connected)
+            {
+                await _hub.InvokeAsync("NotifyAsync", new CreateNotificationRequest
+                {
+                    RecipientId = report.ReporterId,
+                    Type = NotificationType.AdminWarning,
+                    ActorId = null,
+                    TargetId = report.ReportId.ToString(),
+                    TargetType = "Report",
+                    Message = $"Your report has been reviewed and dismissed. Thank you for your feedback."
+                });
+            }
+        }
     }
 
     private bool CanModerateTarget(AdminReportListItemDto report)

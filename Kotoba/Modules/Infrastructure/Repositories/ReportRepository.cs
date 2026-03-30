@@ -52,6 +52,7 @@ namespace Kotoba.Modules.Infrastructure.Repositories
                 CreatedAt = r.CreatedAt,
                 ReporterId = r.ReporterId,
                 ReporterDisplayName = r.Reporter.DisplayName,
+                ReportedUserId = r.ReportedUserId,
                 ReporterEmail = r.Reporter.Email ?? string.Empty,
                 TargetType = r.TargetType,
                 TargetId = r.TargetId,
