@@ -149,7 +149,9 @@
 @code {
     [Parameter] public ReportTargetType TargetType { get; set; }
     [Parameter] public string TargetId { get; set; } = string.Empty;
+    [Parameter] public string ReportedUserId { get; set; } = string.Empty;
     [Parameter] public string? ReporterId { get; set; }
+    [Parameter] public string? ReportedContent { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
     [Inject] IHttpContextAccessor HttpContextAccessor { get; set; } = null!;
     [Inject] NavigationManager Navigation { get; set; } = null!;

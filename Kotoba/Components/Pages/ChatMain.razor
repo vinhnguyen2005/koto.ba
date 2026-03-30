@@ -911,14 +911,29 @@
 				<div class="chat-header-name">@groupName</div>
 				@if (!string.IsNullOrEmpty(otherUserThought))
 				{
-					<div style="display:flex;align-items:center;gap:5px;margin-top:1px;">
-						<div style="width:5px;height:5px;border-radius:50%;background:var(--lime);flex-shrink:0;
+                    @* Trong phần hiển thị otherUserThought *@
+                    <div style="display:flex;align-items:center;gap:5px;margin-top:1px;position:relative;">
+                        <div style="width:5px;height:5px;border-radius:50%;background:var(--lime);flex-shrink:0;
                         animation:pulse-thought 2s infinite;"></div>
-						<span style="font-size:11px;color:var(--muted);font-style:italic;
-                         white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;">
-							@otherUserThought
-						</span>
-					</div>
+                        <span style="font-size:11px;color:var(--muted);font-style:italic;
+                         white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;
+                         cursor:pointer;"
+                              @onclick="() => showThoughtActions = !showThoughtActions">
+                            @otherUserThought
+                        </span>
+                        @if (showThoughtActions)
+                        {
+                            <div style="display:flex;align-items:center;gap:4px;"
+                                 @onclick:stopPropagation="true">
+                                <div style="padding:3px 8px;border-radius:10px;background:rgba(192,57,43,0.08);
+                                    border:1px solid rgba(192,57,43,0.2);font-size:11px;font-weight:600;
+                                    color:#c0392b;cursor:pointer;white-space:nowrap;"
+                                     @onclick="OpenThoughtReport">
+                                    🚩 Report
+                                </div>
+                            </div>
+                        }
+                    </div>
 				}
 				else
 				{
@@ -1146,6 +1161,15 @@
                                      @onclick="() => OpenReport(msg.MessageId)">
                                     🚩
                                 </div>
+                                @if (showReportModal && reportTargetId != null)
+                                {
+                                    <ReportModal TargetType="ReportTargetType.Message"
+                                                 TargetId="@reportTargetId"
+                                                 ReporterId="@currentUserId"
+                                                 ReportedUserId="@msg.SenderId"
+                                                 ReportedContent="@msg.Content"
+                                                 OnClose="() => { showReportModal = false; reportTargetId = null; }" />
+                                }
                                 @* Reaction picker — giữ nguyên *@
                                 <div style="width:26px;height:26px;border-radius:50%;background:var(--surface);
                                             border:1px solid var(--border);display:flex;align-items:center;
@@ -1362,15 +1386,17 @@
         </div>
     </div>
 }
-@if (showReportModal && reportTargetId != null)
+
+
+@if (showThoughtReport && selectedUsers?.Count > 0)
 {
-    <ReportModal TargetType="ReportTargetType.Message"
-                 TargetId="@reportTargetId"
+    <ReportModal TargetType="ReportTargetType.Thought"
+                 TargetId="@selectedUsers[0].UserId"
                  ReporterId="@currentUserId"
-                 OnClose="() => { showReportModal = false; reportTargetId = null; }" />
+                 ReportedContent="@otherUserThought"
+                 ReportedUserId="@selectedUsers[0].UserId"
+                 OnClose="() => showThoughtReport = false" />
 }
-
-
 <script>
         window.scrollToMessage = (messageId) => {
         const el = document.querySelector(`[data-msg-id="${messageId}"]`);
@@ -1421,6 +1447,9 @@
 
     private bool showReportModal = false;
     private string? reportTargetId;
+    private bool showThoughtActions = false;
+    private bool showThoughtReport = false;
+
     private readonly HashSet<string> failedAvatarSources = new(StringComparer.OrdinalIgnoreCase);
 
     private const string DefaultAvatarEmoji = "🥝";
@@ -2224,6 +2253,15 @@
     {
         reportTargetId = messageId.ToString();
         showReportModal = true;
+        hoveredMessageId = null;    // ← thêm
+        reactionPickerMessageId = null; // ← thêm   
+        StateHasChanged();
+    }
+
+    private void OpenThoughtReport()
+    {
+        showThoughtReport = true;
+        showThoughtActions = false;
         StateHasChanged();
     }
 

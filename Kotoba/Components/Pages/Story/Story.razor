@@ -32,6 +32,7 @@
     private bool IsReadOnly => CurrentUserProfile?.AccountStatus == AccountStatus.Deactivated;
     private bool _seenSent;
     private HubConnection? _hub;
+    private bool showStoryReport = false;
 
     private async Task StartHubAsync()
     {
@@ -447,8 +448,32 @@
                             <div class="story-card-time">@GetTimeAgo(story.ExpiresAt)</div>
                         </div>
                     </div>
-                    <div class="viewer-close" @onclick="CloseStory">×</div>
+
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        @* Chỉ hiện report nếu không phải story của mình *@
+                        @if (currentStories[currentIndex].UserId != CurrentUserProfile?.UserId)
+                        {
+                            <div style="padding:4px 10px;border-radius:10px;background:rgba(192,57,43,0.08);
+                                border:1px solid rgba(192,57,43,0.2);font-size:11px;font-weight:600;
+                                color:#c0392b;cursor:pointer;"
+                                 @onclick="() => showStoryReport = true"
+                                 @onclick:stopPropagation="true">
+                                🚩 Report
+                            </div>
+                        }
+                        <div class="viewer-close" @onclick="CloseStory">×</div>
+                    </div>
                 </div>
+
+                @if (showStoryReport)
+                {
+                    <ReportModal TargetType="ReportTargetType.Story"
+                                 TargetId="@currentStories[currentIndex].StoryId.ToString()"
+                                 ReporterId="@CurrentUserProfile?.UserId"
+                                 ReportedContent="@story.Content"
+                                 ReportedUserId="@story.UserId"
+                                 OnClose="() => showStoryReport = false" />
+                }
                 @if (story.UserId == CurrentUserProfile?.UserId)
                 {
                     <div class="viewer-views-btn" @onclick="LoadViewers">

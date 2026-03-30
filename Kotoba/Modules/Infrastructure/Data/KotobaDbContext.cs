@@ -124,13 +124,13 @@ namespace Kotoba.Modules.Infrastructure.Data
             });
 
             modelBuilder.Entity<ReportCategory>().HasData(
-                new ReportCategory { Id = Guid.NewGuid(), Name = "Spam", DisplayOrder = 1, IsActive = true },
-                new ReportCategory { Id = Guid.NewGuid(), Name = "Hate speech", DisplayOrder = 2, IsActive = true },
-                new ReportCategory { Id = Guid.NewGuid(), Name = "Adult content", DisplayOrder = 3, IsActive = true },
-                new ReportCategory { Id = Guid.NewGuid(), Name = "Harassment", DisplayOrder = 4, IsActive = true },
-                new ReportCategory { Id = Guid.NewGuid(), Name = "Misinformation", DisplayOrder = 5, IsActive = true },
-                new ReportCategory { Id = Guid.NewGuid(), Name = "Violence", DisplayOrder = 6, IsActive = true },
-                new ReportCategory { Id = Guid.NewGuid(), Name = "Other", DisplayOrder = 7, IsActive = true }
+                new ReportCategory { Id = new Guid("1492e272-2c27-4593-8f88-722ba92a900b"), Name = "Spam", DisplayOrder = 1, IsActive = true },
+                new ReportCategory { Id = new Guid("ab06fcf0-c1e1-47ae-a37f-828113618b39"), Name = "Hate speech", DisplayOrder = 2, IsActive = true },
+                new ReportCategory { Id = new Guid("f425f62d-8c08-4007-be10-ee2fe93f5b63"), Name = "Adult content", DisplayOrder = 3, IsActive = true },
+                new ReportCategory { Id = new Guid("c0c942a8-fb51-4d86-b9e2-6533a6f24372"), Name = "Harassment", DisplayOrder = 4, IsActive = true },
+                new ReportCategory { Id = new Guid("09b81f44-3c74-4590-be98-0e039d895917"), Name = "Misinformation", DisplayOrder = 5, IsActive = true },
+                new ReportCategory { Id = new Guid("a29408f9-cd3c-4faa-8936-540b42ef0f98"), Name = "Violence", DisplayOrder = 6, IsActive = true },
+                new ReportCategory { Id = new Guid("81af1536-10b8-4d53-958a-54b92f2bc681"), Name = "Other", DisplayOrder = 7, IsActive = true }
             );
 
             modelBuilder.Entity<Story>(entity =>
