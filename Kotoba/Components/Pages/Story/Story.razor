@@ -470,6 +470,8 @@
                     <ReportModal TargetType="ReportTargetType.Story"
                                  TargetId="@currentStories[currentIndex].StoryId.ToString()"
                                  ReporterId="@CurrentUserProfile?.UserId"
+                                 ReportedContent="@story.Content"
+                                 ReportedUserId="@story.UserId"
                                  OnClose="() => showStoryReport = false" />
                 }
                 @if (story.UserId == CurrentUserProfile?.UserId)

@@ -1161,6 +1161,15 @@
                                      @onclick="() => OpenReport(msg.MessageId)">
                                     🚩
                                 </div>
+                                @if (showReportModal && reportTargetId != null)
+                                {
+                                    <ReportModal TargetType="ReportTargetType.Message"
+                                                 TargetId="@reportTargetId"
+                                                 ReporterId="@currentUserId"
+                                                 ReportedUserId="@msg.SenderId"
+                                                 ReportedContent="@msg.Content"
+                                                 OnClose="() => { showReportModal = false; reportTargetId = null; }" />
+                                }
                                 @* Reaction picker — giữ nguyên *@
                                 <div style="width:26px;height:26px;border-radius:50%;background:var(--surface);
                                             border:1px solid var(--border);display:flex;align-items:center;
@@ -1377,13 +1386,6 @@
         </div>
     </div>
 }
-@if (showReportModal && reportTargetId != null)
-{
-    <ReportModal TargetType="ReportTargetType.Message"
-                 TargetId="@reportTargetId"
-                 ReporterId="@currentUserId"
-                 OnClose="() => { showReportModal = false; reportTargetId = null; }" />
-}
 
 
 @if (showThoughtReport && selectedUsers?.Count > 0)
@@ -1391,9 +1393,10 @@
     <ReportModal TargetType="ReportTargetType.Thought"
                  TargetId="@selectedUsers[0].UserId"
                  ReporterId="@currentUserId"
+                 ReportedContent="@otherUserThought"
+                 ReportedUserId="@selectedUsers[0].UserId"
                  OnClose="() => showThoughtReport = false" />
 }
-
 <script>
         window.scrollToMessage = (messageId) => {
         const el = document.querySelector(`[data-msg-id="${messageId}"]`);
@@ -2250,6 +2253,8 @@
     {
         reportTargetId = messageId.ToString();
         showReportModal = true;
+        hoveredMessageId = null;    // ← thêm
+        reactionPickerMessageId = null; // ← thêm   
         StateHasChanged();
     }
 
