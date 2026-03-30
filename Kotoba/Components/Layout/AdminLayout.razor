@@ -1,5 +1,23 @@
 @inherits LayoutComponentBase
+@using Kotoba.Modules.Domain.Constants
+
+<AuthorizeView Roles="@AdminRoles.AnyAdmin">
+    <Authorized Context="authState">
+        <AdminNotificationToast
+            IsSystemAdmin="@authState.User.IsInRole(AdminRoles.SystemAdmin)"
+            UserId="@authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value" />
+    </Authorized>
+</AuthorizeView>
 
 <div class="admin-layout-host">
+    <AuthorizeView Roles="@AdminRoles.AnyAdmin">
+        <Authorized Context="authState">
+            <div class="admin-layout-notification-bell-shell">
+                <AdminNotificationBell
+                    IsSystemAdmin="@authState.User.IsInRole(AdminRoles.SystemAdmin)"
+                    UserId="@authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value" />
+            </div>
+        </Authorized>
+    </AuthorizeView>
     @Body
 </div>

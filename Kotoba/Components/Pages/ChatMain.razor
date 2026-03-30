@@ -172,6 +172,26 @@
         justify-content: center;
         font-size: 20px;
         border: 2px solid transparent;
+        overflow: hidden;
+    }
+
+    .avatar-photo {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        border-radius: inherit;
+    }
+
+    .avatar-img.has-avatar,
+    .chat-header-avatar.has-avatar,
+    .msg-avatar-sm.has-avatar {
+        border: none;
+        background: transparent;
+    }
+
+    .chat-item.active .avatar-img.has-avatar {
+        border-color: transparent;
     }
 
     .chat-item.active .avatar-img { border-color: rgba(122,184,0,0.35); }
@@ -296,6 +316,7 @@
         justify-content: center;
         font-size: 17px;
         position: relative;
+        overflow: hidden;
     }
 
     .header-online {
@@ -387,6 +408,7 @@
         justify-content: center;
         font-size: 13px;
         flex-shrink: 0;
+        overflow: hidden;
     }
 
     .msg-bubble {
@@ -868,8 +890,18 @@
 {
     <div class="chat-main">
         <div class="chat-header">
-            <div class="chat-header-avatar">
-                🌿
+            <div class="chat-header-avatar @(string.IsNullOrWhiteSpace(GetHeaderAvatarSrc()) ? "" : "has-avatar")">
+                @{
+                    var headerAvatarSrc = GetHeaderAvatarSrc();
+                }
+                @if (!string.IsNullOrWhiteSpace(headerAvatarSrc))
+                {
+                    <img src="@headerAvatarSrc" alt="" class="avatar-photo" @onerror="@(() => MarkAvatarLoadFailed(headerAvatarSrc))" />
+                }
+                else
+                {
+                    @GetHeaderAvatarFallback()
+                }
                 @if (ShouldShowOnlineDot)
                 {
                     <div class="header-online"></div>
@@ -981,8 +1013,17 @@
 							@if (!isOwn)
 							{
 								var sender = selectedUsers?.FirstOrDefault(u => u.UserId == msg.SenderId);
-								var avatarEmoji = string.IsNullOrWhiteSpace(sender?.AvatarUrl) ? "🥝" : sender?.AvatarUrl ?? "🥝";
-								<div class="msg-avatar-sm">@avatarEmoji</div>
+                                var senderAvatarSrc = GetAvatarImageSource(sender?.AvatarUrl);
+                                <div class="msg-avatar-sm @(string.IsNullOrWhiteSpace(senderAvatarSrc) ? "" : "has-avatar")">
+                                    @if (!string.IsNullOrWhiteSpace(senderAvatarSrc))
+                                    {
+                                        <img src="@senderAvatarSrc" alt="" class="avatar-photo" @onerror="@(() => MarkAvatarLoadFailed(senderAvatarSrc))" />
+                                    }
+                                    else
+                                    {
+                                        @GetAvatarFallbackEmoji(sender?.AvatarUrl)
+                                    }
+                                </div>
 							}
 
                         @if (hoveredMessageId == msg.MessageId && !msg.IsRevoked && isOwn)
@@ -1186,7 +1227,19 @@
             @if (isTyping)
             {
                 <div class="typing-indicator">
-                    <div class="msg-avatar-sm">🥝</div>
+                    <div class="msg-avatar-sm @(string.IsNullOrWhiteSpace(GetTypingAvatarSrc()) ? "" : "has-avatar")">
+                        @{
+                            var typingAvatarSrc = GetTypingAvatarSrc();
+                        }
+                        @if (!string.IsNullOrWhiteSpace(typingAvatarSrc))
+                        {
+                            <img src="@typingAvatarSrc" alt="" class="avatar-photo" @onerror="@(() => MarkAvatarLoadFailed(typingAvatarSrc))" />
+                        }
+                        else
+                        {
+                            @GetTypingAvatarFallback()
+                        }
+                    </div>
                     <div style="display:flex;flex-direction:column;gap:2px;">
                         @if (selectedConv!.Type == ConversationType.Group && !string.IsNullOrEmpty(typingUserName))
                         {
@@ -1394,11 +1447,124 @@
     private bool showThoughtActions = false;
     private bool showThoughtReport = false;
 
+    private readonly HashSet<string> failedAvatarSources = new(StringComparer.OrdinalIgnoreCase);
 
-	private string GetUserInitial(string displayName)
-	{
-		return string.IsNullOrEmpty(displayName) ? "?" : displayName[0].ToString().ToUpper();
-	}
+    private const string DefaultAvatarEmoji = "🥝";
+    private const string ErrorAvatarEmoji = "🍉";
+
+    private static string? NormalizeAvatarImageSource(string? avatarValue)
+    {
+        if (string.IsNullOrWhiteSpace(avatarValue))
+            return null;
+
+        var trimmed = avatarValue.Trim().Trim('\"', '\'');
+
+        if (trimmed.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
+            return trimmed;
+
+        if (trimmed.StartsWith("//", StringComparison.Ordinal))
+            return trimmed;
+
+        if (trimmed.StartsWith("/", StringComparison.Ordinal))
+            return trimmed;
+
+        if (trimmed.StartsWith("./", StringComparison.Ordinal) || trimmed.StartsWith("../", StringComparison.Ordinal))
+            return trimmed;
+
+        if (Uri.TryCreate(trimmed, UriKind.Absolute, out var uri)
+            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+        {
+            return trimmed;
+        }
+
+        if (!trimmed.Contains("://", StringComparison.Ordinal)
+            && !trimmed.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase)
+            && !trimmed.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"/{trimmed.TrimStart('/')}";
+        }
+
+        return null;
+    }
+
+    private string? GetAvatarImageSource(string? avatarValue)
+    {
+        var normalized = NormalizeAvatarImageSource(avatarValue);
+        if (string.IsNullOrWhiteSpace(normalized))
+            return null;
+
+        return failedAvatarSources.Contains(normalized) ? null : normalized;
+    }
+
+    private void MarkAvatarLoadFailed(string? avatarSrc)
+    {
+        var normalized = NormalizeAvatarImageSource(avatarSrc);
+        if (string.IsNullOrWhiteSpace(normalized))
+            return;
+
+        failedAvatarSources.Add(normalized);
+
+        StateHasChanged();
+    }
+
+    private string GetAvatarFallbackEmoji(string? avatarValue)
+    {
+        var normalized = NormalizeAvatarImageSource(avatarValue);
+        if (!string.IsNullOrWhiteSpace(normalized)
+            && failedAvatarSources.Contains(normalized))
+        {
+            return ErrorAvatarEmoji;
+        }
+
+        return DefaultAvatarEmoji;
+    }
+
+    private string? GetHeaderAvatarSrc()
+    {
+        if (selectedConv?.Type == ConversationType.Direct && selectedUsers?.Count > 0)
+            return GetAvatarImageSource(selectedUsers[0].AvatarUrl);
+
+        return null;
+    }
+
+    private string GetHeaderAvatarFallback()
+    {
+        if (selectedConv?.Type == ConversationType.Direct)
+            return GetAvatarFallbackEmoji(selectedUsers?.FirstOrDefault()?.AvatarUrl);
+
+        if (selectedConv?.Type == ConversationType.Group)
+            return "👥";
+
+        return DefaultAvatarEmoji;
+    }
+
+    private string? GetTypingAvatarSrc()
+    {
+        if (selectedConv?.Type == ConversationType.Direct && selectedUsers?.Count > 0)
+            return GetAvatarImageSource(selectedUsers[0].AvatarUrl);
+
+        if (selectedConv?.Type == ConversationType.Group && !string.IsNullOrWhiteSpace(typingUserName))
+        {
+            var typingUser = selectedUsers?.FirstOrDefault(u => u.DisplayName == typingUserName);
+            return GetAvatarImageSource(typingUser?.AvatarUrl);
+        }
+
+        return null;
+    }
+
+    private string GetTypingAvatarFallback()
+    {
+        if (selectedConv?.Type == ConversationType.Direct && selectedUsers?.Count > 0)
+            return GetAvatarFallbackEmoji(selectedUsers[0].AvatarUrl);
+
+        if (selectedConv?.Type == ConversationType.Group && !string.IsNullOrWhiteSpace(typingUserName))
+        {
+            var typingUser = selectedUsers?.FirstOrDefault(u => u.DisplayName == typingUserName);
+            return GetAvatarFallbackEmoji(typingUser?.AvatarUrl);
+        }
+
+        return DefaultAvatarEmoji;
+    }
 
 
     private static readonly (string emoji, ReactionType type)[] ReactionEmojis =
