@@ -27,6 +27,7 @@ namespace Kotoba.Modules.Domain.DTOs
         public Guid CategoryId { get; set; }
         public string CategoryName { get; set; } = string.Empty;
         public string? Description { get; set; }
+        public string? ReportedContent { get; set; }
         public ReportStatus Status { get; set; }
     }
 }

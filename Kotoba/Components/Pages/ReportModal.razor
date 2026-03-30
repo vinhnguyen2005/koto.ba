@@ -2,7 +2,7 @@
 @using Kotoba.Modules.Domain.Enums
 @using Microsoft.AspNetCore.SignalR.Client
 @implements IDisposable
-@* Dùng: <ReportModal TargetType="ReportTargetType.Message" 
+@* Dùng: <ReportModal TargetType="ReportTargetType.Message"
                        TargetId="@msg.MessageId.ToString()"
                        ReporterId="@currentUserId"
                        OnClose="() => showReport = false" /> *@
@@ -200,10 +200,12 @@
         var (success, error, reportId) = await ReportService.SubmitReportAsync(new CreateReportRequest
         {
             ReporterId = ReporterId,
+            ReportedUserId = string.IsNullOrWhiteSpace(ReportedUserId) ? null : ReportedUserId,
             TargetType = TargetType,
             TargetId = TargetId,
             CategoryId = selectedCategoryId!.Value,
-            Description = description
+            Description = description,
+            ReportedContent = string.IsNullOrWhiteSpace(ReportedContent) ? null : ReportedContent
         });
 
         isSubmitting = false;

@@ -61,6 +61,7 @@ namespace Kotoba.Modules.Infrastructure.Repositories
                 CategoryId = r.CategoryId,
                 CategoryName = r.Category.Name,
                 Description = r.Description,
+                ReportedContent = r.ReportedContent,
                 Status = r.Status,
             })
             .ToListAsync();
@@ -83,9 +84,19 @@ namespace Kotoba.Modules.Infrastructure.Repositories
             .Distinct()
             .ToList();
 
+        var thoughtUserTargets = reports
+            .Where(r => r.TargetType == ReportTargetType.Thought)
+            .Select(r => string.IsNullOrWhiteSpace(r.ReportedUserId) ? r.TargetId : r.ReportedUserId!)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
         var userTargets = reports
             .Where(r => r.TargetType == ReportTargetType.User && !string.IsNullOrWhiteSpace(r.TargetId))
             .Select(r => r.TargetId)
+            .Concat(reports
+                .Where(r => !string.IsNullOrWhiteSpace(r.ReportedUserId))
+                .Select(r => r.ReportedUserId!))
             .Distinct(StringComparer.Ordinal)
             .ToList();
 
@@ -181,6 +192,7 @@ namespace Kotoba.Modules.Infrastructure.Repositories
             .Select(t => new
             {
                 t.Id,
+                t.CreatedAt,
                 t.Content,
                 t.UserId,
                 UserDisplayName = t.User.DisplayName,
@@ -188,6 +200,25 @@ namespace Kotoba.Modules.Infrastructure.Repositories
                 UserStatus = t.User.AccountStatus,
             })
             .ToDictionaryAsync(t => t.Id);
+
+        var thoughtByUserLookup = await ctx.CurrentThoughts
+            .AsNoTracking()
+            .Where(t => thoughtUserTargets.Contains(t.UserId))
+            .GroupBy(t => t.UserId)
+            .Select(group => group
+                .OrderByDescending(t => t.CreatedAt)
+                .Select(t => new
+                {
+                    t.Id,
+                    t.CreatedAt,
+                    t.Content,
+                    t.UserId,
+                    UserDisplayName = t.User.DisplayName,
+                    UserEmail = t.User.Email,
+                    UserStatus = t.User.AccountStatus,
+                })
+                .First())
+            .ToDictionaryAsync(t => t.UserId);
 
         var userLookup = await ctx.Users
             .AsNoTracking()
@@ -209,15 +240,37 @@ namespace Kotoba.Modules.Infrastructure.Repositories
                 {
                     if (!Guid.TryParse(report.TargetId, out var messageId) || !messageLookup.TryGetValue(messageId, out var message))
                     {
+                        if (!string.IsNullOrWhiteSpace(report.ReportedUserId)
+                            && userLookup.TryGetValue(report.ReportedUserId, out var missingMessageOwner))
+                        {
+                            report.TargetUserId = missingMessageOwner.Id;
+                            report.TargetUserDisplayName = missingMessageOwner.DisplayName;
+                            report.TargetUserEmail = missingMessageOwner.Email;
+                            report.TargetUserAccountStatus = missingMessageOwner.AccountStatus;
+                        }
+
                         report.TargetPreview = "Message not found.";
                         break;
                     }
 
                     report.TargetExists = true;
-                    report.TargetUserId = message.SenderId;
-                    report.TargetUserDisplayName = message.SenderDisplayName;
-                    report.TargetUserEmail = message.SenderEmail;
-                    report.TargetUserAccountStatus = message.SenderStatus;
+
+                    if (!string.IsNullOrWhiteSpace(report.ReportedUserId)
+                        && userLookup.TryGetValue(report.ReportedUserId, out var reportedMessageOwner))
+                    {
+                        report.TargetUserId = reportedMessageOwner.Id;
+                        report.TargetUserDisplayName = reportedMessageOwner.DisplayName;
+                        report.TargetUserEmail = reportedMessageOwner.Email;
+                        report.TargetUserAccountStatus = reportedMessageOwner.AccountStatus;
+                    }
+                    else
+                    {
+                        report.TargetUserId = message.SenderId;
+                        report.TargetUserDisplayName = message.SenderDisplayName;
+                        report.TargetUserEmail = message.SenderEmail;
+                        report.TargetUserAccountStatus = message.SenderStatus;
+                    }
+
                     report.TargetCreatedAtUtc = message.CreatedAt;
                     report.TargetPreview = message.IsDeleted
                         ? "Message has been deleted."
@@ -281,33 +334,107 @@ namespace Kotoba.Modules.Infrastructure.Repositories
                 {
                     if (!Guid.TryParse(report.TargetId, out var storyId) || !storyLookup.TryGetValue(storyId, out var story))
                     {
+                        if (!string.IsNullOrWhiteSpace(report.ReportedUserId)
+                            && userLookup.TryGetValue(report.ReportedUserId, out var missingStoryOwner))
+                        {
+                            report.TargetUserId = missingStoryOwner.Id;
+                            report.TargetUserDisplayName = missingStoryOwner.DisplayName;
+                            report.TargetUserEmail = missingStoryOwner.Email;
+                            report.TargetUserAccountStatus = missingStoryOwner.AccountStatus;
+                        }
+
                         report.TargetPreview = "Story not found.";
                         break;
                     }
 
                     report.TargetExists = true;
-                    report.TargetUserId = story.UserId;
-                    report.TargetUserDisplayName = story.UserDisplayName;
-                    report.TargetUserEmail = story.UserEmail;
-                    report.TargetUserAccountStatus = story.UserStatus;
+
+                    if (!string.IsNullOrWhiteSpace(report.ReportedUserId)
+                        && userLookup.TryGetValue(report.ReportedUserId, out var reportedStoryOwner))
+                    {
+                        report.TargetUserId = reportedStoryOwner.Id;
+                        report.TargetUserDisplayName = reportedStoryOwner.DisplayName;
+                        report.TargetUserEmail = reportedStoryOwner.Email;
+                        report.TargetUserAccountStatus = reportedStoryOwner.AccountStatus;
+                    }
+                    else
+                    {
+                        report.TargetUserId = story.UserId;
+                        report.TargetUserDisplayName = story.UserDisplayName;
+                        report.TargetUserEmail = story.UserEmail;
+                        report.TargetUserAccountStatus = story.UserStatus;
+                    }
+
                     report.TargetPreview = TrimForPreview(story.Content, 180);
                     break;
                 }
 
                 case ReportTargetType.Thought:
                 {
-                    if (!Guid.TryParse(report.TargetId, out var thoughtId) || !thoughtLookup.TryGetValue(thoughtId, out var thought))
+                    var thoughtOwnerId = string.IsNullOrWhiteSpace(report.ReportedUserId)
+                        ? report.TargetId
+                        : report.ReportedUserId!;
+
+                    var thoughtResolved = false;
+                    var thoughtCreatedAtUtc = (DateTime?)null;
+                    string? thoughtContent = null;
+                    string? thoughtUserId = null;
+                    string? thoughtUserDisplayName = null;
+                    string? thoughtUserEmail = null;
+                    AccountStatus? thoughtUserStatus = null;
+
+                    if (Guid.TryParse(report.TargetId, out var thoughtId)
+                        && thoughtLookup.TryGetValue(thoughtId, out var thoughtById))
                     {
-                        report.TargetPreview = "Thought not found.";
+                        thoughtResolved = true;
+                        thoughtCreatedAtUtc = thoughtById.CreatedAt;
+                        thoughtContent = thoughtById.Content;
+                        thoughtUserId = thoughtById.UserId;
+                        thoughtUserDisplayName = thoughtById.UserDisplayName;
+                        thoughtUserEmail = thoughtById.UserEmail;
+                        thoughtUserStatus = thoughtById.UserStatus;
+                    }
+                    else if (!string.IsNullOrWhiteSpace(thoughtOwnerId)
+                        && thoughtByUserLookup.TryGetValue(thoughtOwnerId, out var thoughtByUser))
+                    {
+                        thoughtResolved = true;
+                        thoughtCreatedAtUtc = thoughtByUser.CreatedAt;
+                        thoughtContent = thoughtByUser.Content;
+                        thoughtUserId = thoughtByUser.UserId;
+                        thoughtUserDisplayName = thoughtByUser.UserDisplayName;
+                        thoughtUserEmail = thoughtByUser.UserEmail;
+                        thoughtUserStatus = thoughtByUser.UserStatus;
+                    }
+
+                    if (thoughtResolved)
+                    {
+                        report.TargetExists = true;
+                        report.TargetCreatedAtUtc = thoughtCreatedAtUtc;
+                        report.TargetUserId = thoughtUserId;
+                        report.TargetUserDisplayName = thoughtUserDisplayName;
+                        report.TargetUserEmail = thoughtUserEmail;
+                        report.TargetUserAccountStatus = thoughtUserStatus;
+                        report.TargetPreview = TrimForPreview(thoughtContent, 180);
                         break;
                     }
 
-                    report.TargetExists = true;
-                    report.TargetUserId = thought.UserId;
-                    report.TargetUserDisplayName = thought.UserDisplayName;
-                    report.TargetUserEmail = thought.UserEmail;
-                    report.TargetUserAccountStatus = thought.UserStatus;
-                    report.TargetPreview = TrimForPreview(thought.Content, 180);
+                    if (!string.IsNullOrWhiteSpace(report.ReportedContent))
+                    {
+                        report.TargetPreview = TrimForPreview(report.ReportedContent, 180);
+
+                        if (!string.IsNullOrWhiteSpace(thoughtOwnerId)
+                            && userLookup.TryGetValue(thoughtOwnerId, out var thoughtOwner))
+                        {
+                            report.TargetUserId = thoughtOwner.Id;
+                            report.TargetUserDisplayName = thoughtOwner.DisplayName;
+                            report.TargetUserEmail = thoughtOwner.Email;
+                            report.TargetUserAccountStatus = thoughtOwner.AccountStatus;
+                        }
+
+                        break;
+                    }
+
+                    report.TargetPreview = "Thought not found.";
                     break;
                 }
 

@@ -10,7 +10,6 @@
 @inject IAdminAuditService AdminAuditService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IUserService UserService
-@inject IPresenceService PresenceService
 @inject IReportService ReportService
 
 <PageTitle>Business Admin Dashboard</PageTitle>
@@ -36,7 +35,7 @@
             <article class="admin-stat-card">
                 <p class="admin-stat-label">Open Reports</p>
                 <p class="admin-stat-value">@OpenReportCount</p>
-                <p class="admin-stat-meta">@HighPriorityOpenReportCount high-priority items</p>
+                <p class="admin-stat-meta">@DismissedReportCount dismissed so far</p>
             </article>
             <article class="admin-stat-card">
                 <p class="admin-stat-label">Stories Pending Review</p>
@@ -164,19 +163,11 @@
 </div>
 
 @code {
-    private static readonly HashSet<string> HighPriorityReportCategories = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "Hate speech",
-        "Violence",
-        "Adult content",
-        "Harassment"
-    };
-
     private int MyAuditEventsLast24h;
     private int ActiveUserCount;
     private int OnlineUserCount;
     private int OpenReportCount;
-    private int HighPriorityOpenReportCount;
+    private int DismissedReportCount;
     private int StoryReportsPendingCount;
     private int ReviewedStoryReportsCount;
     private int TotalUserCount;
@@ -209,10 +200,9 @@
     private async Task LoadHeroStatsAsync()
     {
         var usersTask = UserService.GetNormalUsersAsync();
-        var onlineUsersTask = PresenceService.GetAllOnlineUsersAsync();
         var reportsTask = ReportService.GetReportsForReviewAsync();
 
-        await Task.WhenAll(usersTask, onlineUsersTask, reportsTask);
+        await Task.WhenAll(usersTask, reportsTask);
 
         var users = usersTask.Result;
         var reports = reportsTask.Result;
@@ -222,12 +212,10 @@
         BannedUserCount = users.Count(user => user.AccountStatus == AccountStatus.Banned);
         DeactivatedUserCount = users.Count(user => user.AccountStatus == AccountStatus.Deactivated);
         RestrictedAccountCount = BannedUserCount + DeactivatedUserCount;
-        OnlineUserCount = onlineUsersTask.Result.Count;
+        OnlineUserCount = users.Count(user => user.IsOnline);
 
         OpenReportCount = reports.Count(report => report.Status == ReportStatus.Pending);
-        HighPriorityOpenReportCount = reports.Count(report =>
-            report.Status == ReportStatus.Pending
-            && HighPriorityReportCategories.Contains(report.CategoryName));
+        DismissedReportCount = reports.Count(report => report.Status == ReportStatus.Dismissed);
 
         ReportsCreatedLast24h = reports.Count(report => report.CreatedAt >= DateTime.UtcNow.AddHours(-24));
         ResolvedReportCount = reports.Count(report => report.Status is ReportStatus.Reviewed or ReportStatus.Dismissed);
